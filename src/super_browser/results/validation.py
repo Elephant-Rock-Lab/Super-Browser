@@ -27,11 +27,14 @@ class PreExecutionValidator:
 
     def validate_selector(self, selector: str) -> ActionResult:
         """Check that a CSS selector matches at least one element."""
+        import json as _json
         start = time.monotonic()
         try:
-            escaped = selector.replace('"', '\\"')
+            # HB-09-01: No f-string interpolation — selector passed as JSON arg
+            selector_json = _json.dumps(selector)
             count = self._page.evaluate(
-                f'document.querySelectorAll("{escaped}").length'
+                '(function() { var sel = JSON.parse(' + selector_json + ');'
+                ' return document.querySelectorAll(sel).length; })()'
             )
             elapsed = (time.monotonic() - start) * 1000
             if count == 0:
@@ -74,12 +77,16 @@ class PreExecutionValidator:
 
     def validate_xpath(self, xpath: str) -> ActionResult:
         """Check that an XPath expression matches at least one element."""
+        import json as _json
         start = time.monotonic()
         try:
-            escaped = xpath.replace('"', '\\"')
+            # HB-09-01: No f-string interpolation — xpath passed as JSON arg
+            xpath_json = _json.dumps(xpath)
             result = self._page.evaluate(
-                f'document.evaluate("{escaped}", document, null, '
-                f'XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength'
+                '(function() { var xp = JSON.parse(' + xpath_json + ');'
+                ' return document.evaluate(xp, document, null, '
+                '   XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength;'
+                ' })()'
             )
             elapsed = (time.monotonic() - start) * 1000
             if result == 0:

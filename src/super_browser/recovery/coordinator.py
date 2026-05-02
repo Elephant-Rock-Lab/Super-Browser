@@ -107,6 +107,13 @@ class RecoveryCoordinator:
             if not structural.valid:
                 logger.debug("Format validation failed: %s", structural.errors)
 
+        # Checkpoint before risky actions
+        is_risky = action_context.get("risky", False) or action_context.get(
+            "action_type", ""
+        ) in ("drag", "fill", "select", "navigate")
+        if is_risky:
+            await self._checkpoint_before_action(action_context)
+
         try:
             result = await action_fn()
         except Exception as exc:
@@ -208,3 +215,25 @@ class RecoveryCoordinator:
 
     def get_recovery_history(self) -> list[RecoveryEvent]:
         return list(self._recovery_history)
+
+    # ------------------------------------------------------------------
+    # Checkpoint helpers
+    # ------------------------------------------------------------------
+
+    async def _checkpoint_before_action(self, action_context: dict) -> None:
+        """Save a checkpoint before a risky action so we can roll back."""
+        try:
+            cdp = getattr(self._controller, "_cdp", None)
+            page = getattr(self._controller, "_page", None)
+            self._checkpoint_mgr = CheckpointManager(
+                self._workspace,
+                session_id=action_context.get("session_id", "default"),
+                cdp=cdp,
+                page=page,
+            )
+            await self._checkpoint_mgr.initialize()
+            label = f"pre-{action_context.get('action_type', 'action')}"
+            await self._checkpoint_mgr.save(label=label)
+            logger.debug("Checkpoint saved before risky action: %s", label)
+        except Exception as exc:
+            logger.warning("Checkpoint before action failed: %s", exc)
