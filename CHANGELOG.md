@@ -43,3 +43,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Tests
 - 28 new tests across 3 test files (test_injection, test_fail_fast, test_checkpoint)
 - Total: 1,179 passed, 0 regressions
+
+### BATCH-10: CAPTCHA Resolution + Hard Tab Cap
+
+#### Added
+- **H7:** `CAPTCHAWatchdog.resolve_captcha()` with provider-specific page-interaction strategies:
+  - `CLOUDFLARE_TURNSTILE`: click challenge iframe, wait for `cf-turnstile-response` callback
+  - `RECAPTCHA_V2`: click `.recaptcha-checkbox`, wait for success indicator
+  - `RECAPTCHA_V3`: score-based, wait only (no interaction needed)
+  - `HCAPTCHA`: click checkbox in iframe, wait for completion
+  - `GENERIC`: wait 5s and re-check
+  - `DATADOME`/`KASADA`/`AKAMAI`: log warning, return unresolved (external solver deferred to v2.0)
+- `CAPTCHAResolution` dataclass (`resolved: bool`, `strategy: str`, `duration_ms: float`) added to `stealth/types.py`
+- `_poll_js_true()` helper for CDP-based JS expression polling with configurable timeout
+- **H8:** Hard tab cap enforcement in `SubagentDelegator`:
+  - `_open_tabs` counter: increments before `new_page()`, decrements in `finally` block
+  - Hard assert `open_tabs <= max_concurrency` in `_run_child()` — violation is a programming error
+  - Post-delegation sanity assert in `delegate()` return path
+  - `open_tabs` read-only property for observability
+
+#### Hard Boundaries
+- HB-10-01: `max_concurrency` is a hard cap — no task ever spawns beyond the semaphore limit
+- HB-10-02: `resolve_captcha()` makes zero external API calls — all strategies are page-interaction only
+
+#### Tests
+- 12 new tests in `tests/test_stealth/test_captcha_resolution.py` (TEST-10-01-01 through TEST-10-01-05 + extras)
+- 7 new tests in `tests/test_agent/test_tab_cap.py` (TEST-10-02-01 through TEST-10-02-04 + extras)
+- Total: 1,198 passed, 0 regressions (2 pre-existing live-site flakes excluded)

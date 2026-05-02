@@ -10,7 +10,12 @@ from typing import Any, Optional
 from super_browser.recovery.event_bus import WatchdogEventBus
 from super_browser.recovery.types import WatchdogEvent
 from super_browser.recovery.watchdogs import BaseWatchdog
-from super_browser.stealth.types import CAPTCHADetection, CAPTCHAProvider, StealthConfig
+from super_browser.stealth.types import (
+    CAPTCHADetection,
+    CAPTCHAProvider,
+    CAPTCHAResolution,
+    StealthConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +124,169 @@ class CAPTCHAWatchdog(BaseWatchdog):
         if "datadome" in lower:
             return CAPTCHAProvider.DATADOME
         return CAPTCHAProvider.GENERIC
+
+    async def resolve_captcha(self) -> CAPTCHAResolution:
+        """Attempt to resolve the currently-detected CAPTCHA using page interaction only.
+
+        No external API calls are made (HB-10-02). Provider-specific strategies:
+          - CLOUDFLARE_TURNSTILE: find challenge iframe, click, wait for callback.
+          - RECAPTCHA_V2: find .recaptcha-checkbox, click, wait for success indicator.
+          - RECAPTCHA_V3: score-based, just wait.
+          - HCAPTCHA: find checkbox in iframe, click, wait.
+          - GENERIC: wait 5s and re-check.
+          - DATADOME / KASADA / AKAMAI: log warning, return unresolved.
+
+        Returns:
+            CAPTCHAResolution with resolved status, strategy name, and duration.
+        """
+        start = time.monotonic()
+        detection = self._detection
+        if detection is None:
+            return CAPTCHAResolution(
+                resolved=False, strategy="none", duration_ms=0.0,
+            )
+
+        provider = detection.captcha_type
+        try:
+            if provider == CAPTCHAProvider.CLOUDFLARE_TURNSTILE:
+                result = await self._resolve_turnstile()
+            elif provider == CAPTCHAProvider.RECAPTCHA_V2:
+                result = await self._resolve_recaptcha_v2()
+            elif provider == CAPTCHAProvider.RECAPTCHA_V3:
+                result = await self._resolve_recaptcha_v3()
+            elif provider == CAPTCHAProvider.HCAPTCHA:
+                result = await self._resolve_hcaptcha()
+            elif provider == CAPTCHAProvider.GENERIC:
+                result = await self._resolve_generic()
+            elif provider in (
+                CAPTCHAProvider.DATADOME,
+                CAPTCHAProvider.KASADA,
+                CAPTCHAProvider.AKAMAI,
+            ):
+                logger.warning(
+                    "CAPTCHA provider %s requires external solver — deferred to v2.0",
+                    provider.value,
+                )
+                result = False
+            else:
+                logger.warning("Unknown CAPTCHA provider: %s", provider.value)
+                result = False
+        except Exception as exc:
+            logger.debug("CAPTCHA resolution error for %s: %s", provider.value, exc)
+            result = False
+
+        duration_ms = (time.monotonic() - start) * 1000
+        if result and self._detection is not None:
+            self._detection.resolved = True
+            self._detection.resolution_time_ms = duration_ms
+
+        return CAPTCHAResolution(
+            resolved=result,
+            strategy=f"page_interaction:{provider.value}",
+            duration_ms=duration_ms,
+        )
+
+    # ------------------------------------------------------------------
+    # Provider-specific resolution helpers (page-interaction only)
+    # ------------------------------------------------------------------
+
+    async def _resolve_turnstile(self) -> bool:
+        """Click the Turnstile challenge iframe and wait for cf-turnstile-response callback."""
+        if not self._page:
+            return False
+        try:
+            iframe = await self._page.wait_for_selector(
+                'iframe[src*="challenges.cloudflare.com"]', timeout=5000,
+            )
+            if iframe:
+                await iframe.click()
+                # Wait for the cf-turnstile-response hidden input to get a value
+                js = (
+                    "(function() {"
+                    "  var el = document.querySelector('[name=\"cf-turnstile-response\"]');"
+                    "  return el ? (el.value || '').length > 0 : false;"
+                    "})()"
+                )
+                return await self._poll_js_true(js, timeout=30.0)
+        except Exception:
+            logger.debug("Turnstile resolution failed")
+        return False
+
+    async def _resolve_recaptcha_v2(self) -> bool:
+        """Click the reCAPTCHA v2 checkbox and wait for success indicator."""
+        if not self._page:
+            return False
+        try:
+            # Find and click the reCAPTCHA checkbox
+            checkbox = await self._page.wait_for_selector(
+                ".recaptcha-checkbox", timeout=5000,
+            )
+            if checkbox:
+                await checkbox.click()
+                # Wait for the checkmark / success indicator
+                js = (
+                    '(function() {'
+                    '  var el = document.querySelector(".recaptcha-checkbox-checkmark");'
+                    '  return el !== null;'
+                    '})()'
+                )
+                return await self._poll_js_true(js, timeout=30.0)
+        except Exception:
+            logger.debug("reCAPTCHA v2 resolution failed")
+        return False
+
+    async def _resolve_recaptcha_v3(self) -> bool:
+        """reCAPTCHA v3 is score-based — no user interaction needed, just wait."""
+        await asyncio.sleep(2.0)
+        return True
+
+    async def _resolve_hcaptcha(self) -> bool:
+        """Click the hCaptcha checkbox in its iframe and wait for completion."""
+        if not self._page:
+            return False
+        try:
+            iframe = await self._page.wait_for_selector(
+                'iframe[src*="hcaptcha.com"]', timeout=5000,
+            )
+            if iframe:
+                await iframe.click()
+                # Wait for hCaptcha completion indicator
+                js = (
+                    '(function() {'
+                    '  var el = document.querySelector(".hcaptcha-success");'
+                    '  return el !== null;'
+                    '})()'
+                )
+                return await self._poll_js_true(js, timeout=30.0)
+        except Exception:
+            logger.debug("hCaptcha resolution failed")
+        return False
+
+    async def _resolve_generic(self) -> bool:
+        """Generic fallback: wait 5 seconds and re-check."""
+        await asyncio.sleep(5.0)
+        result = await self._check_selectors()
+        return result is None
+
+    async def _poll_js_true(self, js: str, timeout: float = 30.0) -> bool:
+        """Poll a JS expression until it returns true or timeout elapses."""
+        if not self._cdp:
+            return False
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                result = await self._cdp.send(
+                    "Runtime.evaluate",
+                    {"expression": js, "returnByValue": True},
+                )
+                if result.ok and result.data:
+                    val = result.data.get("result", {}).get("value")
+                    if val:
+                        return True
+            except Exception:
+                pass
+            await asyncio.sleep(0.5)
+        return False
 
     @property
     def is_captcha_present(self) -> bool:

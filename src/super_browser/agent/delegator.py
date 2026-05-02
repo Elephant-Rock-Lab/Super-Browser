@@ -40,6 +40,12 @@ class SubagentDelegator:
         self._flow_logger = flow_logger
         self._security_manager = security_manager
         self._stealth_manager = stealth_manager
+        self._open_tabs = 0
+
+    @property
+    def open_tabs(self) -> int:
+        """Current number of open child tabs (read-only)."""
+        return self._open_tabs
 
     async def delegate(
         self,
@@ -79,6 +85,11 @@ class SubagentDelegator:
         failed = sum(1 for t in final_tasks if t.status == DelegationStatus.FAILED)
         cancelled = sum(1 for t in final_tasks if t.status == DelegationStatus.CANCELLED)
 
+        # Sanity check — should never happen, but catch programming errors.
+        assert self._open_tabs <= concurrency, (
+            f"Tab cap violated: {self._open_tabs} open tabs > {concurrency} max_concurrency"
+        )
+
         return DelegationResult(
             tasks=final_tasks,
             total_duration_ms=duration,
@@ -93,6 +104,10 @@ class SubagentDelegator:
 
         page = None
         try:
+            self._open_tabs += 1
+            assert self._open_tabs <= self._max_concurrency, (
+                f"Hard tab cap violated: {self._open_tabs} > {self._max_concurrency}"
+            )
             page = await self._session.new_page()
 
             from super_browser.interaction.controller import MultimodalController
@@ -124,6 +139,7 @@ class SubagentDelegator:
                     await page.close()
                 except Exception:
                     pass
+            self._open_tabs -= 1
 
         task.completed_at = time.monotonic()
         return task

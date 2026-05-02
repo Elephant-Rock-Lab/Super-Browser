@@ -114,6 +114,14 @@ class CAPTCHADetection:
 
 
 @dataclass
+class CAPTCHAResolution:
+    """Outcome of a CAPTCHA resolution attempt."""
+    resolved: bool
+    strategy: str
+    duration_ms: float
+
+
+@dataclass
 class EscalationRecord:
     domain: str
     from_tier: ProxyTier
