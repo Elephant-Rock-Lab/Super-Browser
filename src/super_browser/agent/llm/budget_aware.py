@@ -130,6 +130,40 @@ class BudgetAwareLLMClient:
 
     # -- Budget recording -----------------------------------------------------
 
+    def record_raw_usage(
+        self,
+        *,
+        input_tokens: int,
+        output_tokens: int,
+        action_name: str = "compress",
+    ) -> None:
+        """Record a usage entry directly (outside the LLMClient protocol).
+
+        Useful for components like :class:`ContextCompressor` that want to
+        track their own LLM spending without routing through
+        :meth:`propose_action` / :meth:`create_plan` / :meth:`replan`.
+        """
+        estimated_cost = _estimate_cost_usd(
+            self._model, input_tokens, output_tokens
+        )
+
+        record = TokenUsageRecord(
+            model=self._model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=estimated_cost,
+            action_name=action_name,
+        )
+
+        alert = self._governor.record_usage(record)
+        if alert is not None:
+            logger.warning(
+                "Budget alert after %s: %s (%.2f%% of cap)",
+                action_name,
+                alert.level,
+                alert.usage_pct,
+            )
+
     def _record(self, result: Any, *, action_name: str) -> None:
         """Create a :class:`TokenUsageRecord` and feed it to the governor."""
         input_tokens, output_tokens = _extract_tokens(result)

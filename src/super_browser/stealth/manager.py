@@ -42,10 +42,12 @@ class StealthManager:
         config: Optional[StealthConfig] = None,
         cdp: Any = None,
         event_bus: Any = None,
+        page: Any = None,
     ) -> None:
         self._config = config or StealthConfig()
         self._cdp = cdp
         self._event_bus = event_bus
+        self._page = page
         self._captcha_watchdog = CAPTCHAWatchdog(self._config, event_bus) if event_bus else None
         self._proxy_escalator = ProxyEscalator(self._config)
         self._action_policy = StealthActionPolicy(
@@ -56,14 +58,18 @@ class StealthManager:
 
     async def initialize(self, session: Any = None) -> None:
         if session:
-            if hasattr(session, "_page") and session._page and hasattr(session._page, "cdp"):
-                self._cdp = session._page.cdp
+            if hasattr(session, "_page") and session._page:
+                if hasattr(session._page, "cdp"):
+                    self._cdp = session._page.cdp
+                if hasattr(session._page, "raw_page"):
+                    # Patchright PageHandle — use raw_page for route interception.
+                    self._page = session._page.raw_page
             elif hasattr(session, "cdp"):
                 self._cdp = session.cdp
         if self._captcha_watchdog and session:
             page = getattr(session, "_page", None) or session
             await self._captcha_watchdog.start(page=page)
-        if self._cdp:
+        if self._page or self._cdp:
             await self._inject_init_scripts()
         self._initialized = True
         logger.info("StealthManager initialized")
@@ -210,12 +216,85 @@ class StealthManager:
             )
 
     async def _inject_init_scripts(self) -> None:
-        for script in self._config.custom_init_scripts:
+        """Inject stealth init scripts via Patchright route interception.
+
+        Instead of using Page.addScriptToEvaluateOnNewDocument (which conflicts
+        with Patchright's internal patches), we intercept HTML responses and
+        prepend stealth scripts into the page content before the browser parses
+        it.  We also strip restrictive CSP headers that would block injection.
+        """
+        scripts = self._config.custom_init_scripts
+        if not scripts:
+            return
+
+        # Build a single <script> block from all init scripts.
+        combined = "\n".join(scripts)
+        script_tag = (
+            f"<script>\n{combined}\n</script>"
+        )
+
+        _manager_ref = self  # closure reference
+
+        async def _intercept(route: Any) -> None:
             try:
-                await self._cdp.send("Page.addScriptToEvaluateOnNewDocument", {"source": script})
-                logger.debug("Injected init script (%d bytes)", len(script))
+                response = await route.fetch()
+                content_type = response.headers.get("content-type", "")
+
+                if "text/html" not in content_type:
+                    await route.fallback()
+                    return
+
+                body = await response.text()
+                # Strip restrictive CSP headers from the response.
+                headers = dict(response.headers)
+                for csp_key in ("content-security-policy",
+                                "content-security-policy-report-only"):
+                    headers.pop(csp_key, None)
+                    # Also handle title-case variants.
+                    headers.pop(csp_key.replace("-", "-"), None)
+
+                # Inject stealth script as the first element in <head>.
+                if "<head" in body:
+                    body = body.replace("<head", f"<head", 1)
+                    # Find the closing '>' of the <head> tag.
+                    head_close = body.find(">", body.find("<head"))
+                    if head_close != -1:
+                        body = body[: head_close + 1] + script_tag + body[head_close + 1 :]
+                elif "<html" in body:
+                    # Fallback: inject before </html>.
+                    body = body.replace("</html>", f"{script_tag}</html>", 1)
+                else:
+                    # No HTML structure — wrap entirely.
+                    body = f"<html><head>{script_tag}</head><body>{body}</body></html>"
+
+                _manager_ref._log_injection(len(body))
+                await route.fulfill(
+                    response=response.status,
+                    headers=headers,
+                    body=body,
+                )
             except Exception as exc:
-                logger.warning("Failed to inject init script: %s", exc)
+                logger.warning("Route interception failed, falling back: %s", exc)
+                await route.fallback()
+
+        # Register route interception on the Patchright page.
+        target = self._page
+        if target is None and self._cdp is not None:
+            logger.warning(
+                "No Patchright page available for route interception; "
+                "init scripts will not be injected."
+            )
+            return
+
+        await target.route("**/*", _intercept)
+        logger.info(
+            "Stealth route interception registered (%d init scripts)",
+            len(scripts),
+        )
+
+    @staticmethod
+    def _log_injection(body_size: int) -> None:
+        logger.debug("Injected stealth scripts via route interception (body %d bytes)", body_size)
 
     @staticmethod
     def _extract_domain(url: str) -> str:

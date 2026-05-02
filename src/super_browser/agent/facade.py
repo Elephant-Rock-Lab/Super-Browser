@@ -295,7 +295,9 @@ class SuperBrowser:
             return
         from super_browser.stealth import StealthManager, StealthConfig
         stealth_config = StealthConfig()
-        self._stealth_manager = StealthManager(stealth_config, cdp=self._page.cdp)
+        self._stealth_manager = StealthManager(
+            stealth_config, cdp=self._page.cdp, page=self._page.raw_page,
+        )
         self._loop_stealth = self._stealth_manager
 
     def _configure_skills(self) -> None:

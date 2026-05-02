@@ -28,11 +28,13 @@ class ContextCompressor:
         governor: Optional[Any] = None,
         compress_threshold: float = 0.75,
         max_output_tokens: int = 4_096,
+        budget_client: Optional[Any] = None,
     ) -> None:
         self._llm_client = llm_client
         self._governor = governor
         self._compress_threshold = compress_threshold
         self._max_output_tokens = max_output_tokens
+        self._budget_client = budget_client
 
     def should_compress(self, current_tokens: int, context_window: int) -> bool:
         return current_tokens >= context_window * self._compress_threshold
@@ -76,6 +78,17 @@ class ContextCompressor:
 
         duration_ms = (time.monotonic() - start) * 1000
         final_tokens = self._count_tokens(compressed)
+
+        # ── Budget tracking ─────────────────────────────────────
+        # If a BudgetAwareLLMClient was provided, record the cost
+        # of this compression pass (input = original tokens,
+        # output = final tokens after compression).
+        if self._budget_client is not None and final_tokens < original_tokens:
+            self._budget_client.record_raw_usage(
+                input_tokens=original_tokens,
+                output_tokens=final_tokens,
+                action_name="context_compression",
+            )
 
         return compressed, CompressionResult(
             original_tokens=original_tokens,
