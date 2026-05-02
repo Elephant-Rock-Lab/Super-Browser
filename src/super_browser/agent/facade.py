@@ -197,14 +197,18 @@ class SuperBrowser:
         )
 
     async def extract(self, query: str, *, selector: Optional[str] = None, schema: Optional[dict] = None) -> ActionResult:
+        import json as _json
         start = time.monotonic()
         if not self._controller:
             return action_result(ok=False)
 
         if selector:
+            # HB-09-01: No f-string interpolation — selector passed as JSON arg
+            selector_json = _json.dumps(selector)
             result = await self._controller._cdp.evaluate(
-                f'(function(){{ var el = document.querySelector("{selector}"); '
-                f'return el ? el.textContent : null; }})()'
+                '(function() { var sel = JSON.parse(' + selector_json + ');'
+                ' var el = document.querySelector(sel);'
+                ' return el ? el.textContent : null; })()'
             )
             extracted = result.data.get("result", {}).get("value") if result.ok else None
         else:

@@ -28,3 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Created `py.typed` marker (PEP 561)
 - Updated `__init__.py` to re-export `SuperBrowser`, `Config`, `ActionResult`, `create_llm`
 - Initial commit containing all source, test, and documentation files
+
+### BATCH-09: Security Hardening + CheckpointManager
+
+#### Fixed
+- **H4 (Critical):** Replaced f-string selector interpolation in JavaScript evaluation contexts with JSON-based parameterized evaluation (`JSON.parse(json.dumps(selector))`). Affected: `controller.py._resolve_to_coordinates()`, `validation.py.PreExecutionValidator`, `facade.py.extract()` — **HB-09-01 compliance**
+- **H5 (High):** Verified `SuperBrowser.act()` raises `ConfigurationError` without LLM client. Confirmed zero `_NoOpLLM` references in source tree
+
+#### Added
+- **H6:** Full `CheckpointManager` implementation: `save()`, `restore()`, `list_checkpoints()`, `delete()` with JSON persistence to `~/.config/super-browser/checkpoints/{session_id}/`
+- Checkpoint integration in `RecoveryCoordinator.execute_with_recovery()` — auto-checkpoint before risky actions
+- Backward-compatible aliases: `create_checkpoint()` → `save()`, `rollback()` → `restore()`
+
+#### Tests
+- 28 new tests across 3 test files (test_injection, test_fail_fast, test_checkpoint)
+- Total: 1,179 passed, 0 regressions

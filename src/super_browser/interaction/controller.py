@@ -481,12 +481,17 @@ class MultimodalController:
             return None
 
         if target.startswith("//") or target.startswith("./"):
-            escaped = target.replace("\\", "\\\\").replace('"', '\\"')
+            # HB-09-01: No f-string interpolation — selector passed as JSON arg
+            selector_json = json.dumps(target)
             expr = (
-                f'(function(){{ var r = document.evaluate("{escaped}", document, null, '
-                f'XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; '
-                f'if (!r) return null; var rect = r.getBoundingClientRect(); '
-                f'return JSON.stringify({{x: rect.x, y: rect.y, w: rect.width, h: rect.height}}); }})()'
+                '(function() {'
+                '  var xpath = JSON.parse(' + selector_json + ');'
+                '  var r = document.evaluate(xpath, document, null, '
+                '    XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;'
+                '  if (!r) return null;'
+                '  var rect = r.getBoundingClientRect();'
+                '  return JSON.stringify({x: rect.x, y: rect.y, w: rect.width, h: rect.height});'
+                '})()'
             )
             result = await self._cdp.evaluate(expr)
             if result.ok and result.data:
@@ -496,11 +501,16 @@ class MultimodalController:
                     return (b["x"] + b["w"] / 2, b["y"] + b["h"] / 2)
             return None
 
-        escaped = target.replace("\\", "\\\\").replace('"', '\\"').replace("'", "\\'")
+        # HB-09-01: No f-string interpolation — selector passed as JSON arg
+        selector_json = json.dumps(target)
         expr = (
-            f'(function(){{ var el = document.querySelector("{escaped}"); '
-            f'if (!el) return null; var rect = el.getBoundingClientRect(); '
-            f'return JSON.stringify({{x: rect.x, y: rect.y, w: rect.width, h: rect.height}}); }})()'
+            '(function() {'
+            '  var sel = JSON.parse(' + selector_json + ');'
+            '  var el = document.querySelector(sel);'
+            '  if (!el) return null;'
+            '  var rect = el.getBoundingClientRect();'
+            '  return JSON.stringify({x: rect.x, y: rect.y, w: rect.width, h: rect.height});'
+            '})()'
         )
         result = await self._cdp.evaluate(expr)
         if result.ok and result.data:
