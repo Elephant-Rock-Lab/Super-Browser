@@ -5,7 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0-prealpha] — 2026-05-03
+## [1.0.0] — 2026-05-03
+
+### Production Release — Super Browser v1.0
+
+All 16 AIV Batches complete. 1,370 tests passing.
+
+#### Batches Completed
+
+| Batch | Deliverable | Tests Added |
+|:------|:------------|:------------|
+| BATCH-01 | Prerelease LLM Client (Anthropic + OpenAI) | +14 |
+| BATCH-02 | 10 Real-World Discovery Tasks | — |
+| BATCH-03 | Unified Config (from_env, from_yaml, from_dict) | +33 |
+| BATCH-04 | Production LLM Client (retry, timeout, budget awareness) | +37 |
+| BATCH-05 | Git Init + README + Repository Hygiene | — |
+| BATCH-06 | CI/CD Pipeline (GitHub Actions, pre-commit) | — |
+| BATCH-07 | Stealth Detection Test Suite (16 tests + gauntlet script) | +16 |
+| BATCH-08 | H1+H2+H3: Route interception, cascade governor, compressor tracking | +13 |
+| BATCH-09 | H4+H5+H6: Selector injection fix, fail-fast, checkpoint manager | +30 |
+| BATCH-10 | H7+H8: CAPTCHA resolution strategies, hard tab cap | +19 |
+| BATCH-11 | M31–M34: Debug mode, error screenshots, retry budget, structured logging | +40 |
+| BATCH-12 | M35–M38: Action timeout, header randomization, proxy rotation, UA pool | +41 |
+| BATCH-13 | M39–M40: Credential vault, fingerprint scoring | +26 |
+| BATCH-14 | Integration Tests (67 E2E + smoke + error + performance) | +67 |
+| BATCH-15 | API Reference, Quickstart, Examples, Architecture | — |
+| BATCH-16 | Final Verification + v1.0.0 Release Tag | — |
+
+#### Gap Model Closure
+
+- **HIGH gaps (H1–H8):** All closed (BATCH-08 to BATCH-10)
+- **MEDIUM gaps (M31–M40):** All closed (BATCH-11 to BATCH-13)
+
+#### Key Features
+
+- **Stealth:** Patchright-based route interception, header randomization, UA rotation, fingerprint scoring
+- **Budget:** Governor-enforced daily cap, model cascade with budget awareness, compressor cost tracking
+- **Recovery:** CheckpointManager, CAPTCHA resolution, interactive debug mode
+- **Security:** Credential vault (Fernet encryption), parameterized selector evaluation
+- **Observability:** Structured JSON logging, error screenshots, correlation IDs
+- **Reliability:** Action timeout enforcement, hard tab cap, retry budget per action
+
+
 
 ### BATCH-13: Credential Vault + Fingerprint Scoring
 
