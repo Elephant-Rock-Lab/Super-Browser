@@ -1,4 +1,9 @@
-"""StealthDiagnostics — health checks for the stealth stack."""
+"""StealthDiagnostics — health checks for the stealth stack.
+
+Provides :func:`run_diagnostics` for raw check execution and
+:func:`run_full_diagnostics` for scored results including fingerprint
+composite scoring (M40).
+"""
 
 from __future__ import annotations
 
@@ -6,6 +11,7 @@ import logging
 import time
 from typing import Any, Optional
 
+from super_browser.stealth.fingerprint_score import FingerprintScorer, FingerprintScoreResult
 from super_browser.stealth.types import (
     ProxyTier,
     StealthConfig,
@@ -135,3 +141,49 @@ def _check_proxy(config: StealthConfig) -> StealthDiagnostic:
         passed=True,
         detail=f"Proxy tier: {config.proxy_tier.value}",
     )
+
+
+# -- Category mapping for fingerprint scoring (M40) ------------------------
+
+_CHECK_TO_CATEGORY: dict[StealthHealthItem, str] = {
+    StealthHealthItem.WEBDRIVER_UNDEFINED: "webdriver",
+    StealthHealthItem.CLI_SWITCHES_CLEAN: "headers",
+    StealthHealthItem.TLS_JA4_MATCH: "tls",
+    StealthHealthItem.RUNTIME_ENABLE_ABSENT: "misc",
+    StealthHealthItem.HEADLESS_MODE_NEW: "user_agent",
+    StealthHealthItem.PROXY_ACTIVE: "plugins_mimetypes",
+}
+
+_scorer = FingerprintScorer()
+
+
+def score_from_report(report: StealthHealthReport) -> FingerprintScoreResult:
+    """Convert a :class:`StealthHealthReport` into a fingerprint score."""
+    checks: dict[str, dict[str, Any]] = {}
+    for diag in report.checks:
+        category = _CHECK_TO_CATEGORY.get(diag.check, "misc")
+        checks[category] = {
+            "passed": diag.passed,
+            "detail": diag.detail,
+        }
+    return _scorer.score_from_checks(checks)
+
+
+async def run_full_diagnostics(
+    cdp: Any,
+    config: StealthConfig,
+) -> dict[str, Any]:
+    """Run all stealth checks and return scored results.
+
+    Returns
+    -------
+    dict
+        Keys: ``report`` (:class:`StealthHealthReport`),
+        ``score_result`` (:class:`FingerprintScoreResult`).
+    """
+    report = await run_diagnostics(cdp, config)
+    score_result = score_from_report(report)
+    return {
+        "report": report,
+        "score_result": score_result,
+    }

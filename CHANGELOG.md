@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-prealpha] — 2026-05-03
+
+### BATCH-13: Credential Vault + Fingerprint Scoring
+
+#### Added
+- **M39:** `CredentialVault` class for encrypted local credential storage
+  - Fernet symmetric encryption (AES-128-CBC + HMAC-SHA256) via `cryptography` library
+  - Key derived from machine ID, cached at `~/.config/super-browser/.vault_key`
+  - `store()`, `retrieve()`, `list_sites()`, `delete()` API
+  - HB-13-01 compliance: credentials always encrypted at rest, never logged
+- **M40:** `FingerprintScorer` for composite stealth fingerprint scoring
+  - Weighted 0-100 composite score: webdriver (25%), headers (20%), TLS (15%), plugins/mimetypes (15%), user_agent (15%), misc (10%)
+  - Letter grades: A (90+), B (75-89), C (60-74), D (<60)
+  - `run_full_diagnostics(page)` integration in `diagnostics.py`
+  - `FingerprintScoreResult` dataclass with score, grade, deductions, category_scores
+
+#### Tests
+- 11 new tests in `tests/test_security/test_credential_vault.py` (TEST-13-01-01 through 05)
+- 15 new tests in `tests/test_stealth/test_fingerprint_score.py` (TEST-13-02-01 through 03)
+- Total: 1,287 passed, 0 regressions (2 pre-existing live-site flakes excluded)
+
 ## [0.1.0-prealpha] — 2026-05-02
 
 ### BATCH-01: Prerelease LLM Client
