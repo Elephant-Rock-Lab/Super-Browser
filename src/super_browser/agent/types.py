@@ -91,6 +91,31 @@ class LoopResult:
 
 
 @dataclass
+class DebugConfig:
+    """Configuration for interactive debug mode on failures."""
+    enabled: bool = False
+    screenshot_dir: str = "./debug_artifacts"
+    capture_dom: bool = True
+
+
+@dataclass
+class RetryBudget:
+    """Per-action retry limits."""
+    click: int = 3
+    type: int = 3
+    navigate: int = 2
+    scroll: int = 2
+    extract: int = 1
+
+    def can_retry(self, action_type: str, attempt: int) -> bool:
+        """Return True if *attempt* (1-indexed) is within budget for *action_type*."""
+        limit = getattr(self, action_type, None)
+        if limit is None:
+            return True
+        return attempt <= limit
+
+
+@dataclass
 class ChildTask:
     task_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     instruction: str = ""
