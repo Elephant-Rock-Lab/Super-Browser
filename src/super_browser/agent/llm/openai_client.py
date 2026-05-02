@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -10,6 +11,14 @@ from super_browser.agent.llm.protocol import LLMClient
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_MAX_RETRIES = 3
+_RETRY_DELAYS = (1, 2, 4)  # exponential back-off in seconds
+_CALL_TIMEOUT = 30  # seconds
+
 
 class OpenAILLMClient:
     """Concrete LLMClient backed by the ``openai`` async SDK.
@@ -17,6 +26,13 @@ class OpenAILLMClient:
     All SDK calls go through :class:`openai.AsyncOpenAI` so they
     are natively async — no ``asyncio.to_thread`` wrapper is needed,
     satisfying **HB-01-01**.
+
+    Production enhancements (BATCH-04):
+    * 3-attempt retry with exponential back-off (1 s, 2 s, 4 s) on
+      transient errors (HTTP 429, 500+, ``APIConnectionError``).
+    * 30-second ``asyncio.wait_for`` timeout on every LLM call.
+    * Token counting extracted from ``response.usage`` and returned
+      alongside action/params data.
     """
 
     def __init__(
@@ -38,6 +54,7 @@ class OpenAILLMClient:
             ) from exc
 
         self._client = openai.AsyncOpenAI(api_key=api_key)
+        self._openai_mod = openai
 
     # -- LLMClient interface --------------------------------------------------
 
@@ -49,8 +66,8 @@ class OpenAILLMClient:
     ) -> dict:
         """Ask the model for the next action.
 
-        Returns ``{"action": ..., "params": ...}`` or
-        ``{"done": True, "summary": ...}``.
+        Returns ``{"action": ..., "params": ..., "tokens": {"input": N, "output": N}}``
+        or ``{"done": True, "summary": ..., "tokens": {"input": N, "output": N}}``.
         """
         messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
 
@@ -62,14 +79,13 @@ class OpenAILLMClient:
         if tools:
             kwargs["tools"] = self._format_tools(tools)
 
-        try:
-            response = await self._client.chat.completions.create(**kwargs)
-        except Exception as exc:
-            raise LLMError(
-                f"OpenAI API error during propose_action: {exc}"
-            ) from exc
+        response = await self._call_with_retry(
+            self._client.chat.completions.create, **kwargs
+        )
 
-        return self._parse_propose_action(response)
+        result = self._parse_propose_action(response)
+        result["tokens"] = self._extract_tokens(response)
+        return result
 
     async def create_plan(
         self,
@@ -89,19 +105,15 @@ class OpenAILLMClient:
             f"Available tools: {json.dumps(tools)}"
         )
 
-        try:
-            response = await self._client.chat.completions.create(
-                model=self._model,
-                max_tokens=self._max_tokens,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content},
-                ],
-            )
-        except Exception as exc:
-            raise LLMError(
-                f"OpenAI API error during create_plan: {exc}"
-            ) from exc
+        response = await self._call_with_retry(
+            self._client.chat.completions.create,
+            model=self._model,
+            max_tokens=self._max_tokens,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+        )
 
         return self._parse_plan_response(response)
 
@@ -126,21 +138,101 @@ class OpenAILLMClient:
             f"Error: {error}"
         )
 
-        try:
-            response = await self._client.chat.completions.create(
-                model=self._model,
-                max_tokens=self._max_tokens,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content},
-                ],
-            )
-        except Exception as exc:
-            raise LLMError(
-                f"OpenAI API error during replan: {exc}"
-            ) from exc
+        response = await self._call_with_retry(
+            self._client.chat.completions.create,
+            model=self._model,
+            max_tokens=self._max_tokens,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+        )
 
         return self._parse_plan_response(response)
+
+    # -- Retry / timeout helpers ---------------------------------------------
+
+    async def _call_with_retry(self, coro_fn: Any, **kwargs: Any) -> Any:
+        """Call an async SDK function with retry + timeout.
+
+        Retries up to ``_MAX_RETRIES`` times with exponential back-off on
+        transient errors.  Each attempt is wrapped in a 30 s timeout.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                return await asyncio.wait_for(
+                    coro_fn(**kwargs),
+                    timeout=_CALL_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                raise TimeoutError(
+                    f"OpenAI API call timed out after {_CALL_TIMEOUT}s "
+                    f"(attempt {attempt + 1}/{_MAX_RETRIES})"
+                ) from None
+            except Exception as exc:
+                last_exc = exc
+                if not self._is_transient(exc):
+                    raise LLMError(
+                        f"OpenAI API error: {exc}"
+                    ) from exc
+                if attempt < _MAX_RETRIES - 1:
+                    delay = _RETRY_DELAYS[attempt]
+                    logger.warning(
+                        "OpenAI transient error (attempt %d/%d), "
+                        "retrying in %ds: %s",
+                        attempt + 1, _MAX_RETRIES, delay, exc,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        "OpenAI API failed after %d retries: %s",
+                        _MAX_RETRIES, exc,
+                    )
+        # All retries exhausted — should not reach here, but just in case.
+        raise LLMError(
+            f"OpenAI API error after {_MAX_RETRIES} retries: {last_exc}"
+        ) from last_exc
+
+    def _is_transient(self, exc: Exception) -> bool:
+        """Return True if the exception is transient and worth retrying."""
+        openai = self._openai_mod
+
+        try:
+            # APIConnectionError — network-level, always transient.
+            if hasattr(openai, "APIConnectionError") and isinstance(exc, openai.APIConnectionError):
+                return True
+
+            # APIStatusError — check status code.
+            if hasattr(openai, "APIStatusError") and isinstance(exc, openai.APIStatusError):
+                status = getattr(exc, "status_code", 0)
+                return status == 429 or status >= 500
+        except TypeError:
+            # The SDK module may be mocked (MagicMock types are not valid
+            # for isinstance).  Fall through to the message-based heuristic.
+            pass
+
+        # Fallback: check for common patterns in the exception message.
+        msg = str(exc).lower()
+        if "429" in msg or "rate" in msg:
+            return True
+        if any(code in msg for code in ("500", "502", "503", "504")):
+            return True
+
+        return False
+
+    # -- Token extraction ----------------------------------------------------
+
+    @staticmethod
+    def _extract_tokens(response: Any) -> dict[str, int]:
+        """Extract input/output token counts from the OpenAI response."""
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            return {
+                "input": getattr(usage, "prompt_tokens", 0) or 0,
+                "output": getattr(usage, "completion_tokens", 0) or 0,
+            }
+        return {"input": 0, "output": 0}
 
     # -- Private helpers ------------------------------------------------------
 
