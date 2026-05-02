@@ -1,0 +1,49 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.py[cod]
+
+# Test / type caches
+.pytest_cache/
+.mypy_cache/
+.benchmarks/
+.coverage
+htmlcov/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment / secrets
+.env
+*.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# AIV working documents (per-Batch docs)
+docs/aiv/*/
+
+# Session data
+sessions/
+
+# Lock files
+uv.lock
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Spill directory
+~/.super-browser/spill/

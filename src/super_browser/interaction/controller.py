@@ -1,0 +1,600 @@
+"""MultimodalController — three-tier cascade interaction engine."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import re
+import time
+from typing import Any, Callable, Optional
+from urllib.parse import urlparse
+
+from super_browser.browser.cdp import CDPBridge
+from super_browser.browser.page import PageHandle
+from super_browser.interaction.cache import TierPreferenceCache
+from super_browser.interaction.decorator import agent_action
+from super_browser.interaction.snapshot import SnapshotProvider
+from super_browser.interaction.types import (
+    AXSnapshot,
+    CascadeResult,
+    Tier,
+    TierAttempt,
+    TierOutcome,
+    VisionRequest,
+)
+from super_browser.interaction.vision import VisionProviderFactory
+from super_browser.results import (
+    ActionError,
+    ActionMethod,
+    ActionResult,
+    ClickResult,
+    DragResult,
+    ErrorCategory,
+    FillResult,
+    HoverResult,
+    KeypressResult,
+    ScrollResult,
+    SelectResult,
+    action_result,
+    timed_action_result,
+)
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_TIMEOUTS: dict[Tier, float] = {
+    Tier.SELECTOR: 5.0,
+    Tier.COORDINATE: 3.0,
+    Tier.VISION: 15.0,
+}
+
+
+class MultimodalController:
+
+    def __init__(
+        self,
+        page: PageHandle,
+        cdp: CDPBridge,
+        tier_cache: Optional[TierPreferenceCache] = None,
+        vision_provider: Optional[VisionProviderFactory] = None,
+        *,
+        tier_timeouts: Optional[dict[Tier, float]] = None,
+        snapshot_provider: Optional[SnapshotProvider] = None,
+        vision_controller: Any = None,
+    ) -> None:
+        self._page = page
+        self._cdp = cdp
+        self._cache = tier_cache
+        self._vision_factory = vision_provider
+        self._timeouts = tier_timeouts or dict(_DEFAULT_TIMEOUTS)
+        self._snapshot_provider = snapshot_provider or SnapshotProvider(cdp)
+        self._ax_snapshot: Optional[AXSnapshot] = None
+        self._last_url: str = ""
+        self._two_phase: bool = False
+        self._verifier: Any = None
+        self._vision_controller = vision_controller
+
+    # =====================================================================
+    # Action methods
+    # =====================================================================
+
+    @agent_action(security_level="sensitive")
+    async def click(
+        self,
+        target: str,
+        *,
+        button: str = "left",
+        click_count: int = 1,
+        description: Optional[str] = None,
+    ) -> ActionResult:
+        """Click on an element identified by selector, coordinates, or description."""
+
+        async def t1():
+            await self._page.raw_page.click(target, button=button, click_count=click_count)
+            return action_result(
+                ok=True,
+                data=ClickResult(target=target, method=ActionMethod.SELECTOR),
+                method=ActionMethod.SELECTOR,
+            )
+
+        async def t2():
+            coords = await self._resolve_to_coordinates(target)
+            if coords is None:
+                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Cannot resolve coordinates for '{target}'"))
+            x, y = coords
+            await self._cdp.compositor_click(x, y, button=button, click_count=click_count)
+            return action_result(
+                ok=True,
+                data=ClickResult(target=target, method=ActionMethod.COORDINATE, coordinates=(x, y)),
+                method=ActionMethod.COORDINATE,
+            )
+
+        async def t3():
+            return await self._vision_click(target, description or target, button, click_count)
+
+        result, _ = await self._cascade("click", target, description, t1, t2, t3)
+        return result
+
+    @agent_action(security_level="sensitive")
+    async def fill(
+        self,
+        target: str,
+        value: str,
+        *,
+        clear_first: bool = True,
+        description: Optional[str] = None,
+    ) -> ActionResult:
+
+        async def t1():
+            if clear_first:
+                await self._page.raw_page.click(target)
+                await self._cdp.compositor_key_press("a", modifiers=2)
+            await self._page.raw_page.fill(target, value)
+            return action_result(
+                ok=True,
+                data=FillResult(selector=target, value_entered=value, method=ActionMethod.SELECTOR, character_count=len(value), clear_first=clear_first),
+                method=ActionMethod.SELECTOR,
+            )
+
+        async def t2():
+            coords = await self._resolve_to_coordinates(target)
+            if coords is None:
+                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Cannot resolve coordinates for '{target}'"))
+            x, y = coords
+            await self._cdp.compositor_click(x, y)
+            if clear_first:
+                await self._cdp.compositor_key_press("a", modifiers=2)
+            await self._cdp.compositor_type(value)
+            return action_result(
+                ok=True,
+                data=FillResult(selector=target, value_entered=value, method=ActionMethod.COORDINATE, character_count=len(value), clear_first=clear_first),
+                method=ActionMethod.COORDINATE,
+            )
+
+        async def t3():
+            return await self._vision_fill(target, value, description or target, clear_first)
+
+        result, _ = await self._cascade("fill", target, description, t1, t2, t3)
+        return result
+
+    @agent_action(security_level="sensitive")
+    async def select(
+        self,
+        target: str,
+        option: str,
+        *,
+        by: str = "text",
+        description: Optional[str] = None,
+    ) -> ActionResult:
+
+        async def t1():
+            await self._page.raw_page.select_option(target, **{by: option})
+            return action_result(
+                ok=True,
+                data=SelectResult(selector=target, option=option, method=ActionMethod.SELECTOR, by=by),
+                method=ActionMethod.SELECTOR,
+            )
+
+        async def t2():
+            coords = await self._resolve_to_coordinates(target)
+            if coords is None:
+                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Cannot resolve '{target}'"))
+            await self._cdp.compositor_click(*coords)
+            await asyncio.sleep(0.1)
+            snap = await self.capture_ax_snapshot()
+            for node in snap.find_by_role("option") + snap.find_by_role("treeitem"):
+                if option.lower() in node.name.lower():
+                    if node.center:
+                        await self._cdp.compositor_click(*node.center)
+                        return action_result(
+                            ok=True,
+                            data=SelectResult(selector=target, option=option, method=ActionMethod.COORDINATE, by=by),
+                            method=ActionMethod.COORDINATE,
+                        )
+            return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Option '{option}' not found"))
+
+        async def t3():
+            return await self._vision_click(target, description or target)
+
+        result, _ = await self._cascade("select", target, description, t1, t2, t3)
+        return result
+
+    @agent_action(security_level="sensitive")
+    async def hover(
+        self,
+        target: str,
+        *,
+        description: Optional[str] = None,
+    ) -> ActionResult:
+
+        async def t1():
+            await self._page.raw_page.hover(target)
+            return action_result(
+                ok=True,
+                data=HoverResult(target=target, method=ActionMethod.SELECTOR),
+                method=ActionMethod.SELECTOR,
+            )
+
+        async def t2():
+            coords = await self._resolve_to_coordinates(target)
+            if coords is None:
+                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Cannot resolve coordinates for '{target}'"))
+            await self._cdp.send("Input.dispatchMouseEvent", {
+                "type": "mouseMoved", "x": coords[0], "y": coords[1],
+            })
+            return action_result(
+                ok=True,
+                data=HoverResult(target=target, method=ActionMethod.COORDINATE, coordinates=coords),
+                method=ActionMethod.COORDINATE,
+            )
+
+        async def t3():
+            coords = await self._vision_locate(description or target)
+            if coords is None:
+                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, "Vision could not locate element"))
+            await self._cdp.send("Input.dispatchMouseEvent", {
+                "type": "mouseMoved", "x": coords[0], "y": coords[1],
+            })
+            return action_result(
+                ok=True,
+                data=HoverResult(target=target, method=ActionMethod.VISION, coordinates=coords),
+                method=ActionMethod.VISION,
+            )
+
+        result, _ = await self._cascade("hover", target, description, t1, t2, t3)
+        return result
+
+    @agent_action(security_level="dangerous")
+    async def drag(
+        self,
+        source: str,
+        destination: str,
+        *,
+        steps: int = 5,
+        source_description: Optional[str] = None,
+        destination_description: Optional[str] = None,
+    ) -> ActionResult:
+
+        async def t1():
+            await self._page.raw_page.drag_and_drop(source, destination)
+            return action_result(
+                ok=True,
+                data=DragResult(source=source, destination=destination, method=ActionMethod.SELECTOR),
+                method=ActionMethod.SELECTOR,
+            )
+
+        async def t2():
+            src = await self._resolve_to_coordinates(source)
+            dst = await self._resolve_to_coordinates(destination)
+            if src is None or dst is None:
+                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, "Cannot resolve source/destination"))
+            await self._cdp.send("Input.dispatchMouseEvent", {
+                "type": "mousePressed", "x": src[0], "y": src[1], "button": "left", "clickCount": 1,
+            })
+            for i in range(1, steps + 1):
+                frac = i / steps
+                mx = src[0] + (dst[0] - src[0]) * frac
+                my = src[1] + (dst[1] - src[1]) * frac
+                await self._cdp.send("Input.dispatchMouseEvent", {
+                    "type": "mouseMoved", "x": mx, "y": my,
+                })
+            await self._cdp.send("Input.dispatchMouseEvent", {
+                "type": "mouseReleased", "x": dst[0], "y": dst[1], "button": "left", "clickCount": 1,
+            })
+            return action_result(
+                ok=True,
+                data=DragResult(source=source, destination=destination, method=ActionMethod.COORDINATE, source_coords=src, dest_coords=dst),
+                method=ActionMethod.COORDINATE,
+            )
+
+        async def t3():
+            src = await self._vision_locate(source_description or source)
+            dst = await self._vision_locate(destination_description or destination)
+            if src is None or dst is None:
+                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, "Vision could not locate source/destination"))
+            await self._cdp.compositor_click(*src)
+            await self._cdp.compositor_click(*dst)
+            return action_result(
+                ok=True,
+                data=DragResult(source=source, destination=destination, method=ActionMethod.VISION, source_coords=src, dest_coords=dst),
+                method=ActionMethod.VISION,
+            )
+
+        result, _ = await self._cascade("drag", source, source_description, t1, t2, t3)
+        return result
+
+    @agent_action(security_level="safe")
+    async def scroll(
+        self,
+        *,
+        direction: str = "down",
+        amount: int = 3,
+        target: Optional[str] = None,
+    ) -> ActionResult:
+        delta_map = {"down": (0, 100), "up": (0, -100), "right": (100, 0), "left": (-100, 0)}
+        dx, dy = delta_map.get(direction, (0, 100))
+
+        async def t1():
+            if target:
+                await self._page.raw_page.locator(target).scroll(direction, amount)
+            else:
+                await self._page.raw_page.mouse.wheel(dx * amount, dy * amount)
+            return action_result(
+                ok=True,
+                data=ScrollResult(direction=direction, amount=amount, method=ActionMethod.SELECTOR),
+                method=ActionMethod.SELECTOR,
+            )
+
+        async def t2():
+            await self._cdp.send("Input.dispatchMouseEvent", {
+                "type": "mouseWheel", "deltaX": dx * amount, "deltaY": dy * amount,
+                "x": 0, "y": 0,
+            })
+            return action_result(
+                ok=True,
+                data=ScrollResult(direction=direction, amount=amount, method=ActionMethod.COORDINATE),
+                method=ActionMethod.COORDINATE,
+            )
+
+        result, _ = await self._cascade("scroll", target or "page", None, t1, t2, None)
+        return result
+
+    @agent_action(security_level="safe")
+    async def keypress(
+        self,
+        key: str,
+        *,
+        modifiers: int = 0,
+    ) -> ActionResult:
+        start = time.monotonic()
+        await self._cdp.compositor_key_press(key, modifiers=modifiers)
+        return timed_action_result(
+            ok=True,
+            start_ns=start,
+            data=KeypressResult(key=key, modifiers=modifiers),
+            method=ActionMethod.COORDINATE,
+        )
+
+    # =====================================================================
+    # AX Snapshot
+    # =====================================================================
+
+    async def capture_ax_snapshot(self) -> AXSnapshot:
+        url = self._page.url
+        title = await self._page.title()
+        self._ax_snapshot = await self._snapshot_provider.capture_ax_only(url, title)
+        self._last_url = url
+        return self._ax_snapshot
+
+    # =====================================================================
+    # Visual Verification (GAP-03)
+    # =====================================================================
+
+    def enable_verification(self, verifier: Any) -> None:
+        self._two_phase = True
+        self._verifier = verifier
+
+    @property
+    def two_phase(self) -> bool:
+        return self._two_phase
+
+    # =====================================================================
+    # Cascade engine
+    # =====================================================================
+
+    async def _cascade(
+        self,
+        action: str,
+        target: str,
+        description: Optional[str],
+        tier1_fn: Callable,
+        tier2_fn: Callable,
+        tier3_fn: Optional[Callable] = None,
+    ) -> tuple[ActionResult, CascadeResult]:
+        start = time.monotonic()
+        domain = self._extract_domain()
+        pattern = self._classify_selector_pattern(target)
+
+        preferred = self._cache.get(domain, pattern) if self._cache else None
+
+        tier_order: list[Tier] = list(Tier)
+        if preferred:
+            tier_order = [preferred] + [t for t in Tier if t != preferred]
+
+        has_vision = (
+            self._vision_factory is not None
+            and self._vision_factory.get_provider() is not None
+        )
+        if not has_vision:
+            tier_order = [t for t in tier_order if t != Tier.VISION]
+
+        fn_map: dict[Tier, Optional[Callable]] = {
+            Tier.SELECTOR: tier1_fn,
+            Tier.COORDINATE: tier2_fn,
+            Tier.VISION: tier3_fn,
+        }
+
+        attempts: list[TierAttempt] = []
+
+        for tier in tier_order:
+            fn = fn_map.get(tier)
+            if fn is None:
+                attempts.append(TierAttempt(tier, TierOutcome.UNAVAILABLE, 0.0))
+                continue
+
+            tier_start = time.monotonic()
+            timeout = self._timeouts.get(tier, 5.0)
+            try:
+                result = await asyncio.wait_for(fn(), timeout=timeout)
+                duration = (time.monotonic() - tier_start) * 1000
+
+                if result.ok:
+                    attempts.append(TierAttempt(tier, TierOutcome.SUCCESS, duration))
+                    if self._cache:
+                        self._cache.record_success(domain, pattern, tier)
+                        await self._cache.persist(domain)
+                    total = (time.monotonic() - start) * 1000
+                    cascade = CascadeResult(action, target, tuple(attempts), tier, total)
+                    return result, cascade
+                else:
+                    attempts.append(TierAttempt(tier, TierOutcome.FAILED, duration, error=str(result.error.message if result.error else "unknown")))
+                    if self._cache:
+                        self._cache.record_failure(domain, pattern, tier)
+
+            except asyncio.TimeoutError:
+                duration = (time.monotonic() - tier_start) * 1000
+                attempts.append(TierAttempt(tier, TierOutcome.FAILED, duration, error="timeout"))
+                if self._cache:
+                    self._cache.record_failure(domain, pattern, tier)
+
+            except Exception as exc:
+                duration = (time.monotonic() - tier_start) * 1000
+                attempts.append(TierAttempt(tier, TierOutcome.FAILED, duration, error=str(exc)))
+                if self._cache:
+                    self._cache.record_failure(domain, pattern, tier)
+
+        total = (time.monotonic() - start) * 1000
+        cascade = CascadeResult(action, target, tuple(attempts), None, total)
+        error_summary = "; ".join(
+            f"T{a.tier.value}:{a.error}" for a in attempts if a.error
+        )
+        error = ActionError(
+            category=ErrorCategory.SELECTOR_NOT_FOUND,
+            message=f"All tiers failed for {action}('{target}')",
+            recoverable=True,
+            retry_hint=error_summary,
+        )
+        result = action_result(ok=False, error=error)
+        return result, cascade
+
+    # =====================================================================
+    # Coordinate resolution
+    # =====================================================================
+
+    async def _resolve_to_coordinates(self, target: str) -> Optional[tuple[float, float]]:
+        if target.startswith("@"):
+            if self._ax_snapshot is None:
+                await self.capture_ax_snapshot()
+            node = self._ax_snapshot.resolve(target) if self._ax_snapshot else None
+            if node and node.center:
+                return node.center
+            return None
+
+        if target.startswith("//") or target.startswith("./"):
+            escaped = target.replace("\\", "\\\\").replace('"', '\\"')
+            expr = (
+                f'(function(){{ var r = document.evaluate("{escaped}", document, null, '
+                f'XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; '
+                f'if (!r) return null; var rect = r.getBoundingClientRect(); '
+                f'return JSON.stringify({{x: rect.x, y: rect.y, w: rect.width, h: rect.height}}); }})()'
+            )
+            result = await self._cdp.evaluate(expr)
+            if result.ok and result.data:
+                val = result.data.get("result", {}).get("value")
+                if val:
+                    b = json.loads(val)
+                    return (b["x"] + b["w"] / 2, b["y"] + b["h"] / 2)
+            return None
+
+        escaped = target.replace("\\", "\\\\").replace('"', '\\"').replace("'", "\\'")
+        expr = (
+            f'(function(){{ var el = document.querySelector("{escaped}"); '
+            f'if (!el) return null; var rect = el.getBoundingClientRect(); '
+            f'return JSON.stringify({{x: rect.x, y: rect.y, w: rect.width, h: rect.height}}); }})()'
+        )
+        result = await self._cdp.evaluate(expr)
+        if result.ok and result.data:
+            val = result.data.get("result", {}).get("value")
+            if val:
+                b = json.loads(val)
+                return (b["x"] + b["w"] / 2, b["y"] + b["h"] / 2)
+        return None
+
+    # =====================================================================
+    # Vision helpers
+    # =====================================================================
+
+    async def _vision_locate(self, description: str) -> Optional[tuple[float, float]]:
+        snap_result = await self._cdp.capture_screenshot(format="png")
+        if not snap_result.ok or not snap_result.data:
+            return None
+        screenshot_data = snap_result.data.get("data")
+        if not screenshot_data:
+            return None
+        import base64
+        screenshot_bytes = base64.b64decode(screenshot_data)
+
+        if self._vision_controller is not None:
+            response = await self._vision_controller.locate_element(
+                screenshot_bytes, description, (1280, 720),
+                ax_snapshot=self._ax_snapshot,
+            )
+            if response.found and response.x is not None and response.y is not None:
+                return (response.x, response.y)
+            return None
+
+        if not self._vision_factory:
+            return None
+        provider = self._vision_factory.get_provider()
+        if not provider:
+            return None
+        request = VisionRequest(
+            screenshot=screenshot_bytes,
+            element_description=description,
+            page_url=self._page.url,
+            viewport_size=(1280, 720),
+        )
+        response = await provider.locate(request)
+        if response.found and response.x is not None and response.y is not None:
+            return (response.x, response.y)
+        return None
+
+    async def _vision_click(self, target: str, description: str, button: str = "left", click_count: int = 1) -> ActionResult:
+        coords = await self._vision_locate(description)
+        if coords is None:
+            return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Vision could not locate '{target}'"))
+        await self._cdp.compositor_click(coords[0], coords[1], button=button, click_count=click_count)
+        return action_result(
+            ok=True,
+            data=ClickResult(target=target, method=ActionMethod.VISION, coordinates=coords),
+            method=ActionMethod.VISION,
+        )
+
+    async def _vision_fill(self, target: str, value: str, description: str, clear_first: bool) -> ActionResult:
+        coords = await self._vision_locate(description)
+        if coords is None:
+            return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Vision could not locate '{target}'"))
+        await self._cdp.compositor_click(*coords)
+        if clear_first:
+            await self._cdp.compositor_key_press("a", modifiers=2)
+        await self._cdp.compositor_type(value)
+        return action_result(
+            ok=True,
+            data=FillResult(selector=target, value_entered=value, method=ActionMethod.VISION, character_count=len(value), clear_first=clear_first),
+            method=ActionMethod.VISION,
+        )
+
+    # =====================================================================
+    # Utility
+    # =====================================================================
+
+    def _extract_domain(self) -> str:
+        try:
+            return urlparse(self._page.url).hostname or ""
+        except Exception:
+            return ""
+
+    def _classify_selector_pattern(self, target: str) -> str:
+        if target.startswith("@"):
+            return "@ref"
+        if target.startswith("//") or target.startswith("./"):
+            return "xpath"
+        # tag.class-name-suffix -> tag.*
+        m = re.match(r"^([a-zA-Z][\w-]*)\.[\w-]+", target)
+        if m:
+            return f"{m.group(1)}.*"
+        # #id-prefix-suffix -> #prefix-*
+        m = re.match(r"^#([\w]+)[\w-]*", target)
+        if m:
+            return f"#{m.group(1)}-*"
+        return target

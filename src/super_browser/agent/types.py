@@ -1,0 +1,119 @@
+"""GAP-07 agent types — enums, plan items, loop results, delegation types."""
+
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Any, Optional
+
+
+class PlanStatus(StrEnum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class StepEvent(StrEnum):
+    STEP_START = "step_start"
+    STEP_COMPLETE = "step_complete"
+    STEP_ERROR = "step_error"
+    LOOP_DETECTED = "loop_detected"
+    PLAN_UPDATED = "plan_updated"
+    ABORT = "abort"
+    MAX_STEPS_REACHED = "max_steps_reached"
+
+
+class DelegationStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class PluginSlotKey(StrEnum):
+    MEMORY = "memory"
+    CONTEXT_ENGINE = "context_engine"
+    SKILL_PROVIDER = "skill_provider"
+    VISION_PROVIDER = "vision_provider"
+    CUSTOM = "custom"
+
+
+@dataclass
+class PlanItem:
+    index: int
+    description: str
+    status: PlanStatus = PlanStatus.PENDING
+    action_taken: Optional[str] = None
+    result_summary: Optional[str] = None
+    started_at: Optional[float] = None
+    completed_at: Optional[float] = None
+
+    @property
+    def duration_ms(self) -> Optional[float]:
+        if self.started_at and self.completed_at:
+            return (self.completed_at - self.started_at) * 1000
+        return None
+
+
+@dataclass
+class LoopNudge:
+    level: int
+    message: str
+    repetition_count: int
+    repeated_action: str
+
+
+@dataclass
+class StepResult:
+    step_number: int
+    action_name: str
+    action_params: dict[str, Any]
+    action_result: Any
+    duration_ms: float
+    page_changed: bool = False
+    error: Optional[str] = None
+
+
+@dataclass
+class LoopResult:
+    instruction: str
+    steps: list[StepResult] = field(default_factory=list)
+    plan: list[PlanItem] = field(default_factory=list)
+    completion_reason: str = ""
+    total_duration_ms: float = 0.0
+    total_steps: int = 0
+    loop_detections: int = 0
+    replan_count: int = 0
+
+
+@dataclass
+class ChildTask:
+    task_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    instruction: str = ""
+    status: DelegationStatus = DelegationStatus.PENDING
+    result: Any = None
+    started_at: Optional[float] = None
+    completed_at: Optional[float] = None
+
+    @property
+    def duration_ms(self) -> Optional[float]:
+        if self.started_at and self.completed_at:
+            return (self.completed_at - self.started_at) * 1000
+        return None
+
+
+@dataclass
+class DelegationResult:
+    tasks: list[ChildTask]
+    total_duration_ms: float
+    completed_count: int
+    failed_count: int
+    cancelled_count: int
+
+    @property
+    def all_succeeded(self) -> bool:
+        return self.failed_count == 0 and self.cancelled_count == 0

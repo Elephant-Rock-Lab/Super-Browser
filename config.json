@@ -1,0 +1,18 @@
+{
+  "id": "ws_9814ceff",
+  "name": "SUPER-BROWSER",
+  "slug": "super-browser",
+  "defaults": {
+    "permissionMode": "safe",
+    "cyclablePermissionModes": [
+      "safe",
+      "allow-all"
+    ],
+    "enabledSourceSlugs": []
+  },
+  "localMcpServers": {
+    "enabled": true
+  },
+  "createdAt": 1777144290897,
+  "updatedAt": 1777144290899
+}
