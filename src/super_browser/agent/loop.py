@@ -11,6 +11,7 @@ from typing import Any, Awaitable, Callable, Optional
 from super_browser.agent.loop_detector import ActionLoopDetector
 from super_browser.agent.registry import ToolRegistry
 from super_browser.agent.types import (
+    ActionTimeoutConfig,
     DebugConfig,
     LoopNudge,
     LoopResult,
@@ -45,6 +46,7 @@ class AgentLoop:
         stealth_manager: Optional[Any] = None,
         debug_config: Optional[DebugConfig] = None,
         retry_budget: Optional[RetryBudget] = None,
+        timeout_config: Optional[ActionTimeoutConfig] = None,
     ) -> None:
         self._controller = controller
         self._registry = registry
@@ -61,6 +63,7 @@ class AgentLoop:
         self._stealth_manager = stealth_manager
         self._debug_config = debug_config
         self._retry_budget = retry_budget
+        self._timeout_config = timeout_config
         self._retry_counts: dict[str, int] = {}
 
     async def run(
@@ -299,8 +302,29 @@ class AgentLoop:
         try:
             result = tool.handler(**params)
             if asyncio.iscoroutine(result):
-                result = await result
+                if self._timeout_config is not None:
+                    timeout = self._timeout_config.timeout_for(action_name)
+                    result = await asyncio.wait_for(result, timeout=timeout)
+                else:
+                    result = await result
             return result
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Action timeout exceeded",
+                extra={
+                    "action": action_name,
+                    "timeout": self._timeout_config.timeout_for(action_name) if self._timeout_config else None,
+                    "event_type": "action_timeout",
+                },
+            )
+            return action_result(
+                ok=False,
+                error=ActionError(
+                    ErrorCategory.UNKNOWN,
+                    f"Action {action_name!r} timed out"
+                    f" ({self._timeout_config.timeout_for(action_name)}s)",
+                ),
+            )
         except Exception as exc:
             return action_result(
                 ok=False,

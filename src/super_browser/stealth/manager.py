@@ -10,7 +10,9 @@ from typing import Any, Optional
 from super_browser.stealth.action_policy import StealthActionPolicy
 from super_browser.stealth.captcha import CAPTCHAWatchdog
 from super_browser.stealth.diagnostics import run_diagnostics
+from super_browser.stealth.headers import HeaderRandomizer
 from super_browser.stealth.proxy import ProxyEscalator
+from super_browser.stealth.user_agent_pool import UserAgentPool
 from super_browser.stealth.types import (
     CAPTCHADetection,
     EscalationRecord,
@@ -54,6 +56,8 @@ class StealthManager:
             policy_file=self._config.policy_file,
             confirm_callback=self._config.confirm_callback,
         )
+        self._header_randomizer = HeaderRandomizer()
+        self._ua_pool: Optional[UserAgentPool] = None
         self._initialized = False
 
     async def initialize(self, session: Any = None) -> None:
@@ -73,6 +77,28 @@ class StealthManager:
             await self._inject_init_scripts()
         self._initialized = True
         logger.info("StealthManager initialized")
+
+    def randomize_headers(self, *, is_json: bool = False) -> dict[str, str]:
+        """Return a fresh set of randomised HTTP headers.
+
+        Call this before each navigation request to vary the browser
+        fingerprint.
+        """
+        return self._header_randomizer.randomize_all(is_json=is_json)
+
+    def get_user_agent(self) -> str:
+        """Return the next user-agent string from the UA pool.
+
+        Lazily initialises the pool on first call.
+        """
+        if self._ua_pool is None:
+            self._ua_pool = UserAgentPool()
+        return self._ua_pool.get_next()
+
+    @property
+    def ua_pool(self) -> Optional[UserAgentPool]:
+        """The underlying UserAgentPool (``None`` until first accessed)."""
+        return self._ua_pool
 
     async def shutdown(self) -> None:
         if self._captcha_watchdog:
