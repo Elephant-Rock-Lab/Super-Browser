@@ -3,6 +3,7 @@
 from super_browser.stealth.action_policy import StealthActionPolicy
 from super_browser.stealth.captcha import CAPTCHAWatchdog
 from super_browser.stealth.diagnostics import run_diagnostics
+from super_browser.stealth.headers import HeaderRandomizer
 from super_browser.stealth.manager import (
     CaptchaTimeoutError,
     ProxyExhaustedError,
@@ -24,6 +25,7 @@ from super_browser.stealth.types import (
     StealthHealthReport,
     StealthRisk,
 )
+from super_browser.stealth.user_agent_pool import UserAgentPool
 
 __all__ = [
     "CAPTCHADetection",
@@ -31,6 +33,7 @@ __all__ = [
     "CAPTCHAWatchdog",
     "CaptchaTimeoutError",
     "EscalationRecord",
+    "HeaderRandomizer",
     "HTTPMorphRequestConfig",
     "HTTPMorphResponse",
     "ProxyEscalator",
@@ -45,5 +48,6 @@ __all__ = [
     "StealthHealthReport",
     "StealthManager",
     "StealthRisk",
+    "UserAgentPool",
     "run_diagnostics",
 ]

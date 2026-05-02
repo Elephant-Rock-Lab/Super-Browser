@@ -99,6 +99,32 @@ class DebugConfig:
 
 
 @dataclass
+class ActionTimeoutConfig:
+    """Per-action timeout configuration for the agent loop.
+
+    Attributes:
+        default_action_timeout: Default timeout (seconds) for any action.
+        navigation_timeout: Timeout (seconds) for navigation actions.
+        per_action_overrides: Mapping of action name -> timeout override.
+    """
+    default_action_timeout: float = 30.0
+    navigation_timeout: float = 60.0
+    per_action_overrides: dict[str, float] = field(default_factory=dict)
+
+    def timeout_for(self, action_name: str) -> float:
+        """Return the configured timeout for *action_name*.
+
+        Navigation actions use ``navigation_timeout`` unless explicitly
+        overridden in ``per_action_overrides``.
+        """
+        if action_name in self.per_action_overrides:
+            return self.per_action_overrides[action_name]
+        if action_name in ("navigate", "goto", "go_to", "navigate_to"):
+            return self.navigation_timeout
+        return self.default_action_timeout
+
+
+@dataclass
 class RetryBudget:
     """Per-action retry limits."""
     click: int = 3
