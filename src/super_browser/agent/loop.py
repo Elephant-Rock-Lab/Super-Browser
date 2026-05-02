@@ -11,10 +11,12 @@ from typing import Any, Awaitable, Callable, Optional
 from super_browser.agent.loop_detector import ActionLoopDetector
 from super_browser.agent.registry import ToolRegistry
 from super_browser.agent.types import (
+    DebugConfig,
     LoopNudge,
     LoopResult,
     PlanItem,
     PlanStatus,
+    RetryBudget,
     StepEvent,
     StepResult,
 )
@@ -41,6 +43,8 @@ class AgentLoop:
         flow_logger: Optional[Any] = None,
         security_manager: Optional[Any] = None,
         stealth_manager: Optional[Any] = None,
+        debug_config: Optional[DebugConfig] = None,
+        retry_budget: Optional[RetryBudget] = None,
     ) -> None:
         self._controller = controller
         self._registry = registry
@@ -55,6 +59,9 @@ class AgentLoop:
         self._flow_logger = flow_logger
         self._security_manager = security_manager
         self._stealth_manager = stealth_manager
+        self._debug_config = debug_config
+        self._retry_budget = retry_budget
+        self._retry_counts: dict[str, int] = {}
 
     async def run(
         self,
@@ -170,11 +177,41 @@ class AgentLoop:
 
             except Exception as exc:
                 duration = (time.monotonic() - step_start) * 1000
+                # Debug artifact capture
+                if self._debug_config and self._debug_config.enabled:
+                    await self._capture_debug_artifacts(exc, step_num)
                 steps.append(StepResult(step_num, "error", {}, None, duration, error=str(exc)))
                 await self._emit(StepEvent.STEP_ERROR, {"step_number": step_num, "error": str(exc)})
 
         await self._emit(StepEvent.MAX_STEPS_REACHED, {"total_steps": self._max_steps})
         return self._build_result(instruction, steps, plan, "max_steps", start, loop_detections, replan_count)
+
+    # -- Retry budget --
+
+    def _check_retry_budget(self, action_name: str) -> bool:
+        """Return False if action has exhausted its retry budget."""
+        if self._retry_budget is None:
+            return True  # No budget configured → always allow
+        attempt = self._retry_counts.get(action_name, 0) + 1
+        self._retry_counts[action_name] = attempt
+        if not self._retry_budget.can_retry(action_name, attempt):
+            logger.warning(
+                "Retry budget exhausted for action %r at attempt %d", action_name, attempt,
+            )
+            return False
+        return True
+
+    # -- Debug artifacts --
+
+    async def _capture_debug_artifacts(self, exc: Exception, step_num: int) -> None:
+        """Capture screenshot + DOM snapshot when debug mode is enabled."""
+        try:
+            from super_browser.agent.debug import InteractiveDebugSession
+            session = InteractiveDebugSession(self._debug_config, interactive=False)
+            page = self._controller._page if self._controller and hasattr(self._controller, '_page') else None
+            await session.capture_error_artifacts(page, exc, self._debug_config)
+        except Exception as debug_exc:
+            logger.warning("Debug artifact capture failed: %s", debug_exc)
 
     # -- Plan management --
 

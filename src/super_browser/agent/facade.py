@@ -182,6 +182,8 @@ class SuperBrowser:
             flow_logger=self._flow_logger,
             security_manager=self._security_manager,
             stealth_manager=getattr(self, '_stealth_manager', None),
+            debug_config=getattr(self._config, 'debug_config', None),
+            retry_budget=getattr(self._config, 'retry_budget', None),
         )
         result = await loop.run(instruction)
         return action_result(
