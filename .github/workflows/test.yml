@@ -42,3 +42,28 @@ jobs:
       - name: Coverage summary
         if: always()
         run: python -m coverage report
+
+  # -----------------------------------------------------------------
+  # Stealth detection tests (programmatic only — live sites excluded)
+  # -----------------------------------------------------------------
+  stealth-tests:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run stealth detection tests (excludes live_stealth)
+        run: |
+          pytest tests/stealth_detection/ -m "not live_stealth" -v
