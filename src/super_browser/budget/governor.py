@@ -74,6 +74,20 @@ class TokenBudgetGovernor:
                 self._alert_callback(alert)
             return alert
 
+    # -- Convenience ----------------------------------------------------------
+
+    def can_spend(self, estimated_cost_usd: float) -> bool:
+        """Return ``True`` if *estimated_cost_usd* fits within the daily cap.
+
+        Uses :meth:`check_budget` internally so the same reset / lock
+        semantics apply.  Designed for call-sites (e.g.
+        :class:`ModelCascade`) that need a simple boolean answer.
+        """
+        block = self.check_budget(
+            BudgetScope.DAILY, estimated_cost_usd=estimated_cost_usd
+        )
+        return block is None
+
     def new_action(self) -> None:
         with self._lock:
             self._state.action_spend_usd = 0.0

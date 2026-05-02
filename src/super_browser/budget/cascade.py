@@ -106,6 +106,24 @@ class ModelCascade:
         if next_cascade is None:
             return None
 
+        # ── Governor check (HB-08-02) ────────────────────────────
+        # Before escalating to a more expensive tier, verify the
+        # estimated cost is within the daily budget.  If the governor
+        # denies the spend we fall back to the *cheapest* tier instead
+        # of the requested escalation target.
+        estimated_cost = next_cascade.cost_multiplier
+        if self._governor is not None:
+            if not self._governor.can_spend(estimated_cost):
+                cheapest = self._config.tiers[0] if self._config.tiers else None
+                if cheapest is not None:
+                    return CascadeResult(
+                        selected_tier=cheapest,
+                        model=cheapest.model,
+                        provider=cheapest.provider,
+                        estimated_cost_usd=0.0,
+                    )
+                return None
+
         self._escalation_counts[current_tier] = self._escalation_counts.get(current_tier, 0) + 1
 
         return CascadeResult(

@@ -154,28 +154,206 @@ class TestValidateStealthSite:
         asyncio.run(_test())
 
 
+class _FakeRoute:
+    """Captures route() calls for testing Patchright route interception."""
+    def __init__(self):
+        self.routes = []
+
+    async def route(self, pattern, handler):
+        self.routes.append((pattern, handler))
+
+
+class _FakeResponse:
+    """Simulates a Patchright APIResponse for route.fetch()."""
+    def __init__(self, body="<html><head></head><body>Hello</body></html>",
+                 content_type="text/html", status=200,
+                 extra_headers=None):
+        self._body = body
+        self.status = status
+        self._headers = {"content-type": content_type}
+        if extra_headers:
+            self._headers.update(extra_headers)
+
+    @property
+    def headers(self):
+        return self._headers
+
+    async def text(self):
+        return self._body
+
+
+class _FakeRouteContext:
+    """Simulates a Patchright Route object passed to the handler."""
+    def __init__(self, response=None, fetch_error=None):
+        self._response = response or _FakeResponse()
+        self._fetch_error = fetch_error
+        self.fulfilled = None
+        self.fell_back = False
+
+    async def fetch(self):
+        if self._fetch_error:
+            raise self._fetch_error
+        return self._response
+
+    async def fallback(self):
+        self.fell_back = True
+
+    async def fulfill(self, **kwargs):
+        self.fulfilled = kwargs
+
+
 class TestInjectInitScripts:
-    def test_injects_via_cdp(self):
-        cfg = StealthConfig(custom_init_scripts=("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})",))
+    def test_registers_route_on_patchright_page(self):
+        cfg = StealthConfig(custom_init_scripts=(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})",
+        ))
+        fake_page = _FakeRoute()
+        mgr = StealthManager(config=cfg, page=fake_page)
+
+        async def _test():
+            await mgr._inject_init_scripts()
+            assert len(fake_page.routes) == 1
+            assert fake_page.routes[0][0] == "**/*"
+
+        asyncio.run(_test())
+
+    def test_injects_script_into_html_head(self):
+        script = "window.__test = true;"
+        cfg = StealthConfig(custom_init_scripts=(script,))
+        fake_page = _FakeRoute()
+        mgr = StealthManager(config=cfg, page=fake_page)
+
+        async def _test():
+            await mgr._inject_init_scripts()
+            handler = fake_page.routes[0][1]
+            route_ctx = _FakeRouteContext()
+            await handler(route_ctx)
+            assert route_ctx.fulfilled is not None
+            body = route_ctx.fulfilled["body"]
+            assert script in body
+            # Script tag should be inside <head>
+            head_end = body.find("</head>")
+            script_pos = body.find(script)
+            assert script_pos < head_end
+
+        asyncio.run(_test())
+
+    def test_strips_csp_headers(self):
+        cfg = StealthConfig(custom_init_scripts=("console.log('x');",))
+        fake_page = _FakeRoute()
+        mgr = StealthManager(config=cfg, page=fake_page)
+
+        async def _test():
+            await mgr._inject_init_scripts()
+            handler = fake_page.routes[0][1]
+            resp = _FakeResponse(
+                extra_headers={
+                    "content-security-policy": "default-src 'self'",
+                    "content-security-policy-report-only": "script-src 'none'",
+                }
+            )
+            route_ctx = _FakeRouteContext(response=resp)
+            await handler(route_ctx)
+            assert route_ctx.fulfilled is not None
+            headers = route_ctx.fulfilled["headers"]
+            assert "content-security-policy" not in headers
+            assert "content-security-policy-report-only" not in headers
+
+        asyncio.run(_test())
+
+    def test_non_html_passthrough(self):
+        cfg = StealthConfig(custom_init_scripts=("console.log('x');",))
+        fake_page = _FakeRoute()
+        mgr = StealthManager(config=cfg, page=fake_page)
+
+        async def _test():
+            await mgr._inject_init_scripts()
+            handler = fake_page.routes[0][1]
+            resp = _FakeResponse(
+                body="var x = 1;",
+                content_type="application/javascript",
+            )
+            route_ctx = _FakeRouteContext(response=resp)
+            await handler(route_ctx)
+            assert route_ctx.fell_back is True
+            assert route_ctx.fulfilled is None
+
+        asyncio.run(_test())
+
+    def test_no_scripts_no_route_registered(self):
+        fake_page = _FakeRoute()
+        mgr = StealthManager(page=fake_page)
+
+        async def _test():
+            await mgr._inject_init_scripts()
+            assert len(fake_page.routes) == 0
+
+        asyncio.run(_test())
+
+    def test_no_page_with_cdp_logs_warning(self):
+        cfg = StealthConfig(custom_init_scripts=("console.log('x');",))
         cdp = _FakeCDP()
         mgr = StealthManager(config=cfg, cdp=cdp)
 
         async def _test():
+            # Should not raise; logs warning instead.
             await mgr._inject_init_scripts()
-            assert len(cdp.calls) == 1
-            assert cdp.calls[0][0] == "Page.addScriptToEvaluateOnNewDocument"
+            assert len(cdp.calls) == 0  # No CDP calls made
 
         asyncio.run(_test())
 
-    def test_no_scripts_no_calls(self):
-        mgr = StealthManager(cdp=_FakeCDP())
+    def test_multiple_scripts_combined(self):
+        cfg = StealthConfig(custom_init_scripts=(
+            "window.__a = 1;",
+            "window.__b = 2;",
+        ))
+        fake_page = _FakeRoute()
+        mgr = StealthManager(config=cfg, page=fake_page)
 
         async def _test():
             await mgr._inject_init_scripts()
-            # _FakeCDP starts with empty calls
-            pass
+            handler = fake_page.routes[0][1]
+            route_ctx = _FakeRouteContext()
+            await handler(route_ctx)
+            body = route_ctx.fulfilled["body"]
+            assert "window.__a = 1;" in body
+            assert "window.__b = 2;" in body
 
         asyncio.run(_test())
+
+    def test_interception_error_falls_back(self):
+        cfg = StealthConfig(custom_init_scripts=("console.log('x');",))
+        fake_page = _FakeRoute()
+        mgr = StealthManager(config=cfg, page=fake_page)
+
+        async def _test():
+            await mgr._inject_init_scripts()
+            handler = fake_page.routes[0][1]
+            route_ctx = _FakeRouteContext(fetch_error=RuntimeError("network error"))
+            await handler(route_ctx)
+            assert route_ctx.fell_back is True
+
+        asyncio.run(_test())
+
+
+class TestGrepAddScript:
+    """TEST-08-01-01: Verify no addScriptToEvaluateOnNewDocument calls in codebase."""
+    def test_no_add_script_to_evaluate(self):
+        import subprocess
+        import os
+        src_dir = os.path.join(
+            os.path.dirname(__file__), "..", "..", "src"
+        )
+        # Match only actual CDP.send() calls, not comments or docstrings.
+        # The pattern matches: await ...send("Page.addScriptToEvaluateOnNewDocument"
+        result = subprocess.run(
+            ["grep", "-r", "send(.*Page.addScriptToEvaluateOnNewDocument", src_dir],
+            capture_output=True, text=True,
+        )
+        # grep returns 1 when no matches found — that's the success condition.
+        assert result.returncode != 0, (
+            f"Found Page.addScriptToEvaluateOnNewDocument call in src:\n{result.stdout}"
+        )
 
 
 class TestExtractDomain:
