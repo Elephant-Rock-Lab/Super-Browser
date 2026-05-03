@@ -25,7 +25,8 @@ from super_browser.budget.governor import TokenBudgetGovernor
 from super_browser.budget.cascade import ModelCascade
 from super_browser.budget.compressor import ContextCompressor
 from super_browser.budget.credential_pool import CircuitBreaker, CredentialPool
-from super_browser.budget.client import BudgetAwareLLMClient
+from super_browser.budget.client import BudgetCascadeClient
+from super_browser.budget.client import BudgetCascadeClient as BudgetAwareLLMClient  # compatibility alias
 
 __all__ = [
     "AlertLevel", "BudgetAlert", "BudgetBlock", "BudgetConfig", "BudgetScope",
@@ -33,5 +34,5 @@ __all__ = [
     "CircuitState", "CompressionResult", "CompressionStrategy", "CostEstimator",
     "CostTier", "CredentialEntry", "CredentialRotated", "ModelCascade",
     "ModelPricing", "SelectionStrategy", "TokenBudgetGovernor", "TokenUsageRecord",
-    "ContextCompressor", "CredentialPool", "BudgetAwareLLMClient",
+    "ContextCompressor", "CredentialPool", "BudgetCascadeClient", "BudgetAwareLLMClient",
 ]

@@ -184,27 +184,59 @@ class CheckpointManager:
         form_values = state.get("form_values", {})
         if form_values and self._cdp is not None:
             try:
+                # HB-17-04: Use Runtime.callFunctionOn with argument passing
+                # to avoid JS injection from form values via string concatenation.
                 import json as _json
-                values_json = _json.dumps(form_values)
-                await self._cdp.evaluate(
-                    '(function() {'
-                    '  var values = JSON.parse(' + values_json + ');'
-                    '  var inputs = document.querySelectorAll("input, textarea, select");'
-                    '  for (var i = 0; i < inputs.length; i++) {'
-                    '    var el = inputs[i];'
-                    '    var key = el.id || el.name || ("__idx_" + i);'
-                    '    if (key in values) {'
-                    '      if (el.type === "checkbox" || el.type === "radio") {'
-                    '        el.checked = values[key];'
-                    '      } else {'
-                    '        el.value = values[key];'
-                    '      }'
-                    '    }'
-                    '  }'
-                    '})()'
-                )
+                # CDP Runtime.evaluate with the values as a proper JS argument
+                result = await self._cdp.send("Runtime.evaluate", {
+                    "expression": "(function(values) {"
+                        "var inputs = document.querySelectorAll('input, textarea, select');"
+                        "for (var i = 0; i < inputs.length; i++) {"
+                        "  var el = inputs[i];"
+                        "  var key = el.id || el.name || ('__idx_' + i);"
+                        "  if (key in values) {"
+                        "    if (el.type === 'checkbox' || el.type === 'radio') {"
+                        "      el.checked = values[key];"
+                        "    } else {"
+                        "      el.value = values[key];"
+                        "    }"
+                        "  }"
+                        "}})(JSON.parse(arguments[0]))",
+                    "args": [_json.dumps(form_values)],
+                    "returnByValue": True,
+                })
             except Exception:
-                pass
+                # Fallback: if Runtime.evaluate with args doesn't work,
+                # use CDP Runtime.callFunctionOn on the page context
+                try:
+                    # Get page execution context
+                    ctx_result = await self._cdp.send("Runtime.evaluate", {
+                        "expression": "this",
+                        "returnByValue": False,
+                    })
+                    obj_id = ctx_result.get("result", {}).get("objectId")
+                    if obj_id:
+                        await self._cdp.send("Runtime.callFunctionOn", {
+                            "functionDeclaration": "function(valuesJson) {"
+                                "var values = JSON.parse(valuesJson);"
+                                "var inputs = document.querySelectorAll('input, textarea, select');"
+                                "for (var i = 0; i < inputs.length; i++) {"
+                                "  var el = inputs[i];"
+                                "  var key = el.id || el.name || ('__idx_' + i);"
+                                "  if (key in values) {"
+                                "    if (el.type === 'checkbox' || el.type === 'radio') {"
+                                "      el.checked = values[key];"
+                                "    } else {"
+                                "      el.value = values[key];"
+                                "    }"
+                                "  }"
+                                "}}",
+                            "objectId": obj_id,
+                            "arguments": [{"value": _json.dumps(form_values) }],
+                            "returnByValue": True,
+                        })
+                except Exception:
+                    pass
 
         # --- Restore scroll position ---
         scroll_x = state.get("scroll_x", 0)

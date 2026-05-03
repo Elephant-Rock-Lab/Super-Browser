@@ -198,7 +198,7 @@ class SuperBrowser:
                 completion_reason=CompletionReason.SUCCESS if result.completion_reason == "success" else CompletionReason.ERROR,
                 summary=f"Completed in {result.total_steps} steps",
                 steps_executed=result.total_steps,
-                budget_remaining=self._budget_client._governor.daily_remaining if self._budget_client else 0.0,
+                budget_remaining=self._budget_client.budget_remaining if self._budget_client else 0.0,
                 execution_history=[{"step": s.step_number, "action": s.action_name} for s in result.steps],
             ),
         )

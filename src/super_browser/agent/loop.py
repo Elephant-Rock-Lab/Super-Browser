@@ -229,12 +229,16 @@ class AgentLoop:
             return [PlanItem(index=0, description=instruction)]
 
     async def _auto_replan(self, instruction: str, plan: list[PlanItem], steps: list[StepResult]) -> list[PlanItem]:
-        recent = steps[-5:] if len(steps) >= 5 else steps
+        # HB-17-02: Use correct protocol kwargs (original_plan, failed_step, error)
+        last_step = steps[-1] if steps else None
+        failed_step_idx = last_step.step_number if last_step else 0
+        error_str = last_step.error if last_step and last_step.error else "stagnation detected"
         try:
             raw_plan = await self._llm.replan(
                 instruction=instruction,
-                current_plan=[{"index": p.index, "description": p.description, "status": p.status.value} for p in plan],
-                recent_actions=[{"action": s.action_name, "params": s.action_params} for s in recent],
+                original_plan=[{"index": p.index, "description": p.description, "status": p.status.value} for p in plan],
+                failed_step=failed_step_idx,
+                error=error_str,
             )
             return [
                 PlanItem(index=i, description=item.get("description", f"Step {i+1}"))
@@ -261,6 +265,16 @@ class AgentLoop:
                 ok=False,
                 error=ActionError(
                     ErrorCategory.VALIDATION, f"Unknown tool: {action_name}"
+                ),
+            )
+        # HB-17-01: Check retry budget BEFORE executing the action
+        if not self._check_retry_budget(action_name):
+            return action_result(
+                ok=False,
+                error=ActionError(
+                    ErrorCategory.CONTEXT_OVERFLOW,
+                    f"Retry budget exhausted for action {action_name!r}",
+                    recoverable=False,
                 ),
             )
         if self._security_manager:

@@ -331,8 +331,7 @@ class TestBudgetExceeded:
 
         # Simulate budget client with very low remaining
         mock_budget = MagicMock()
-        mock_budget._governor = MagicMock()
-        mock_budget._governor.daily_remaining = 0.001  # Almost exhausted
+        mock_budget.budget_remaining = 0.001  # Almost exhausted
         sb._budget_client = mock_budget
 
         async def _test() -> None:
