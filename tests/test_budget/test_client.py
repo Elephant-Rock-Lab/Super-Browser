@@ -1,4 +1,4 @@
-"""Tests for BudgetAwareLLMClient."""
+"""Tests for BudgetCascadeClient (renamed from BudgetAwareLLMClient)."""
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 from super_browser.budget.cascade import ModelCascade
 from super_browser.budget.client import (
     AllProvidersCircuitOpenError,
-    BudgetAwareLLMClient,
+    BudgetCascadeClient,
     BudgetExhaustedError,
 )
 from super_browser.budget.compressor import ContextCompressor
@@ -22,10 +22,10 @@ def _make_client(*, daily_cap=100.0, llm_client=None):
     pool.register("anthropic", "key-1", "sk-test")
     cb = CircuitBreaker()
     comp = ContextCompressor()
-    return BudgetAwareLLMClient(gov, cascade, pool, cb, comp, llm_client=llm_client)
+    return BudgetCascadeClient(gov, cascade, pool, cb, comp, llm_client=llm_client)
 
 
-class TestBudgetAwareLLMClient:
+class TestBudgetCascadeClient:
     def test_happy_path_no_llm(self):
         async def _test():
             client = _make_client()

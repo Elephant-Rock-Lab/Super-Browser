@@ -86,6 +86,13 @@ class BudgetAwareLLMClient:
         self._governor = governor
         self._model = model
 
+    # -- Public properties --
+
+    @property
+    def budget_remaining(self) -> float:
+        """Remaining daily budget in USD."""
+        return self._governor.daily_remaining
+
     # -- LLMClient interface --------------------------------------------------
 
     async def propose_action(

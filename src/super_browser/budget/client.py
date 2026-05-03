@@ -27,7 +27,12 @@ class AllProvidersCircuitOpenError(Exception):
     pass
 
 
-class BudgetAwareLLMClient:
+class BudgetCascadeClient:
+    """Internal budget-aware LLM client with model cascade and circuit breaker.
+
+    This class is used internally by the budget subsystem. For the public
+    facade-facing client, see ``agent.llm.budget_aware.BudgetAwareLLMClient``.
+    """
 
     def __init__(
         self,

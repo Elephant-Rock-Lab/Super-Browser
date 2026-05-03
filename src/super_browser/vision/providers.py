@@ -48,7 +48,7 @@ class AnthropicCUAProvider(VisionProviderBase):
         self._client: Any = None
         try:
             import anthropic
-            self._client = anthropic.Anthropic(api_key=api_key)
+            self._client = anthropic.AsyncAnthropic(api_key=api_key)
         except ImportError:
             pass
 
@@ -74,7 +74,7 @@ class AnthropicCUAProvider(VisionProviderBase):
         start = time.monotonic()
         try:
             b64 = base64.b64encode(request.screenshot).decode()
-            message = self._client.messages.create(
+            message = await self._client.messages.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
                 tools=[{
@@ -124,7 +124,7 @@ class AnthropicCUAProvider(VisionProviderBase):
         if self._client is None:
             return False
         try:
-            self._client.messages.create(
+            await self._client.messages.create(
                 model=self._model,
                 max_tokens=10,
                 messages=[{"role": "user", "content": "ping"}],
@@ -162,8 +162,8 @@ class OpenAIResponseProvider(VisionProviderBase):
         self._api_key = api_key
         self._client: Any = None
         try:
-            from openai import OpenAI
-            self._client = OpenAI(api_key=api_key)
+            from openai import AsyncOpenAI
+            self._client = AsyncOpenAI(api_key=api_key)
         except (ImportError, Exception):
             pass
 
@@ -190,7 +190,7 @@ class OpenAIResponseProvider(VisionProviderBase):
         try:
             b64 = base64.b64encode(request.screenshot).decode()
             data_uri = f"data:image/png;base64,{b64}"
-            response = self._client.chat.completions.create(
+            response = await self._client.chat.completions.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
                 messages=[{
@@ -232,7 +232,7 @@ class OpenAIResponseProvider(VisionProviderBase):
         if self._client is None:
             return False
         try:
-            self._client.chat.completions.create(
+            await self._client.chat.completions.create(
                 model=self._model,
                 max_tokens=10,
                 messages=[{"role": "user", "content": "ping"}],

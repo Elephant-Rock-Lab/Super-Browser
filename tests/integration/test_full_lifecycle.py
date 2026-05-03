@@ -545,8 +545,7 @@ class TestBudgetTracking:
 
         # Mock budget client with governor
         mock_budget = MagicMock()
-        mock_budget._governor = MagicMock()
-        mock_budget._governor.daily_remaining = 8.50
+        mock_budget.budget_remaining = 8.50
         sb._budget_client = mock_budget
 
         async def _test() -> None:
@@ -574,8 +573,7 @@ class TestBudgetTracking:
         sb._running = True
 
         mock_budget = MagicMock()
-        mock_budget._governor = MagicMock()
-        mock_budget._governor.daily_remaining = 9.75
+        mock_budget.budget_remaining = 9.75
         sb._budget_client = mock_budget
 
         # Mock session for stop
