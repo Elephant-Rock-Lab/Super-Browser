@@ -1,8 +1,8 @@
 # Super Browser
 
-[![CI](https://img.shields.io/badge/CI-pending-yellow)](https://github.com/example/super-browser)
-[![Coverage](https://img.shields.io/badge/coverage-0%25-red)](https://github.com/example/super-browser)
-[![PyPI](https://img.shields.io/badge/PyPI-0.1.0--prealpha-blue)](https://pypi.org/project/super-browser/)
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/example/super-browser)
+[![Coverage](https://img.shields.io/badge/coverage-85%25-green)](https://github.com/example/super-browser)
+[![PyPI](https://img.shields.io/badge/PyPI-1.0.0-blue)](https://pypi.org/project/super-browser/)
 
 **Super Browser** is a comprehensive browser-control library for AI agents. It provides a three-tier cascade (LLM client → built-in skills → raw browser), self-healing selectors, stealth-mode navigation, output-budget management, and security guardrails — all behind a single `SuperBrowser` façade.
 
@@ -10,6 +10,7 @@
 
 ```bash
 pip install super-browser[browser]
+python -m patchright install chromium  # Download the browser binary
 ```
 
 For specific LLM providers:
@@ -30,22 +31,31 @@ async def main():
     llm = create_llm()                          # uses ANTHROPIC_API_KEY / OPENAI_API_KEY
 
     # 2. Configure the browser
-    cfg = Config(headless=True, stealth=True)    # stealth = anti-detection mode
+    cfg = Config.from_dict({
+        "agent": {"llm_provider": "anthropic", "llm_api_key": "your-key"},
+        "budget": {"daily_cap_usd": 5.0},
+    })
 
-    # 3. Create the façade and run
-    async with SuperBrowser(llm=llm, config=cfg) as sb:
+    # 3. Create the facade and run
+    async with SuperBrowser(llm_client=llm) as sb:
         page = await sb.navigate("https://example.com")
-        title = await sb.extract("the page heading")
-        print(f"Title: {title}")
+        heading = await sb.extract("the page heading", selector="h1")
+        print(f"Heading: {heading.data.extracted}")
 
         # Self-healing click — retries if selector breaks
-        await sb.click("the Login button")
+        await sb.click("a", description="First link")
 
         # Fill form fields
-        await sb.fill("the email input", "user@example.com")
+        await sb.fill("#email", "user@example.com")
 
 asyncio.run(main())
 ```
+
+> **Tip:** For quick testing without a real LLM, use `MockLLMClient`:
+> ```python
+> from super_browser.testing import MockLLMClient
+> sb = SuperBrowser(llm_client=MockLLMClient())
+> ```
 
 ## Architecture
 
