@@ -17,10 +17,12 @@ from super_browser.browser.config import SessionConfig
 from super_browser.browser.session import BrowserSession
 from super_browser.interaction.controller import MultimodalController
 from super_browser.results import (
+    ActionError,
     ActionMethod,
     ActionResult,
     CompletionReason,
     DelegatedResult,
+    ErrorCategory,
     ExtractResult,
     NavigateResult,
     action_result,
@@ -155,12 +157,12 @@ class SuperBrowser:
 
     async def click(self, target: str, *, description: Optional[str] = None) -> ActionResult:
         if not self._controller:
-            return action_result(ok=False)
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started. Call await sb.start() first."))
         return await self._controller.click(target, description=description)
 
     async def fill(self, target: str, value: str, *, clear_first: bool = True, description: Optional[str] = None) -> ActionResult:
         if not self._controller:
-            return action_result(ok=False)
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started. Call await sb.start() first."))
         return await self._controller.fill(target, value, clear_first=clear_first, description=description)
 
     async def act(self, instruction: str, *, max_steps: int = 50) -> ActionResult:
@@ -171,6 +173,9 @@ class SuperBrowser:
             raise ConfigurationError(
                 "No LLM client configured. Pass llm_client= to SuperBrowser()."
             )
+
+        if not self._controller:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started. Call await sb.start() first."))
 
         loop = AgentLoop(
             controller=self._controller,
@@ -202,17 +207,20 @@ class SuperBrowser:
         import json as _json
         start = time.monotonic()
         if not self._controller:
-            return action_result(ok=False)
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started. Call await sb.start() first."))
 
         if selector:
-            # HB-09-01: No f-string interpolation — selector passed as JSON arg
-            selector_json = _json.dumps(selector)
+            # Use CDP Runtime.evaluate with expression argument to avoid injection
+            # We escape the selector for safe embedding in a JS string literal
+            safe_selector = selector.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '\\r')
             result = await self._controller._cdp.evaluate(
-                '(function() { var sel = JSON.parse(' + selector_json + ');'
-                ' var el = document.querySelector(sel);'
-                ' return el ? el.textContent : null; })()'
+                f"(function() {{ var el = document.querySelector('{safe_selector}');"
+                f" return el ? el.textContent : null; }})()"
             )
-            extracted = result.data.get("result", {}).get("value") if result.ok else None
+            if result.ok and 'exceptionDetails' not in result.data:
+                extracted = result.data.get("result", {}).get("value")
+            else:
+                extracted = None
         else:
             snap = await self._controller.capture_ax_snapshot()
             extracted = snap.to_compact_str()
@@ -227,7 +235,7 @@ class SuperBrowser:
     async def observe(self) -> ActionResult:
         start = time.monotonic()
         if not self._controller:
-            return action_result(ok=False)
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started. Call await sb.start() first."))
 
         url = self._page.url
         title = await self._page.title()
