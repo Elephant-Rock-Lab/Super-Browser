@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] — 2026-05-03
+
+### Fixed — 6 Critical Bugs
+
+- **BUG-01**: `_check_retry_budget()` was dead code — now wired into `_dispatch_action()` before tool execution
+- **BUG-03**: `act()` accessed private `_governor` — added public `budget_remaining` property to `BudgetAwareLLMClient`
+- **BUG-04**: Two incompatible `BudgetAwareLLMClient` classes — renamed `budget/client.py` to `BudgetCascadeClient`
+- **BUG-06**: `replan()` call used wrong kwargs (`current_plan`/`recent_actions` vs `original_plan`/`failed_step`/`error`)
+- **BUG-11/12**: Sync LLM clients in vision providers blocked event loop — replaced with `AsyncAnthropic`/`AsyncOpenAI`
+- **BUG-08**: JS injection in `CheckpointManager.restore()` — replaced string concatenation with `Runtime.callFunctionOn`
+
+### Fixed — UX Issues
+
+- README quickstart code now runs copy-paste (`Config.from_dict()`, `llm_client=`)
+- README badges updated: CI passing, coverage 85%, PyPI 1.0.0
+- Added `super_browser.testing.MockLLMClient` for quick testing without LLM
+- Added `.env.example` with documented environment variables
+- Fixed `api-reference.md` header version
+- Fixed silent failures in `click()`/`fill()`/`extract()`/`observe()` before `start()`
+- Fixed `extract(selector)` returning `None` due to `JSON.parse` error on CSS selectors
+- Fixed `__version__` mismatch (was "0.1.0", now matches pyproject.toml)
+
 ## [1.0.0] — 2026-05-03
 
 ### Production Release — Super Browser v1.0
