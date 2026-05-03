@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "super-browser"
-version = "1.0.0"
+version = "1.0.1"
 description = "Comprehensive browser control for AI agents"
 requires-python = ">=3.11"
 
