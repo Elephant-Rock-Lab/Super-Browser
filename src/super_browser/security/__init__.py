@@ -24,8 +24,15 @@ from super_browser.security.redactor import SecretRedactor
 from super_browser.security.approval import CommandApprover
 from super_browser.security.policy import ActionPolicyEngine
 from super_browser.security.domain_filter import DomainFilter
-from super_browser.security.credential_vault import CredentialVault
 from super_browser.security.manager import SecurityManager
+
+# CredentialVault requires cryptography — lazy import to avoid
+# ImportError when [security] extras are not installed.
+def __getattr__(name):
+    if name == "CredentialVault":
+        from super_browser.security.credential_vault import CredentialVault
+        return CredentialVault
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "CommandSafety",
