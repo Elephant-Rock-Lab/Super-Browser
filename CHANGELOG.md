@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] — 2026-05-03
+
+### Fixed — P2 Polish
+
+- **Config.from_yaml()**: Now raises `FileNotFoundError` with filename instead of raw OS error
+- **UserAgentPool**: Chrome versions updated from 120–125 to 130–136 (modern versions)
+- **[security] extras**: Added `cryptography>=42.0` for `CredentialVault` support
+
+### Added — Documentation
+
+- Debug mode documentation in `docs/quickstart.md` (screenshots, DOM snapshots, structured logging)
+- Safety gate, router, and runaway guard documented in logging section
+
 ## [1.0.1] — 2026-05-03
 
 ### Fixed — 6 Critical Bugs

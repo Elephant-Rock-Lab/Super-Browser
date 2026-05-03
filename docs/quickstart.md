@@ -245,7 +245,48 @@ if alert:
 
 ---
 
-## 7. What's Next?
+## 7. Debug Mode
+
+When something goes wrong, enable debug mode to capture screenshots and DOM snapshots on every error:
+
+```python
+from super_browser import Config
+
+cfg = Config.from_dict({
+    "agent": {
+        "llm_api_key": "your-key",
+        "debug": {
+            "enabled": True,
+            "save_screenshots": True,
+            "save_dom_snapshots": True,
+            "output_dir": "debug/",
+        },
+    },
+})
+
+sb = SuperBrowser(llm_client=llm, config=cfg)
+```
+
+Debug artifacts are saved to the `output_dir` on each error:
+- `debug/error_001_step3.png` — screenshot at point of failure
+- `debug/error_001_step3_dom.json` — DOM snapshot
+
+### Structured Logging
+
+Super Browser emits structured logs via Python's `logging` module. Enable verbose output:
+
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG, format="%(name)s %(levelname)s: %(message)s")
+```
+
+Key loggers:
+- `super_browser.agent.loop` — agent step execution
+- `super_browser.budget.governor` — budget tracking and alerts
+- `super_browser.stealth.manager` — stealth policy decisions
+- `super_browser.security.gate` — safety tier evaluations
+
+---
 
 | Topic | Document |
 |---|---|
