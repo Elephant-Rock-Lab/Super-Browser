@@ -119,6 +119,27 @@ class ActionResult:
         error = ActionError.from_dict(d["error"]) if d.get("error") else None
         return cls(ok=d["ok"], data=d.get("data"), error=error, meta=meta)
 
+    # -- Convenience methods --
+
+    def raise_for_error(self) -> None:
+        """Raise if not ok — like requests.Response.raise_for_status().
+
+        :raises RuntimeError: When ok is False, with error details.
+        """
+        if not self.ok and self.error:
+            raise RuntimeError(f"{self.error.category.value}: {self.error.message}")
+        elif not self.ok:
+            raise RuntimeError("Action failed with no error detail")
+
+    def ok_or_raise(self) -> Any:
+        """Return data if ok, raise if not.
+
+        :returns: The data payload when ok is True.
+        :raises RuntimeError: When ok is False.
+        """
+        self.raise_for_error()
+        return self.data
+
 
 # ---------------------------------------------------------------------------
 # Factories
