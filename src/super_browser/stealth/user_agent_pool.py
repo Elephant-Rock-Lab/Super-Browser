@@ -1,7 +1,7 @@
 """UserAgentPool — realistic Chrome user-agent rotation for stealth.
 
 Maintains a pool of ≥15 realistic Chrome UA strings spanning multiple
-versions (120–125) and OS combinations (Windows 10/11, macOS 13/14, Linux).
+versions (130–136) and OS combinations (Windows 10/11, macOS 13/14, Linux).
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ _UA_TEMPLATES: list[str] = [
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{ver}.0.6045.159 Safari/537.36",
 ]
 
-_CHROME_VERSIONS: list[int] = [120, 121, 122, 123, 124, 125]
+_CHROME_VERSIONS: list[int] = [130, 131, 132, 133, 134, 135, 136]
 
 # OS distribution weights (approximate real-world market share)
 _OS_WEIGHTS: dict[str, float] = {
