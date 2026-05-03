@@ -20,7 +20,10 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from cryptography.fernet import Fernet
+try:
+    from cryptography.fernet import Fernet
+except ImportError:
+    Fernet = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +110,13 @@ class CredentialVault:
         self._fernet: Optional[Fernet] = None
 
     @property
-    def _cipher(self) -> Fernet:
+    def _cipher(self) -> "Fernet":
         """Lazy-initialised Fernet cipher."""
+        if Fernet is None:
+            raise ImportError(
+                "cryptography is required for CredentialVault. "
+                "Install it with: pip install super-browser[security]"
+            )
         if self._fernet is None:
             key = _load_or_create_key(self._key_file)
             self._fernet = Fernet(key)
