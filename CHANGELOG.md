@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `extract(selector)` returning `None` due to `JSON.parse` error on CSS selectors
 - Fixed `__version__` mismatch (was "0.1.0", now matches pyproject.toml)
 
+### Added — 5 Patterns from Clawd Cursor v0.8.7
+
+- **Safety Gate** (`security/gate.py`): Tier-based action evaluation — read/input/destructive/system tiers with label escalation
+- **Deterministic Router** (`agent/router.py`): Zero-LLM URL/click/scroll interception with compound task rejection
+- **Runaway Guard**: Per-action diagnostic hints in `ActionLoopDetector` — actionable advice instead of generic messages
+- **Prompt Injection Defense**: `<untrusted-screen-content>` wrapping in agent loop prompts
+- **ActionResult.raise_for_error()** + **ok_or_raise()**: `requests.Response.raise_for_status()` pattern for fluent error handling
+
 ## [1.0.0] — 2026-05-03
 
 ### Production Release — Super Browser v1.0
