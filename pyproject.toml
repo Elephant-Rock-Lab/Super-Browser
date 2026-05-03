@@ -28,6 +28,9 @@ anthropic = [
 openai = [
     "openai>=1.0",
 ]
+security = [
+    "cryptography>=42.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/super_browser"]

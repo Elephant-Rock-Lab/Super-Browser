@@ -158,6 +158,11 @@ class Config:
             ) from exc
 
         path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Config file not found: {path}. "
+                "Create one with Config.from_dict() first or check the path."
+            )
         with path.open("r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
 

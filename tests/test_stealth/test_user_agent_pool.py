@@ -33,8 +33,8 @@ class TestRealisticChromeUAStrings:
     def test_chrome_versions_in_expected_range(self):
         pool = UserAgentPool()
         versions = pool.chrome_versions
-        assert min(versions) >= 120, f"Min version {min(versions)} < 120"
-        assert max(versions) <= 125, f"Max version {max(versions)} > 125"
+        assert min(versions) >= 130, f"Min version {min(versions)} < 130"
+        assert max(versions) <= 140, f"Max version {max(versions)} > 140"
 
     def test_get_random_also_returns_valid_ua(self):
         pool = UserAgentPool(seed=42)
