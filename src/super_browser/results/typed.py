@@ -118,9 +118,48 @@ class SpilledResult:
     original_size_chars: int
 
 
+@dataclass
+class DownloadResult:
+    """Result from a file download."""
+    url: str
+    file_path: str
+    file_size_bytes: int = 0
+    mime_type: Optional[str] = None
+    suggested_filename: Optional[str] = None
+
+
+@dataclass
+class UploadResult:
+    """Result from a file upload."""
+    selector: str
+    file_path: str
+    file_name: str
+    success: bool = True
+
+
+@dataclass
+class ShadowQueryResult:
+    """Result from querying inside a Shadow DOM."""
+    host_selector: str
+    inner_selector: str
+    text: Optional[str] = None
+    bounds: Optional[dict] = None
+    found: bool = False
+
+
+@dataclass
+class NetworkInterceptResult:
+    """Result from a network interception action."""
+    pattern: str
+    action: str  # "block", "mock", "modify"
+    request_count: int = 0
+    active: bool = True
+
+
 # Tuple of all typed result classes for isinstance checks
 TYPED_RESULT_TYPES = (
     ClickResult, NavigateResult, ExtractResult, ScreenshotResult,
     FillResult, SelectResult, HoverResult, DragResult, ScrollResult,
     KeypressResult, JSEvalResult, DelegatedResult, SpilledResult,
+    DownloadResult, UploadResult, ShadowQueryResult, NetworkInterceptResult,
 )

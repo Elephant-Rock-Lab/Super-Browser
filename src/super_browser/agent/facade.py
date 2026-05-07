@@ -15,6 +15,7 @@ from super_browser.agent.registry import ToolRegistry
 from super_browser.agent.types import DelegationResult
 from super_browser.browser.config import SessionConfig
 from super_browser.browser.session import BrowserSession
+from super_browser.browser.tabs import TabManager, TabHandle, TabSnapshot
 from super_browser.interaction.controller import MultimodalController
 from super_browser.results import (
     ActionError,
@@ -22,9 +23,13 @@ from super_browser.results import (
     ActionResult,
     CompletionReason,
     DelegatedResult,
+    DownloadResult,
     ErrorCategory,
     ExtractResult,
     NavigateResult,
+    NetworkInterceptResult,
+    ShadowQueryResult,
+    UploadResult,
     action_result,
     timed_action_result,
 )
@@ -59,6 +64,9 @@ class SuperBrowser:
         self._vision_controller: Any = None
         self._stealth_manager: Any = None
         self._skill_registry: Any = None
+        self._tab_manager: Optional[TabManager] = None
+        self._frame_stack: list[Any] = []  # stack of Frame objects
+        self._network_interceptors: list[Any] = []
 
     # -- Lifecycle --
 
@@ -247,6 +255,327 @@ class SuperBrowser:
             start_ns=start,
             data={"url": url, "title": title, "interactive_elements": interactive_count, "total_elements": len(snap.nodes)},
         )
+
+    # -- Multi-Tab --
+
+    async def open_tab(self, url: Optional[str] = None) -> ActionResult:
+        """Open a new browser tab, optionally navigating to a URL.
+
+        :param url: Optional URL to navigate to.
+        :returns: ActionResult with data=TabHandle.
+        """
+        start = time.monotonic()
+        if not self._session:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        if self._tab_manager is None:
+            self._tab_manager = TabManager(self._session._context)
+        try:
+            tab = await self._tab_manager.open_tab(url)
+            # Update page reference and controller to new tab
+            page_obj = self._tab_manager.get_page(tab.tab_id)
+            from super_browser.browser.page import PageHandle
+            cdp_session = await self._session._context.new_cdp_session(page_obj)
+            from super_browser.browser.cdp import CDPBridge
+            from super_browser.browser.config import SessionConfig
+            cdp = CDPBridge(cdp_session, SessionConfig())
+            self._page = PageHandle(page_obj, cdp)
+            self._controller = MultimodalController(self._page, self._page.cdp)
+            return timed_action_result(ok=True, start_ns=start, data=tab)
+        except Exception as e:
+            return timed_action_result(ok=False, start_ns=start, error=ActionError(ErrorCategory.NAVIGATION, str(e)))
+
+    async def switch_tab(self, tab_id: int) -> ActionResult:
+        """Switch to a different tab by ID.
+
+        :param tab_id: The tab ID from open_tab().
+        :returns: ActionResult with data=TabHandle.
+        """
+        start = time.monotonic()
+        if not self._tab_manager:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "No tabs open"))
+        try:
+            tab = await self._tab_manager.switch_tab(tab_id)
+            page_obj = self._tab_manager.get_page(tab_id)
+            from super_browser.browser.page import PageHandle
+            cdp_session = await self._session._context.new_cdp_session(page_obj)
+            from super_browser.browser.cdp import CDPBridge
+            from super_browser.browser.config import SessionConfig
+            cdp = CDPBridge(cdp_session, SessionConfig())
+            self._page = PageHandle(page_obj, cdp)
+            self._controller = MultimodalController(self._page, self._page.cdp)
+            return timed_action_result(ok=True, start_ns=start, data=tab)
+        except KeyError as e:
+            return timed_action_result(ok=False, start_ns=start, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, str(e)))
+
+    async def close_tab(self, tab_id: int) -> ActionResult:
+        """Close a tab by ID.
+
+        :param tab_id: The tab ID to close.
+        """
+        start = time.monotonic()
+        if not self._tab_manager:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "No tabs open"))
+        try:
+            await self._tab_manager.close_tab(tab_id)
+            return timed_action_result(ok=True, start_ns=start, data={"closed_tab": tab_id})
+        except KeyError as e:
+            return timed_action_result(ok=False, start_ns=start, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, str(e)))
+
+    async def list_tabs(self) -> ActionResult:
+        """List all open tabs."""
+        start = time.monotonic()
+        if not self._tab_manager:
+            return timed_action_result(ok=True, start_ns=start, data=TabSnapshot())
+        snap = await self._tab_manager.list_tabs()
+        return timed_action_result(ok=True, start_ns=start, data=snap)
+
+    # -- File I/O --
+
+    async def upload_file(self, selector: str, file_path: str) -> ActionResult:
+        """Upload a file to an <input type='file'> element.
+
+        :param selector: CSS selector for the file input.
+        :param file_path: Absolute or relative path to the file.
+        :returns: ActionResult with data=UploadResult.
+        """
+        start = time.monotonic()
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        try:
+            await self._page.raw_page.set_input_files(selector, file_path)
+            import os
+            fname = os.path.basename(file_path)
+            return timed_action_result(
+                ok=True, start_ns=start,
+                data=UploadResult(selector=selector, file_path=file_path, file_name=fname),
+            )
+        except Exception as e:
+            return timed_action_result(
+                ok=False, start_ns=start,
+                error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Upload failed: {e}"),
+            )
+
+    async def download(self, url_or_selector: str, *, save_path: Optional[str] = None) -> ActionResult:
+        """Download a file by clicking a link or navigating to a URL.
+
+        :param url_or_selector: URL to download from, or selector for a download link.
+        :param save_path: Optional directory to save the file.
+        :returns: ActionResult with data=DownloadResult.
+        """
+        start = time.monotonic()
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        try:
+            # Start listening for download
+            async with self._page.raw_page.expect_download() as download_info:
+                if url_or_selector.startswith("http"):
+                    await self._page.raw_page.evaluate(
+                        "(url) => { const a = document.createElement('a'); a.href = url; a.download = ''; a.click(); }",
+                        url_or_selector,
+                    )
+                else:
+                    await self._page.raw_page.click(url_or_selector)
+            download = await download_info.value
+            suggested = download.suggested_filename
+            if save_path:
+                import os
+                dest = os.path.join(save_path, suggested)
+                await download.save_as(dest)
+            else:
+                dest = await download.path()
+            file_size = 0
+            import os
+            if dest and os.path.exists(dest):
+                file_size = os.path.getsize(dest)
+            return timed_action_result(
+                ok=True, start_ns=start,
+                data=DownloadResult(
+                    url=url_or_selector,
+                    file_path=str(dest) if dest else "",
+                    file_size_bytes=file_size,
+                    suggested_filename=suggested,
+                ),
+            )
+        except Exception as e:
+            return timed_action_result(
+                ok=False, start_ns=start,
+                error=ActionError(ErrorCategory.NAVIGATION, f"Download failed: {e}"),
+            )
+
+    # -- iframe --
+
+    async def enter_frame(self, selector: str) -> ActionResult:
+        """Enter an iframe, scoping subsequent interactions to it.
+
+        :param selector: CSS selector for the iframe element.
+        :returns: ActionResult indicating success.
+        """
+        start = time.monotonic()
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        try:
+            frame = self._page.raw_page.frame_locator(selector)
+            self._frame_stack.append(frame)
+            return timed_action_result(ok=True, start_ns=start, data={"frame": selector, "depth": len(self._frame_stack)})
+        except Exception as e:
+            return timed_action_result(ok=False, start_ns=start, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Frame not found: {e}"))
+
+    async def exit_frame(self) -> ActionResult:
+        """Exit the current iframe, returning to the parent frame."""
+        start = time.monotonic()
+        if self._frame_stack:
+            self._frame_stack.pop()
+            return timed_action_result(ok=True, start_ns=start, data={"depth": len(self._frame_stack)})
+        return timed_action_result(ok=True, start_ns=start, data={"depth": 0})
+
+    def _current_frame(self) -> Any:
+        """Get the current frame (top of stack) or the raw page."""
+        if self._frame_stack:
+            return self._frame_stack[-1]
+        return self._page.raw_page if self._page else None
+
+    # -- Shadow DOM --
+
+    async def query_shadow(self, host_selector: str, inner_selector: str) -> ActionResult:
+        """Query an element inside a Shadow DOM.
+
+        :param host_selector: CSS selector for the custom element (shadow host).
+        :param inner_selector: CSS selector inside the shadow root.
+        :returns: ActionResult with data=ShadowQueryResult.
+        """
+        start = time.monotonic()
+        if not self._controller:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        try:
+            import json as _json
+            host_json = _json.dumps(host_selector)
+            inner_json = _json.dumps(inner_selector)
+            expr = (
+                '(function() {'
+                '  var host = document.querySelector(JSON.parse(' + host_json + '));'
+                '  if (!host || !host.shadowRoot) return JSON.stringify({found: false});'
+                '  var el = host.shadowRoot.querySelector(JSON.parse(' + inner_json + '));'
+                '  if (!el) return JSON.stringify({found: false});'
+                '  var rect = el.getBoundingClientRect();'
+                '  return JSON.stringify({'
+                '    found: true,'
+                '    text: el.textContent || "",'
+                '    bounds: {x: rect.x, y: rect.y, w: rect.width, h: rect.height}'
+                '  });'
+                '})()'
+            )
+            result = await self._controller._cdp.evaluate(expr)
+            if result.ok and result.data:
+                val = result.data.get("result", {}).get("value")
+                if val:
+                    import json
+                    parsed = json.loads(val)
+                    return timed_action_result(
+                        ok=True, start_ns=start,
+                        data=ShadowQueryResult(
+                            host_selector=host_selector,
+                            inner_selector=inner_selector,
+                            text=parsed.get("text"),
+                            bounds=parsed.get("bounds"),
+                            found=parsed.get("found", False),
+                        ),
+                    )
+            return timed_action_result(
+                ok=True, start_ns=start,
+                data=ShadowQueryResult(host_selector=host_selector, inner_selector=inner_selector, found=False),
+            )
+        except Exception as e:
+            return timed_action_result(
+                ok=False, start_ns=start,
+                error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Shadow query failed: {e}"),
+            )
+
+    # -- Network Interception --
+
+    async def intercept_requests(self, pattern: str = "*", *, action: str = "log") -> ActionResult:
+        """Enable network request interception.
+
+        :param pattern: URL glob pattern to match (e.g. "**/api/**").
+        :param action: "log", "block", or "mock".
+        :returns: ActionResult with data=NetworkInterceptResult.
+        """
+        start = time.monotonic()
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        try:
+            intercepted = []
+
+            async def handle_route(route: Any) -> None:
+                req = route.request
+                intercepted.append({"url": req.url, "method": req.method})
+                if action == "block":
+                    await route.abort()
+                else:
+                    await route.continue_()
+
+            await self._page.raw_page.route(pattern, handle_route)
+            self._network_interceptors.append({"pattern": pattern, "action": action, "requests": intercepted})
+
+            return timed_action_result(
+                ok=True, start_ns=start,
+                data=NetworkInterceptResult(pattern=pattern, action=action),
+            )
+        except Exception as e:
+            return timed_action_result(
+                ok=False, start_ns=start,
+                error=ActionError(ErrorCategory.SECURITY, f"Interception failed: {e}"),
+            )
+
+    async def block_requests(self, pattern: str = "*") -> ActionResult:
+        """Block all requests matching a URL pattern.
+
+        :param pattern: URL glob pattern to block.
+        """
+        return await self.intercept_requests(pattern, action="block")
+
+    async def mock_response(self, pattern: str, body: str, *, content_type: str = "application/json", status: int = 200) -> ActionResult:
+        """Mock a network response for matching requests.
+
+        :param pattern: URL glob pattern to match.
+        :param body: Response body to return.
+        :param content_type: Content-Type header.
+        :param status: HTTP status code.
+        """
+        start = time.monotonic()
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        try:
+            async def handle_mock(route: Any) -> None:
+                await route.fulfill(
+                    status=status,
+                    headers={"Content-Type": content_type},
+                    body=body,
+                )
+
+            await self._page.raw_page.route(pattern, handle_mock)
+            self._network_interceptors.append({"pattern": pattern, "action": "mock", "body": body})
+
+            return timed_action_result(
+                ok=True, start_ns=start,
+                data=NetworkInterceptResult(pattern=pattern, action="mock"),
+            )
+        except Exception as e:
+            return timed_action_result(
+                ok=False, start_ns=start,
+                error=ActionError(ErrorCategory.SECURITY, f"Mock failed: {e}"),
+            )
+
+    async def clear_interceptions(self) -> ActionResult:
+        """Remove all network request interceptions."""
+        start = time.monotonic()
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        try:
+            await self._page.raw_page.unroute_all()
+            self._network_interceptors.clear()
+            return timed_action_result(ok=True, start_ns=start, data={"cleared": True})
+        except Exception as e:
+            return timed_action_result(ok=False, start_ns=start, error=ActionError(ErrorCategory.SECURITY, str(e)))
 
     # -- Delegation --
 
