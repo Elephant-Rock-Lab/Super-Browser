@@ -13,6 +13,7 @@ from super_browser.results.types import (
 from super_browser.results.typed import (
     ClickResult,
     DelegatedResult,
+    DownloadResult,
     DragResult,
     ExtractResult,
     FillResult,
@@ -20,10 +21,13 @@ from super_browser.results.typed import (
     JSEvalResult,
     KeypressResult,
     NavigateResult,
+    NetworkInterceptResult,
     ScrollResult,
     ScreenshotResult,
     SelectResult,
+    ShadowQueryResult,
     SpilledResult,
+    UploadResult,
 )
 from super_browser.results.output import OutputBudgetConfig, OutputDefender
 from super_browser.results.validation import PreExecutionValidator
@@ -31,10 +35,11 @@ from super_browser.results.validation import PreExecutionValidator
 __all__ = [
     "ActionError", "ActionMethod", "ActionResult", "CompletionReason",
     "ErrorCategory", "ResultMeta", "action_result", "timed_action_result",
-    "ClickResult", "DelegatedResult", "DragResult", "ExtractResult",
-    "FillResult", "HoverResult", "JSEvalResult", "KeypressResult",
-    "NavigateResult", "ScrollResult", "ScreenshotResult", "SelectResult",
-    "SpilledResult",
+    "ClickResult", "DelegatedResult", "DownloadResult", "DragResult",
+    "ExtractResult", "FillResult", "HoverResult", "JSEvalResult",
+    "KeypressResult", "NavigateResult", "NetworkInterceptResult",
+    "ScrollResult", "ScreenshotResult", "SelectResult",
+    "ShadowQueryResult", "SpilledResult", "UploadResult",
     "OutputBudgetConfig", "OutputDefender",
     "PreExecutionValidator",
 ]
