@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-05-07
+
+### Added — Distribution & Integration
+
+- **PyPI metadata**: Full classifiers, keywords, author, license, entry point
+- **CLI**: `super-browser version`, `super-browser info`, `super-browser run` commands
+- **Docker**: Dockerfile + docker-compose.yml for containerized deployment
+- **MCP Server**: 10 tools via Model Context Protocol (navigate, click, fill, extract, observe, screenshot, scroll, open_tab, list_tabs, act)
+- **Cloud browser**: Browserbase, Steel.dev, and generic CDP connectors
+- **Schema extraction**: `extract(schema={...})` validates output against JSON schema
+
+### New Modules
+
+- `cli.py` — command-line interface
+- `mcp_server.py` — MCP server for agent ecosystem integration
+- `browser/cloud.py` — CloudBrowserConnector, BrowserbaseConnector, SteelConnector, CDPConnector
+
+### New Extras
+
+- `[mcp]` — MCP server support
+- `[cloud]` — Cloud browser integration
+
 ## [1.1.0] — 2026-05-07
 
 ### Added — Core Web Automation Features
