@@ -212,6 +212,13 @@ class SuperBrowser:
         )
 
     async def extract(self, query: str, *, selector: Optional[str] = None, schema: Optional[dict] = None) -> ActionResult:
+        """Extract content from the current page.
+
+        :param query: Description of what to extract.
+        :param selector: Optional CSS selector for targeted extraction.
+        :param schema: Optional JSON schema to validate/structure the output.
+        :returns: ActionResult with data=ExtractResult.
+        """
         import json as _json
         start = time.monotonic()
         if not self._controller:
@@ -232,6 +239,28 @@ class SuperBrowser:
         else:
             snap = await self._controller.capture_ax_snapshot()
             extracted = snap.to_compact_str()
+
+        # Schema validation
+        if schema and extracted is not None:
+            try:
+                import jsonschema
+                # If extracted is a string, try to parse as JSON
+                if isinstance(extracted, str):
+                    try:
+                        parsed = _json.loads(extracted)
+                    except (_json.JSONDecodeError, ValueError):
+                        parsed = {"text": extracted}
+                else:
+                    parsed = extracted
+                jsonschema.validate(parsed, schema)
+            except ImportError:
+                # jsonschema not installed — skip validation
+                pass
+            except Exception as e:
+                return timed_action_result(
+                    ok=False, start_ns=start,
+                    error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Schema validation failed: {e}"),
+                )
 
         return timed_action_result(
             ok=True,
