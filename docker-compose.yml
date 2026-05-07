@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  super-browser:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: super-browser
+    environment:
+      - SB_HEADLESS=true
+      - SB_LLM_PROVIDER=${SB_LLM_PROVIDER:-openai}
+      - SB_LLM_API_KEY=${SB_LLM_API_KEY:-}
+    ports:
+      - "9222:9222"   # CDP remote debugging
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    command: ["version"]
