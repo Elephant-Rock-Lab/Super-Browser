@@ -4,9 +4,43 @@ build-backend = "hatchling.build"
 
 [project]
 name = "super-browser"
-version = "1.1.0"
-description = "Comprehensive browser control for AI agents"
+version = "1.2.0"
+description = "Production-grade AI browser automation with built-in safety, stealth, and budget governance"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
+authors = [
+    { name = "Super Browser Team" },
+]
+keywords = [
+    "browser-automation",
+    "ai-agent",
+    "web-scraping",
+    "playwright",
+    "stealth",
+    "budget-governance",
+    "safety",
+    "anti-detection",
+    "llm",
+    "mcp",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Testing",
+    "Framework :: AsyncIO",
+    "Typing :: Typed",
+]
+
+[project.scripts]
+super-browser = "super_browser.cli:main"
 
 [project.optional-dependencies]
 browser = [
@@ -30,6 +64,12 @@ openai = [
 ]
 security = [
     "cryptography>=42.0",
+]
+mcp = [
+    "mcp>=1.0",
+]
+cloud = [
+    "httpx>=0.27",
 ]
 
 [tool.hatch.build.targets.wheel]
