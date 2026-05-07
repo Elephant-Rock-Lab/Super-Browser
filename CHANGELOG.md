@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-05-07
+
+### Added — Core Web Automation Features
+
+- **Multi-tab support**: `open_tab()`, `switch_tab()`, `close_tab()`, `list_tabs()` — full tab lifecycle management
+- **File upload**: `upload_file(selector, path)` — set files on `<input type="file">` elements
+- **File download**: `download(url_or_selector)` — download files with automatic path resolution
+- **iframe interaction**: `enter_frame(selector)`, `exit_frame()` — scope interactions to iframe content with nesting support
+- **Shadow DOM piercing**: `query_shadow(host, inner)` — query elements inside Shadow DOM roots
+- **Network interception**: `intercept_requests()`, `block_requests()`, `mock_response()`, `clear_interceptions()` — intercept, block, and mock HTTP requests
+
+### New Types
+
+- `DownloadResult`, `UploadResult`, `ShadowQueryResult`, `NetworkInterceptResult`
+- `TabHandle`, `TabSnapshot` for multi-tab management
+
+### New Module
+
+- `browser/tabs.py` — `TabManager` class for multi-tab lifecycle
+
 ## [1.0.2] — 2026-05-03
 
 ### Fixed — P2 Polish
