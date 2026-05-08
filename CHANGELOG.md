@@ -5,6 +5,87 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-05-08
+
+### Added — Plugin System, Recording, CLI, Memory
+
+#### BATCH-22: EventBus & Lifecycle Hooks
+- **EventBus**: Typed pub/sub with sync (`emit()`) and async (`emit_async()`) handler support
+- **7 lifecycle events**: `before_navigate`, `after_navigate`, `before_action`, `after_action`, `on_error`, `on_loop_detected`, `on_budget_alert`
+- **HB-22-01**: `emit()` never raises — handler errors caught and logged
+- **HB-22-03**: Context dict passed as read-only `MappingProxyType`
+- New modules: `events/bus.py`, `events/types.py`
+
+#### BATCH-23: Session Recording
+- **SessionRecorder**: Subscribes to EventBus lifecycle events, captures `ActionRecord` entries
+- **Persistence**: `save()`/`load()` for JSON recording files with `schema_version: "1.0"`
+- **HTML audit reports**: `export_html()`/`save_html()` — self-contained HTML with action table
+- **RecordingReplayer**: Replay recordings against a live browser with mismatch detection
+- **HB-23-02**: Screenshot capture failures never block recording
+- **HB-23-04**: Recorded params strip API keys and credentials (`[REDACTED]`)
+- New modules: `recording/recorder.py`, `recording/types.py`, `recording/persistence.py`, `recording/report.py`, `recording/replayer.py`
+
+#### BATCH-24: CLI Modes
+- **Interactive REPL**: Persistent browser session with commands (open, click, fill, extract, scroll, screenshot, observe, tabs, close)
+- **Script mode**: Execute YAML batch scripts step-by-step with progress reporting
+- **Recording replay CLI**: `super-browser replay recording.json`
+- **One-shot agent**: `super-browser act "instruction" --url <url>`
+- **HB-24-01**: Browser persists between REPL commands
+- **HB-24-03**: No LLM credentials required — all commands use direct browser calls
+- **HB-24-04**: Unknown commands print help, never crash
+- New modules: `cli/interactive.py`, `cli/commands.py`, `cli/script.py`
+
+#### BATCH-25: Per-Domain Memory
+- **MemoryStore**: Per-domain JSON persistence with TTL pruning and credential filtering
+- **Integration**: Memory wired into agent loop — saves successful sequences, injects context into LLM prompts
+- **CLI commands**: `memory list`, `memory show`, `memory clear`, `memory prune`
+- **HB-25-01**: Memory is opt-in — `sb.enable_memory()` required
+- New modules: `memory/store.py`, `memory/types.py`, `memory/integration.py`
+
+#### BATCH-26: Integration Tests & Release
+- **Cross-feature integration tests**: 12 tests covering plugins+recording, recording+memory, CLI+recording, plugin tool registration
+- **E2E journey test**: Complete 7-phase workflow through all 4 features
+- **Documentation**: `docs/plugins.md`, `docs/recording.md`, `docs/memory.md` (new) + updated README, quickstart, API reference
+- **Version bump**: 1.3.0
+
+### New Modules
+
+| Module | Description |
+|---|---|
+| `events/bus.py` | Typed pub/sub EventBus |
+| `events/types.py` | Lifecycle event type constants and handler type aliases |
+| `recording/recorder.py` | SessionRecorder — captures lifecycle events |
+| `recording/types.py` | ActionRecord, RecordingSession data models |
+| `recording/persistence.py` | Save/load recording JSON files |
+| `recording/report.py` | HTML audit report generator |
+| `recording/replayer.py` | RecordingReplayer with mismatch detection |
+| `cli/interactive.py` | Interactive REPL mode |
+| `cli/commands.py` | Command dispatch for REPL |
+| `cli/script.py` | YAML script execution, replay, one-shot agent |
+| `memory/store.py` | Per-domain MemoryStore with TTL pruning |
+| `memory/types.py` | DomainMemory, ActionSequence data models |
+| `memory/integration.py` | Memory integration with agent loop |
+| `plugins/hooks.py` | Global hook registry |
+| `plugins/decorators.py` | `@hook()` decorator API |
+
+### New Documentation
+
+| Document | Description |
+|---|---|
+| `docs/plugins.md` | Plugin & hook system guide with examples |
+| `docs/recording.md` | Session recording, replay, and audit guide |
+| `docs/memory.md` | Per-domain memory store guide |
+
+### Tests Added
+
+| Batch | Tests Added |
+|---|---|
+| BATCH-22 | EventBus unit tests, lifecycle hook tests |
+| BATCH-23 | Recorder, persistence, replayer tests |
+| BATCH-24 | Interactive REPL, script execution tests |
+| BATCH-25 | MemoryStore, integration, CLI memory command tests |
+| BATCH-26 | 12 cross-feature integration + E2E journey tests |
+
 ## [1.2.0] — 2026-05-07
 
 ### Added — Distribution & Integration

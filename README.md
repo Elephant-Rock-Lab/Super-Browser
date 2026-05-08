@@ -78,6 +78,57 @@ Additional subsystems:
 
 Full API documentation lives in [`docs/`](docs/).
 
+## What's New in v1.3
+
+### Plugin & Hook System
+
+Extend Super Browser with custom lifecycle hooks using the `@hook()` decorator:
+
+```python
+from super_browser.plugins import hook
+
+@hook("after_navigate")
+def log_page(ctx):
+    print(f"Loaded: {ctx['title']}")
+```
+
+Seven lifecycle events: `before_navigate`, `after_navigate`, `before_action`, `after_action`, `on_error`, `on_loop_detected`, `on_budget_alert`. See [docs/plugins.md](docs/plugins.md).
+
+### Session Recording
+
+Record, save, and replay browser sessions:
+
+```python
+sb.enable_recording()
+await sb.navigate("https://example.com")
+session = sb.recording.stop()
+# Save, replay, or generate HTML audit reports
+```
+
+See [docs/recording.md](docs/recording.md).
+
+### CLI Modes
+
+Interactive REPL, YAML script execution, and one-shot agent commands:
+
+```bash
+super-browser interactive    # Interactive REPL
+super-browser script task.yaml  # Execute a script
+super-browser act "Find the price" --url https://shop.com  # One-shot agent
+```
+
+### Per-Domain Memory
+
+Persist successful action sequences, working selectors, and site preferences:
+
+```python
+sb.enable_memory()
+# Successful tasks are automatically recorded per domain
+# Context is injected into future LLM prompts
+```
+
+See [docs/memory.md](docs/memory.md).
+
 ## Development
 
 ```bash

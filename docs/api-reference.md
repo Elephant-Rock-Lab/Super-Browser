@@ -1,6 +1,6 @@
 # API Reference
 
-> **Super Browser** v1.0.0 — Complete public API documentation.
+> **Super Browser** v1.3.0 — Complete public API documentation.
 
 This reference covers every public class, method, and function in Super Browser. Classes are grouped by subsystem.
 
@@ -19,6 +19,11 @@ This reference covers every public class, method, and function in Super Browser.
 - [CheckpointManager](#checkpointmanager)
 - [Result Types](#result-types)
 - [Configuration Sub-types](#configuration-sub-types)
+- [EventBus](#eventbus)
+- [SessionRecorder](#sessionrecorder)
+- [RecordingReplayer](#recordingreplayer)
+- [MemoryStore](#memorystore)
+- [Plugin System](#plugin-system)
 
 ---
 
@@ -1017,3 +1022,295 @@ These appear in `ActionResult.data` for specific operations:
 | `RecoveryStrategy` | `"retry"` \| `"reattach_session"` \| `"respawn_browser"` \| `"checkpoint_rollback"` \| etc. |
 | `RecoveryHint` | `strategy`, `retryable`, `max_attempts`, `should_rotate_credential` |
 | `ClassifiedError` | `error_type`, `hint`, `original_error` |
+
+---
+
+## EventBus
+
+**Module:** `super_browser.events.bus`
+
+Typed pub/sub event bus with sync and async handler support. Handler errors are caught and logged — `emit()` never raises.
+
+### Constructor
+
+```python
+class EventBus()
+```
+
+No parameters. Creates an empty handler registry.
+
+### Methods
+
+#### `subscribe(event_type: str, handler: Handler) → str`
+
+Register *handler* for *event_type*. Returns a subscription ID for later unsubscription.
+
+```python
+bus = EventBus()
+sub_id = bus.subscribe("before_navigate", lambda ctx: print(ctx["url"]))
+```
+
+#### `unsubscribe(subscription_id: str) → None`
+
+Remove a previously registered handler by its subscription ID.
+
+#### `emit(event_type: str, context: dict) → None`
+
+Emit *event_type* synchronously. **Never raises.** The context dict is passed as read-only (`MappingProxyType`). Async handlers receive a warning but are not awaited.
+
+```python
+bus.emit("before_navigate", {"url": "https://example.com"})
+```
+
+#### `emit_async(event_type: str, context: dict) → None` *(async)*
+
+Emit *event_type* asynchronously. Both sync and async handlers are supported; async handlers are properly awaited.
+
+### Event Types (`super_browser.events.types`)
+
+| Constant | Value | Context Keys |
+|---|---|---|
+| `BEFORE_NAVIGATE` | `"before_navigate"` | `url` |
+| `AFTER_NAVIGATE` | `"after_navigate"` | `url`, `final_url`, `title`, `ok` |
+| `BEFORE_ACTION` | `"before_action"` | `action`, `target`, `step` |
+| `AFTER_ACTION` | `"after_action"` | `action`, `target`, `step`, `ok`, `duration_ms` |
+| `ON_ERROR` | `"on_error"` | `action`, `error`, `category`, `step` |
+| `ON_LOOP_DETECTED` | `"on_loop_detected"` | `level`, `message`, `repetition_count`, `repeated_action` |
+| `ON_BUDGET_ALERT` | `"on_budget_alert"` | `level`, `usage_pct`, `remaining` |
+
+---
+
+## SessionRecorder
+
+**Module:** `super_browser.recording.recorder`
+
+Records browser lifecycle events into an `ActionRecord` list. Subscribes to all lifecycle events on an `EventBus`.
+
+### Constructor
+
+```python
+class SessionRecorder(
+    event_bus: EventBus,
+    cdp_bridge: Optional[CDPBridge] = None,
+    *,
+    max_screenshots: int = 100,
+)
+```
+
+### Methods
+
+#### `start() → None`
+
+Begin recording. Subscribes to `before_navigate`, `after_navigate`, `before_action`, `after_action`, and `on_error` events.
+
+#### `stop() → RecordingSession`
+
+Stop recording, unsubscribe from all events, and return the captured session.
+
+#### `export_json() → str`
+
+Export the current recording as a JSON string.
+
+### Recording Types (`super_browser.recording.types`)
+
+#### `ActionRecord`
+
+```python
+@dataclass
+class ActionRecord:
+    index: int
+    timestamp: float
+    action: str
+    params: dict[str, Any]
+    url: str = ""
+    title: str = ""
+    screenshot_before: Optional[str] = None
+    screenshot_after: Optional[str] = None
+    ok: bool = True
+    error: Optional[str] = None
+    duration_ms: float = 0.0
+```
+
+#### `RecordingSession`
+
+```python
+@dataclass
+class RecordingSession:
+    session_id: str
+    started_at: float
+    actions: list[ActionRecord]
+    schema_version: str = "1.0"
+```
+
+Methods: `to_dict()`, `from_dict(data)`, `metadata` (computed property with `action_count`, `error_count`, `duration_ms`).
+
+### Persistence (`super_browser.recording.persistence`)
+
+| Function | Signature | Description |
+|---|---|---|
+| `save` | `(recording, path) → None` | Write recording to JSON file |
+| `load` | `(path) → RecordingSession` | Load recording from JSON file |
+
+---
+
+## RecordingReplayer
+
+**Module:** `super_browser.recording.replayer`
+
+Replays a recorded session against a live `SuperBrowser` instance, producing a `ReplayReport` with mismatch detection.
+
+### Constructor
+
+```python
+class RecordingReplayer(sb: SuperBrowser)
+```
+
+### Methods
+
+#### `replay(recording, *, delay_ms=100) → ReplayReport` *(async)*
+
+Replay all actions in *recording* with a configurable delay between actions.
+
+### ReplayReport
+
+```python
+@dataclass
+class ReplayReport:
+    total_actions: int = 0
+    matched: int = 0
+    mismatches: list[MismatchRecord] = []
+    duration_ms: float = 0.0
+```
+
+### MismatchRecord
+
+```python
+@dataclass
+class MismatchRecord:
+    index: int
+    action: str
+    expected: dict[str, Any]
+    actual: dict[str, Any]
+    reason: str
+```
+
+---
+
+## MemoryStore
+
+**Module:** `super_browser.memory.store`
+
+Per-domain JSON memory store with TTL-based pruning and credential filtering.
+
+### Constructor
+
+```python
+class MemoryStore(memory_dir: Path, ttl_days: int = 30)
+```
+
+### Core Methods
+
+| Method | Description |
+|---|---|
+| `save(domain, memory) → None` | Persist domain memory to JSON file |
+| `load(domain) → DomainMemory` | Load domain memory (returns empty if not found) |
+| `list_domains() → list[str]` | List domains with stored memory |
+| `clear(domain) → None` | Delete memory for a domain |
+| `prune() → int` | Remove expired entries, return count removed |
+
+### High-Level Helpers
+
+| Method | Description |
+|---|---|
+| `record_sequence(domain, task, actions, success) → None` | Record an action sequence (success only) |
+| `record_selector(domain, element, selector) → None` | Record a working CSS selector |
+| `get_context_for_prompt(domain) → str` | Generate advisory text for LLM prompt injection |
+
+### Memory Types (`super_browser.memory.types`)
+
+#### `DomainMemory`
+
+```python
+@dataclass
+class DomainMemory:
+    domain: str
+    sequences: list[ActionSequence] = []
+    selectors: dict[str, str] = {}
+    preferences: dict[str, Any] = {}
+    created_at: float
+    updated_at: float
+```
+
+#### `ActionSequence`
+
+```python
+@dataclass
+class ActionSequence:
+    task: str
+    actions: list[dict[str, Any]] = []
+    success: bool = True
+    created_at: float
+    used_count: int = 0
+```
+
+### Integration (`super_browser.memory.integration`)
+
+| Function | Description |
+|---|---|
+| `create_memory_store(*, memory_enabled, memory_dir, ttl_days) → MemoryStore \| None` | Factory used by `SuperBrowser` |
+| `extract_domain_from_url(url) → str` | Extract domain key from URL |
+| `build_memory_context(store, url) → str` | Build memory context for LLM prompt |
+| `record_task_result(store, url, task, actions, success) → None` | Record a task result to memory |
+| `record_selector_result(store, url, element, selector) → None` | Record a working selector |
+
+---
+
+## Plugin System
+
+**Module:** `super_browser.plugins`
+
+Global hook registry and decorator API for lifecycle event registration.
+
+### Decorator
+
+#### `@hook(event_type: str)`
+
+Decorator that registers a function as a lifecycle hook handler. Defined in `super_browser.plugins.decorators`.
+
+```python
+from super_browser.plugins import hook
+
+@hook("after_action")
+def my_hook(ctx):
+    print(f"Action: {ctx['action']}")
+```
+
+### Functions
+
+| Function | Module | Description |
+|---|---|---|
+| `register_hook(event_type, handler) → None` | `plugins.hooks` | Add handler to the global registry |
+| `get_registered_hooks() → dict[str, list[Handler]]` | `plugins.hooks` | Return a copy of the global registry |
+| `clear_registry() → None` | `plugins.hooks` | Clear the global registry (testing) |
+
+### SuperBrowser Integration Methods
+
+#### `enable_recording(*, max_screenshots=100) → None`
+
+Enable session recording on the `SuperBrowser` instance.
+
+#### `enable_memory(*, memory_dir="~/.config/super-browser/memory", ttl_days=30) → None`
+
+Enable per-domain memory persistence (opt-in).
+
+#### `replay(path, *, delay_ms=100) → ActionResult` *(async)*
+
+Load and replay a recording file against this browser.
+
+#### Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `event_bus` | `EventBus \| None` | Access the internal EventBus |
+| `recording` | `SessionRecorder \| None` | Access the active recorder |
+| `memory` | `MemoryStore \| None` | Access the active memory store |
