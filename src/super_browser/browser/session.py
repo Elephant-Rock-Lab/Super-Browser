@@ -5,12 +5,16 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from super_browser.browser.cdp import CDPBridge
 from super_browser.browser.config import SessionConfig, SessionMode
 from super_browser.browser.discovery import BrowserDiscovery
 from super_browser.browser.page import PageHandle
+
+if TYPE_CHECKING:
+    from super_browser.browser.cloak_backend import CloakBrowserAdapter, CloakLaunchResult
+    from super_browser.config import CloakConfig
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +49,10 @@ class BrowserSession:
     and handles cleanup on shutdown.
     """
 
-    def __init__(self, config: Optional[SessionConfig] = None) -> None:
+    def __init__(self, config: Optional[SessionConfig] = None, *, cloak_config: Optional[Any] = None) -> None:
         self._config = config or SessionConfig()
+        self._cloak_config: Optional[Any] = cloak_config
+        self._stealth_backend: str = "patchright"
         self._state = BrowserState()
         self._playwright: Any = None
         self._browser: Any = None
@@ -61,6 +67,20 @@ class BrowserSession:
                 "Install with: pip install super-browser[browser]"
             )
 
+        # -- CloakBrowser path ----------------------------------------
+        if self._config.mode == SessionMode.CLOAK_LAUNCH or self._should_try_cloak():
+            cloak_result = await self._try_cloak_launch()
+            if cloak_result is not None:
+                self._browser = cloak_result.browser
+                self._context = cloak_result.context
+                self._stealth_backend = "cloak"
+                logger.info("Using CloakBrowser stealth backend")
+                await self._finalise_start()
+                return self._state
+            # Fall through to Patchright if cloak failed
+            logger.info("CloakBrowser unavailable — falling back to Patchright")
+
+        # -- Patchright path ------------------------------------------
         self._playwright = await async_playwright().start()
 
         if self._config.mode == SessionMode.DISCOVER:
@@ -84,7 +104,7 @@ class BrowserSession:
             self._browser = await self._playwright.chromium.connect_over_cdp(ws_url)
             self._state.ws_url = ws_url
         else:
-            # PATCHRIGHT_LAUNCH or DAEMON
+            # PATCHRIGHT_LAUNCH, CLOAK_LAUNCH (fell back), or DAEMON
             launch_args = list(self._config.chrome_args)
             if self._config.headless:
                 launch_args.append("--headless=new")
@@ -105,6 +125,47 @@ class BrowserSession:
             user_agent=self._config.user_agent,
         )
 
+        await self._finalise_start()
+        return self._state
+
+    def _should_try_cloak(self) -> bool:
+        """Return *True* if we should attempt a CloakBrowser launch.
+
+        Cloak is attempted when the mode is *not* an explicit Patchright
+        or attach mode AND the cloak_config permits it.
+        """
+        skip_modes = {SessionMode.PATCHRIGHT_ATTACH, SessionMode.DISCOVER}
+        if self._config.mode in skip_modes:
+            return False
+        if self._config.mode == SessionMode.CLOAK_LAUNCH:
+            return True  # already handled by caller, but be safe
+        # PATCHRIGHT_LAUNCH / DAEMON — only try if cloak_config is provided
+        return self._cloak_config is not None
+
+    async def _try_cloak_launch(self) -> Optional[Any]:
+        """Attempt to launch CloakBrowser. Returns *None* on failure."""
+        try:
+            from super_browser.browser.cloak_backend import CloakBrowserAdapter
+        except ImportError:
+            return None
+
+        adapter = CloakBrowserAdapter.from_config(
+            self._cloak_config,
+            proxy=self._config.proxy,
+            headless=self._config.headless,
+        )
+        if adapter is None:
+            return None
+
+        try:
+            result = await adapter.launch()
+            return result
+        except Exception:
+            logger.warning("CloakBrowser launch failed — falling back to Patchright", exc_info=True)
+            return None
+
+    async def _finalise_start(self) -> None:
+        """Populate state fields after browser is connected."""
         self._state.connected = True
         self._state.browser_version = self._browser.version
         self._state.connected_at = time.monotonic()
@@ -115,7 +176,14 @@ class BrowserSession:
         except (AttributeError, Exception):
             pass
 
-        return self._state
+    @property
+    def stealth_backend(self) -> str:
+        """Return the name of the active stealth backend.
+
+        Returns ``"cloak"`` when CloakBrowser is in use, ``"patchright"``
+        otherwise.
+        """
+        return self._stealth_backend
 
     async def stop(self) -> None:
         """Close all pages, context, browser, and Playwright."""
@@ -133,7 +201,8 @@ class BrowserSession:
                 pass
         if self._browser:
             try:
-                if self._config.mode in (SessionMode.PATCHRIGHT_LAUNCH, SessionMode.DAEMON):
+                if self._stealth_backend == "cloak":
+                    # CloakBrowser manages its own Playwright instance
                     await self._browser.close()
                 else:
                     await self._browser.close()

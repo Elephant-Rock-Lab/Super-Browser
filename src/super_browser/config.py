@@ -25,6 +25,24 @@ from super_browser.stealth.types import ProxyPoolConfig, ProxyTier, StealthConfi
 
 
 @dataclass(frozen=True)
+class CloakConfig:
+    """Configuration for the optional CloakBrowser stealth backend.
+
+    When ``cloak_enabled`` is *True* (default) and ``cloakbrowser`` is
+    installed, BrowserSession will use CloakBrowser's patched Chromium
+    binary instead of vanilla Patchright.  If ``cloakbrowser`` is not
+    installed the session silently falls back to Patchright.
+    """
+
+    cloak_enabled: bool = True
+    cloak_fingerprint_seed: Optional[int] = None
+    cloak_humanize: bool = False
+    cloak_humanize_preset: str = "default"
+    cloak_geoip: bool = False
+    cloak_platform: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class TracingConfig:
     """Tracing / observability sub-config (new in unified Config)."""
 
@@ -78,6 +96,7 @@ class Config:
     security: SecurityConfig = field(default_factory=SecurityConfig)
     tracing: TracingConfig = field(default_factory=TracingConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
+    cloak: CloakConfig = field(default_factory=CloakConfig)
 
     # ------------------------------------------------------------------
     # from_env
@@ -134,6 +153,15 @@ class Config:
         _env_str(memory_kw, "SB_MEMORY_DIR", "memory_dir")
         _env_int(memory_kw, "SB_MEMORY_TTL_DAYS", "memory_ttl_days")
 
+        # -- Cloak ---------------------------------------------------
+        cloak_kw: dict = {}
+        _env_bool(cloak_kw, "SB_CLOAK_ENABLED", "cloak_enabled")
+        _env_int(cloak_kw, "SB_CLOAK_FINGERPRINT_SEED", "cloak_fingerprint_seed")
+        _env_bool(cloak_kw, "SB_CLOAK_HUMANIZE", "cloak_humanize")
+        _env_str(cloak_kw, "SB_CLOAK_HUMANIZE_PRESET", "cloak_humanize_preset")
+        _env_bool(cloak_kw, "SB_CLOAK_GEOIP", "cloak_geoip")
+        _env_str(cloak_kw, "SB_CLOAK_PLATFORM", "cloak_platform")
+
         return cls(
             browser=_suppress_deprecation(SessionConfig, **browser_kw),
             agent=AgentConfig(**agent_kw),
@@ -142,6 +170,7 @@ class Config:
             security=SecurityConfig(),
             tracing=TracingConfig(**tracing_kw),
             memory=MemoryConfig(**memory_kw),
+            cloak=CloakConfig(**cloak_kw),
         )
 
     # ------------------------------------------------------------------
@@ -204,6 +233,7 @@ class Config:
             security=_build_sub(SecurityConfig, d.get("security", {})),
             tracing=_build_sub(TracingConfig, d.get("tracing", {})),
             memory=_build_sub(MemoryConfig, d.get("memory", {})),
+            cloak=_build_sub(CloakConfig, d.get("cloak", {})),
         )
 
     # ------------------------------------------------------------------
