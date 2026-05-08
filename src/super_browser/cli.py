@@ -47,6 +47,12 @@ def main() -> None:
     act_parser.add_argument("--url", default=None, help="URL to navigate to first")
     act_parser.add_argument("--max-steps", type=int, default=50, help="Max agent steps (default: 50)")
 
+    # stealth-check
+    stealth_check = sub.add_parser("stealth-check", help="Run stealth fingerprint check (offline mode)")
+    stealth_check.add_argument("--online", action="store_true", default=False, help="Run in online mode (requires browser)")
+    stealth_check.add_argument("--format", default="markdown", choices=["markdown", "html"], help="Report format (default: markdown)")
+    stealth_check.add_argument("--threshold", type=int, default=70, help="Pass threshold (default: 70)")
+
     # memory
     memory_parser = sub.add_parser("memory", help="Manage per-domain agent memory")
     memory_sub = memory_parser.add_subparsers(dest="memory_command")
@@ -95,6 +101,10 @@ def main() -> None:
 
     if args.command == "act":
         asyncio.run(_act(args))
+        return
+
+    if args.command == "stealth-check":
+        sys.exit(asyncio.run(_stealth_check(args)))
         return
 
     if args.command == "memory":
@@ -242,6 +252,26 @@ def _memory(args: argparse.Namespace) -> None:
 
     # No subcommand given
     print("Usage: super-browser memory {list|show|clear|prune}")
+
+
+async def _stealth_check(args: argparse.Namespace) -> int:
+    """Run stealth fingerprint check and print report."""
+    from super_browser.stealth.fingerprint_scanner import FingerprintScanner
+    from super_browser.stealth.report import StealthReport
+
+    scanner = FingerprintScanner(scanner_config={"offline": not args.online})
+    score = await scanner.scan()
+
+    if args.format == "html":
+        report = StealthReport.generate_html(score)
+    else:
+        report = StealthReport.generate_markdown(score)
+
+    print(report)
+
+    if score.overall >= args.threshold:
+        return 0
+    return 1
 
 
 if __name__ == "__main__":
