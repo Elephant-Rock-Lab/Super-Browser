@@ -47,6 +47,25 @@ def main() -> None:
     act_parser.add_argument("--url", default=None, help="URL to navigate to first")
     act_parser.add_argument("--max-steps", type=int, default=50, help="Max agent steps (default: 50)")
 
+    # memory
+    memory_parser = sub.add_parser("memory", help="Manage per-domain agent memory")
+    memory_sub = memory_parser.add_subparsers(dest="memory_command")
+
+    memory_list = memory_sub.add_parser("list", help="List domains with memory")
+    memory_list.add_argument("--dir", default=None, help="Memory directory (default: ~/.config/super-browser/memory)")
+
+    memory_show = memory_sub.add_parser("show", help="Show memory for a domain")
+    memory_show.add_argument("domain", help="Domain to show")
+    memory_show.add_argument("--dir", default=None, help="Memory directory")
+
+    memory_clear = memory_sub.add_parser("clear", help="Clear memory for a domain")
+    memory_clear.add_argument("domain", help="Domain to clear")
+    memory_clear.add_argument("--dir", default=None, help="Memory directory")
+
+    memory_prune = memory_sub.add_parser("prune", help="Prune expired memory entries")
+    memory_prune.add_argument("--dir", default=None, help="Memory directory")
+    memory_prune.add_argument("--ttl", type=int, default=30, help="TTL in days (default: 30)")
+
     args = parser.parse_args()
 
     if args.command == "version" or args.command is None:
@@ -76,6 +95,10 @@ def main() -> None:
 
     if args.command == "act":
         asyncio.run(_act(args))
+        return
+
+    if args.command == "memory":
+        _memory(args)
         return
 
     parser.print_help()
@@ -162,6 +185,63 @@ async def _act(args: argparse.Namespace) -> None:
     """Run a one-shot agent instruction."""
     from super_browser.cli.script import run_act
     await run_act(args.instruction, url=args.url, max_steps=args.max_steps)
+
+
+def _memory(args: argparse.Namespace) -> None:
+    """Handle memory CLI commands: list, show, clear, prune."""
+    from pathlib import Path
+    from super_browser.memory.store import MemoryStore
+
+    memory_dir = args.dir or "~/.config/super-browser/memory"
+    store = MemoryStore(Path(memory_dir).expanduser())
+
+    if args.memory_command == "list":
+        domains = store.list_domains()
+        if not domains:
+            print("No domains with memory.")
+        else:
+            print(f"Domains with memory ({len(domains)}):")
+            for d in domains:
+                mem = store.load(d)
+                seq_count = len(mem.sequences)
+                sel_count = len(mem.selectors)
+                print(f"  {d}  ({seq_count} sequences, {sel_count} selectors)")
+        return
+
+    if args.memory_command == "show":
+        mem = store.load(args.domain)
+        if not mem.sequences and not mem.selectors and not mem.preferences:
+            print(f"No memory for domain: {args.domain}")
+        else:
+            print(f"Memory for {args.domain}:")
+            if mem.sequences:
+                print(f"  Sequences ({len(mem.sequences)}):")
+                for seq in mem.sequences:
+                    status = "✓" if seq.success else "✗"
+                    print(f"    {status} {seq.task} ({len(seq.actions)} actions, used {seq.used_count}x)")
+            if mem.selectors:
+                print(f"  Selectors ({len(mem.selectors)}):")
+                for element, selector in mem.selectors.items():
+                    print(f"    {element}: {selector}")
+            if mem.preferences:
+                print(f"  Preferences:")
+                for key, value in mem.preferences.items():
+                    print(f"    {key}: {value}")
+        return
+
+    if args.memory_command == "clear":
+        store.clear(args.domain)
+        print(f"Cleared memory for domain: {args.domain}")
+        return
+
+    if args.memory_command == "prune":
+        store_with_ttl = MemoryStore(Path(memory_dir).expanduser(), ttl_days=args.ttl)
+        removed = store_with_ttl.prune()
+        print(f"Pruned {removed} expired entries.")
+        return
+
+    # No subcommand given
+    print("Usage: super-browser memory {list|show|clear|prune}")
 
 
 if __name__ == "__main__":
