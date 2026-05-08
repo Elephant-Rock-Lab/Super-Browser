@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-05-08
+
+### Added — CloakBrowser Stealth Backend
+
+#### BATCH-27: CloakBrowser Integration
+- **CloakConfig**: New sub-config with 6 fields (cloak_enabled, fingerprint_seed, humanize, humanize_preset, geoip, platform)
+- **SessionMode.CLOAK_LAUNCH**: New enum value for explicit CloakBrowser mode
+- **CloakBrowserAdapter**: Lazy-import adapter that wraps cloakbrowser.launch_async()
+- **Auto-detection**: BrowserSession detects cloakbrowser at runtime and uses it when available
+- **Graceful fallback**: Falls back to Patchright when cloakbrowser is not installed or launch fails
+- **stealth_backend property**: Returns "cloak" or "patchright" on both BrowserSession and SuperBrowser facade
+- **cloak_config property**: Exposes active CloakConfig on SuperBrowser facade
+- **Option passthrough**: humanize, proxy, fingerprint_seed, geoip, platform, humanize_preset all forwarded
+- **[cloak] extra**: `pip install super-browser[cloak]` installs cloakbrowser>=0.3
+- **Documentation**: docs/cloak-integration.md with complete guide
+- **Example**: examples/cloak_stealth.py with working demo
+- **HB-27-01**: SuperBrowser works identically with or without cloakbrowser — all existing tests pass
+- **HB-27-02**: cloakbrowser imported only inside functions, never at module level
+- New modules: `browser/cloak_backend.py`
+- New config: `CloakConfig` in `config.py`
+
 ## [1.3.0] — 2026-05-08
 
 ### Added — Plugin System, Recording, CLI, Memory
