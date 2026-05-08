@@ -129,6 +129,39 @@ sb.enable_memory()
 
 See [docs/memory.md](docs/memory.md).
 
+## Stealth Backend
+
+Super Browser supports **CloakBrowser** as an optional stealth backend — a hardened Chromium with 57 C++ anti-detection patches:
+
+```bash
+pip install super-browser[browser,cloak]
+```
+
+When installed, CloakBrowser is automatically detected and used. No code changes required:
+
+```python
+from super_browser import SuperBrowser
+
+async with SuperBrowser() as sb:
+    print(sb.stealth_backend)  # "cloak" (or "patchright" if not installed)
+```
+
+Configure via environment variables or Config:
+
+```python
+from super_browser import Config
+
+config = Config.from_dict({
+    "cloak": {
+        "cloak_humanize": True,       # Human-like mouse/keyboard
+        "cloak_fingerprint_seed": 42,  # Persistent browser identity
+        "cloak_geoip": True,           # Auto-detect timezone from proxy
+    }
+})
+```
+
+See [docs/cloak-integration.md](docs/cloak-integration.md) for the complete guide.
+
 ## Development
 
 ```bash
