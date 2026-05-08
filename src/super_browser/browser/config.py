@@ -14,6 +14,7 @@ class SessionMode(StrEnum):
     PATCHRIGHT_ATTACH = "patchright_attach"
     DISCOVER = "discover"
     DAEMON = "daemon"
+    CLOAK_LAUNCH = "cloak_launch"
 
 
 @dataclass(frozen=True)
