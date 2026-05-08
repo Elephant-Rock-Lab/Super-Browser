@@ -78,6 +78,48 @@ Additional subsystems:
 
 Full API documentation lives in [`docs/`](docs/).
 
+## What's New in v1.4
+
+### Human Behavior Simulation
+
+Make automated interactions appear natural with configurable presets:
+
+```python
+from super_browser.stealth.human import HumanBehaviorAdapter
+from super_browser.stealth.human_config import HumanConfig
+
+adapter = HumanBehaviorAdapter(config=HumanConfig(preset="careful"), backend="patchright")
+await adapter.humanize_click(page, "#submit-btn")
+await adapter.humanize_type(page, "#search", "hello world")
+await adapter.humanize_scroll(page, "down")
+```
+
+Three presets: `default` (general), `careful` (high-security), `fast` (speed). Works with both CloakBrowser and Patchright backends. See [docs/human-behavior.md](docs/human-behavior.md).
+
+### Fingerprint Scoring
+
+Assess your stealth configuration with a weighted composite score:
+
+```python
+from super_browser.stealth.fingerprint_scanner import FingerprintScanner
+
+scanner = FingerprintScanner(scanner_config={"offline": True})
+score = await scanner.scan()
+print(f"Stealth score: {score.overall}/100")  # e.g. 93/100
+```
+
+CLI command for quick checks:
+
+```bash
+super-browser stealth-check                  # Offline (no browser needed)
+super-browser stealth-check --format html     # HTML report
+super-browser stealth-check --online          # Live check (requires browser)
+```
+
+See [docs/fingerprint-scoring.md](docs/fingerprint-scoring.md).
+
+---
+
 ## What's New in v1.3
 
 ### Plugin & Hook System
