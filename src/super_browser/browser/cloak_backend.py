@@ -55,6 +55,8 @@ class CloakBrowserAdapter:
         platform: Optional[str] = None,
         proxy: Optional[str] = None,
         headless: bool = False,
+        viewport: tuple[int, int] = (1280, 720),
+        user_agent: Optional[str] = None,
     ) -> None:
         self._humanize = humanize
         self._humanize_preset = humanize_preset
@@ -63,6 +65,8 @@ class CloakBrowserAdapter:
         self._platform = platform
         self._proxy = proxy
         self._headless = headless
+        self._viewport = viewport
+        self._user_agent = user_agent
 
     # ------------------------------------------------------------------
     # Factory
@@ -75,6 +79,8 @@ class CloakBrowserAdapter:
         *,
         proxy: Optional[str] = None,
         headless: bool = False,
+        viewport: tuple[int, int] = (1280, 720),
+        user_agent: Optional[str] = None,
     ) -> Optional[CloakBrowserAdapter]:
         """Create an adapter from a :class:`CloakConfig` (or *None*).
 
@@ -97,6 +103,8 @@ class CloakBrowserAdapter:
             platform=getattr(cloak_config, "cloak_platform", None),
             proxy=proxy,
             headless=headless,
+            viewport=viewport,
+            user_agent=user_agent,
         )
 
     # ------------------------------------------------------------------
@@ -134,7 +142,14 @@ class CloakBrowserAdapter:
 
         logger.info("Launching CloakBrowser stealth backend")
         browser = await cloakbrowser.launch_async(**kwargs)  # type: ignore[attr-defined]
-        context = await browser.new_context()  # type: ignore[attr-defined]
+
+        # Create context with viewport and user_agent
+        context_kwargs: dict[str, Any] = {
+            "viewport": {"width": self._viewport[0], "height": self._viewport[1]},
+        }
+        if self._user_agent:
+            context_kwargs["user_agent"] = self._user_agent
+        context = await browser.new_context(**context_kwargs)  # type: ignore[attr-defined]
 
         return CloakLaunchResult(browser=browser, context=context)
 

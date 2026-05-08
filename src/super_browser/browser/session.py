@@ -153,6 +153,8 @@ class BrowserSession:
             self._cloak_config,
             proxy=self._config.proxy,
             headless=self._config.headless,
+            viewport=self._config.viewport,
+            user_agent=self._config.user_agent,
         )
         if adapter is None:
             return None

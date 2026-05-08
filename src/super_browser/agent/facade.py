@@ -761,6 +761,22 @@ class SuperBrowser:
     def is_running(self) -> bool:
         return self._running
 
+    # -- Stealth Backend --
+
+    @property
+    def stealth_backend(self) -> str:
+        """Name of the active stealth backend ('cloak' or 'patchright')."""
+        if self._session is not None:
+            return self._session.stealth_backend
+        return "patchright"
+
+    @property
+    def cloak_config(self) -> Any:
+        """The CloakConfig if CloakBrowser is available, else None."""
+        if self._session is not None:
+            return self._session._cloak_config
+        return None
+
     # -- Memory --
 
     def enable_memory(
