@@ -26,6 +26,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New modules: `browser/cloak_backend.py`
 - New config: `CloakConfig` in `config.py`
 
+### Added — Human Behavior & Fingerprint Scoring
+
+#### BATCH-28: Human Behavior Adapter & Fingerprint Scoring
+- **HumanBehaviorAdapter**: Abstracts human simulation across CloakBrowser and Patchright backends
+- **HumanConfig**: Frozen dataclass with 3 presets ("default", "careful", "fast") controlling typing delay, mouse jitter, click hold, scroll step, pause, and typo chance
+- **FingerprintScanner**: Scans browser fingerprints in offline (default, deterministic) and online modes
+- **FingerprintScorer**: Weighted 0-100 composite score across 6 categories (webdriver 25%, headers 20%, plugins 15%, user_agent 15%, tls 15%, misc 10%)
+- **FingerprintScore/FingerprintCheck**: Data models for scan results
+- **StealthReport**: Markdown and HTML report generation from FingerprintScore
+- **stealth-check CLI**: `super-browser stealth-check [--online] [--format html|markdown] [--threshold N]`
+- **HB-28-01**: All new modules import cleanly without external dependencies
+- **HB-28-02**: Offline scanner returns deterministic scores without network access
+- New modules: `stealth/human.py`, `stealth/human_config.py`, `stealth/fingerprint_scanner.py`, `stealth/fingerprint_score.py`, `stealth/scoring.py`, `stealth/report.py`
+
+### Added — Integration Tests & Release
+
+#### BATCH-29: Integration Tests, Documentation & Release
+- **Cross-feature integration tests**: 30 tests across 5 test classes exercising CloakBrowser detection, human behavior dispatch, fingerprint scanning, CLI stealth-check, and full cross-feature coexistence
+- **Documentation**: docs/human-behavior.md, docs/fingerprint-scoring.md with complete guides
+- **Examples**: examples/human_behavior.py, examples/fingerprint_scan.py with working demos
+- **README v1.4 section**: Human behavior simulation and fingerprint scoring overview
+- **API reference updated**: v1.4.0 with 5 new API sections (HumanBehaviorAdapter, HumanConfig, FingerprintScanner, FingerprintScorer, FingerprintScore/FingerprintCheck)
+- **Version bump**: 1.3.0 → 1.4.0 in __init__.py and pyproject.toml
+- **HB-29-01**: All baseline + new tests pass (1,598 total)
+- **HB-29-02**: __version__ equals "1.4.0"
+- **HB-29-03**: Documentation includes working code examples
+- New test file: `tests/integration/test_v1_4_features.py`
+
 ## [1.3.0] — 2026-05-08
 
 ### Added — Plugin System, Recording, CLI, Memory
