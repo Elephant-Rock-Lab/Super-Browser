@@ -67,6 +67,8 @@ class SuperBrowser:
         self._tab_manager: Optional[TabManager] = None
         self._frame_stack: list[Any] = []  # stack of Frame objects
         self._network_interceptors: list[Any] = []
+        self._recorder: Any = None  # Optional[SessionRecorder]
+        self._event_bus: Any = None  # Optional[EventBus]
 
     # -- Lifecycle --
 
@@ -692,6 +694,59 @@ class SuperBrowser:
             domain, task_description, actions_taken, selectors_used,
             preferred_tier=preferred_tier,
         )
+
+    # -- Recording --
+
+    def enable_recording(self, *, max_screenshots: int = 100) -> None:
+        """Enable session recording. Call before or after start()."""
+        from super_browser.events.bus import EventBus
+        from super_browser.recording.recorder import SessionRecorder
+
+        if self._event_bus is None:
+            self._event_bus = EventBus()
+        cdp = None
+        if self._page and hasattr(self._page, "cdp"):
+            cdp = self._page.cdp
+        self._recorder = SessionRecorder(
+            self._event_bus, cdp, max_screenshots=max_screenshots,
+        )
+
+    @property
+    def recording(self) -> Any:
+        """Access the active SessionRecorder, or None if recording is not enabled."""
+        return self._recorder
+
+    @property
+    def event_bus(self) -> Any:
+        """Access the EventBus, or None if not initialized."""
+        return self._event_bus
+
+    async def replay(self, path: str, *, delay_ms: float = 100) -> ActionResult:
+        """Load a recording from *path* and replay it against this browser.
+
+        :param path: Path to a recording JSON file.
+        :param delay_ms: Delay between actions in milliseconds.
+        :returns: ActionResult with data=ReplayReport.
+        """
+        start = time.monotonic()
+        try:
+            from super_browser.recording.persistence import load as load_recording
+            from super_browser.recording.replayer import RecordingReplayer
+
+            recording = load_recording(path)
+            replayer = RecordingReplayer(self)
+            report = await replayer.replay(recording, delay_ms=delay_ms)
+            return timed_action_result(
+                ok=True,
+                start_ns=start,
+                data=report,
+            )
+        except Exception as exc:
+            return timed_action_result(
+                ok=False,
+                start_ns=start,
+                error=ActionError(ErrorCategory.BROWSER_CRASH, f"Replay failed: {exc}"),
+            )
 
     @property
     def is_running(self) -> bool:
