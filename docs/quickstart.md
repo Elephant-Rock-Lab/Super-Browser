@@ -292,9 +292,87 @@ Key loggers:
 |---|---|
 | Full API docs | [docs/api-reference.md](api-reference.md) |
 | Architecture overview | [docs/architecture.md](architecture.md) |
+| Plugin & hooks | [docs/plugins.md](plugins.md) |
+| Session recording | [docs/recording.md](recording.md) |
+| Per-domain memory | [docs/memory.md](memory.md) |
 | Budget tracking examples | [examples/budget_tracking.py](../examples/budget_tracking.py) |
 | Stealth mode examples | [examples/stealth_mode.py](../examples/stealth_mode.py) |
 | Basic usage examples | [examples/basic_usage.py](../examples/basic_usage.py) |
+
+---
+
+## 8. Plugin Hooks
+
+Register lifecycle hooks to observe or modify browser behavior:
+
+```python
+from super_browser.plugins import hook
+
+@hook("after_navigate")
+def log_page(ctx):
+    print(f"Loaded: {ctx.get('title', '?')} ({ctx.get('url', '?')})")
+
+@hook("on_error")
+def alert_error(ctx):
+    print(f"Error: {ctx.get('error', '?')} on step {ctx.get('step', '?')}")
+```
+
+Hooks fire automatically when a `SuperBrowser` instance is active. See [docs/plugins.md](plugins.md) for the full guide.
+
+---
+
+## 9. Session Recording
+
+Record browser actions for debugging and replay:
+
+```python
+import asyncio
+from super_browser import SuperBrowser
+from super_browser.testing import MockLLMClient
+from super_browser.recording.persistence import save, load
+from super_browser.recording.report import save_html
+
+async def main():
+    sb = SuperBrowser(llm_client=MockLLMClient())
+    await sb.start()
+
+    sb.enable_recording()
+
+    await sb.navigate("https://example.com")
+    await sb.extract("page heading", selector="h1")
+
+    session = sb.recording.stop()
+    save(session, "recording.json")
+    save_html(session, "report.html")
+
+    await sb.stop()
+
+asyncio.run(main())
+```
+
+See [docs/recording.md](recording.md) for replay and audit features.
+
+---
+
+## 10. Per-Domain Memory
+
+Enable memory to persist successful task sequences across sessions:
+
+```python
+sb = SuperBrowser(llm_client=MockLLMClient())
+await sb.start()
+
+sb.enable_memory()
+
+# After successful tasks, memory is automatically saved
+await sb.navigate("https://shop.example.com")
+
+# Check what's stored
+context = sb.memory.get_context_for_prompt("shop.example.com")
+print(context)
+```
+
+See [docs/memory.md](memory.md) for full documentation.
 
 ---
 
