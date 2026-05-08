@@ -64,7 +64,14 @@ class AgentLoop:
         self._debug_config = debug_config
         self._retry_budget = retry_budget
         self._timeout_config = timeout_config
+        self._memory_store: Optional[Any] = None
+        self._current_url: str = ""
         self._retry_counts: dict[str, int] = {}
+
+    def set_memory_store(self, store: Any, current_url: str = "") -> None:
+        """Attach a MemoryStore for recording task results."""
+        self._memory_store = store
+        self._current_url = current_url
 
     async def run(
         self,
@@ -119,6 +126,7 @@ class AgentLoop:
                     duration = (time.monotonic() - step_start) * 1000
                     steps.append(StepResult(step_num, "done", {}, None, duration))
                     await self._emit(StepEvent.STEP_COMPLETE, {"step_number": step_num, "action": "done"})
+                    self._save_to_memory(instruction, steps, success=True)
                     return self._build_result(instruction, steps, plan, "success", start, loop_detections, replan_count)
 
                 action_name = llm_response.get("action", "")
@@ -203,6 +211,29 @@ class AgentLoop:
             )
             return False
         return True
+
+    # -- Memory recording --
+
+    def _save_to_memory(self, instruction: str, steps: list[StepResult], *, success: bool) -> None:
+        """Record the task result to memory if a store is attached."""
+        if self._memory_store is None:
+            return
+        try:
+            from super_browser.memory.integration import record_task_result
+            actions = [
+                {"action": s.action_name, **(s.action_params or {})}
+                for s in steps
+                if s.action_name != "done" and s.action_name != "error"
+            ]
+            record_task_result(
+                self._memory_store,
+                self._current_url,
+                instruction,
+                actions,
+                success,
+            )
+        except Exception as exc:
+            logger.warning("Memory save failed: %s", exc)
 
     # -- Debug artifacts --
 
@@ -395,7 +426,17 @@ class AgentLoop:
                 f"You MUST try a completely different approach.\n"
             )
 
-        return f"Instruction: {instruction}{nudge_str}\n\nPlan:\n{plan_str}\n\nRecent steps:\n{history_str}\n\n{self._wrap_untrusted(tool_api)}"
+        memory_context = ""
+        if self._memory_store and self._current_url:
+            try:
+                from super_browser.memory.integration import build_memory_context
+                memory_context = build_memory_context(self._memory_store, self._current_url)
+            except Exception:
+                pass
+
+        memory_block = f"\n\n{memory_context}\n" if memory_context else ""
+
+        return f"Instruction: {instruction}{nudge_str}{memory_block}\n\nPlan:\n{plan_str}\n\nRecent steps:\n{history_str}\n\n{self._wrap_untrusted(tool_api)}"
 
     async def _emit(self, event: StepEvent, data: dict) -> None:
         if self._event_callback:

@@ -36,6 +36,7 @@ from super_browser.results import (
 
 if TYPE_CHECKING:
     from super_browser.agent.llm.protocol import LLMClient
+    from super_browser.memory.store import MemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class SuperBrowser:
         self._network_interceptors: list[Any] = []
         self._recorder: Any = None  # Optional[SessionRecorder]
         self._event_bus: Any = None  # Optional[EventBus]
+        self._memory_store: Optional[MemoryStore] = None  # Set via enable_memory()
 
     # -- Lifecycle --
 
@@ -200,6 +202,13 @@ class SuperBrowser:
             debug_config=getattr(self._config, 'debug_config', None),
             retry_budget=getattr(self._config, 'retry_budget', None),
         )
+        # Wire memory into the loop if enabled
+        if self._memory_store is not None and self._page:
+            try:
+                current_url = self._page.url
+            except Exception:
+                current_url = ""
+            loop.set_memory_store(self._memory_store, current_url=current_url)
         result = await loop.run(instruction)
         return action_result(
             ok=result.completion_reason == "success",
@@ -751,6 +760,30 @@ class SuperBrowser:
     @property
     def is_running(self) -> bool:
         return self._running
+
+    # -- Memory --
+
+    def enable_memory(
+        self,
+        *,
+        memory_dir: str = "~/.config/super-browser/memory",
+        ttl_days: int = 30,
+    ) -> None:
+        """Enable per-domain memory persistence (opt-in).
+
+        Call before or after :meth:`start`.
+        """
+        from super_browser.memory.integration import create_memory_store
+        self._memory_store = create_memory_store(
+            memory_enabled=True,
+            memory_dir=memory_dir,
+            ttl_days=ttl_days,
+        )
+
+    @property
+    def memory(self) -> Optional[MemoryStore]:
+        """Access the active MemoryStore, or None if memory is not enabled."""
+        return self._memory_store
 
 
 class ConfigurationError(Exception):
