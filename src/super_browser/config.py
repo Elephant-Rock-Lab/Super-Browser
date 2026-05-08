@@ -33,6 +33,15 @@ class TracingConfig:
 
 
 @dataclass(frozen=True)
+class MemoryConfig:
+    """Memory sub-config — per-domain agent memory."""
+
+    memory_enabled: bool = False
+    memory_dir: str = "~/.config/super-browser/memory"
+    memory_ttl_days: int = 30
+
+
+@dataclass(frozen=True)
 class AgentConfig:
     """Agent sub-config: wraps :class:`SuperBrowserConfig` with LLM-client fields.
 
@@ -68,6 +77,7 @@ class Config:
     budget: BudgetConfig = field(default_factory=BudgetConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
     tracing: TracingConfig = field(default_factory=TracingConfig)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
 
     # ------------------------------------------------------------------
     # from_env
@@ -118,6 +128,12 @@ class Config:
         _env_bool(tracing_kw, "SB_TRACING_ENABLED", "enabled")
         _env_str(tracing_kw, "SB_TRACING_SINK", "sink_type")
 
+        # -- Memory -------------------------------------------------
+        memory_kw: dict = {}
+        _env_bool(memory_kw, "SB_MEMORY_ENABLED", "memory_enabled")
+        _env_str(memory_kw, "SB_MEMORY_DIR", "memory_dir")
+        _env_int(memory_kw, "SB_MEMORY_TTL_DAYS", "memory_ttl_days")
+
         return cls(
             browser=_suppress_deprecation(SessionConfig, **browser_kw),
             agent=AgentConfig(**agent_kw),
@@ -125,6 +141,7 @@ class Config:
             budget=BudgetConfig(**budget_kw),
             security=SecurityConfig(),
             tracing=TracingConfig(**tracing_kw),
+            memory=MemoryConfig(**memory_kw),
         )
 
     # ------------------------------------------------------------------
@@ -186,6 +203,7 @@ class Config:
             budget=_build_sub(BudgetConfig, d.get("budget", {})),
             security=_build_sub(SecurityConfig, d.get("security", {})),
             tracing=_build_sub(TracingConfig, d.get("tracing", {})),
+            memory=_build_sub(MemoryConfig, d.get("memory", {})),
         )
 
     # ------------------------------------------------------------------
@@ -259,6 +277,12 @@ def _env_float(target: dict, env_key: str, field_name: str) -> None:
     val = os.environ.get(env_key)
     if val is not None:
         target[field_name] = float(val)
+
+
+def _env_int(target: dict, env_key: str, field_name: str) -> None:
+    val = os.environ.get(env_key)
+    if val is not None:
+        target[field_name] = int(val)
 
 
 def _build_sub(cls_type: type, data: dict) -> object:
