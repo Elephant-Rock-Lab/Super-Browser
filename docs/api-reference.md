@@ -1,6 +1,6 @@
 # API Reference
 
-> **Super Browser** v1.3.0 — Complete public API documentation.
+> **Super Browser** v1.4.0 — Complete public API documentation.
 
 This reference covers every public class, method, and function in Super Browser. Classes are grouped by subsystem.
 
@@ -24,6 +24,11 @@ This reference covers every public class, method, and function in Super Browser.
 - [RecordingReplayer](#recordingreplayer)
 - [MemoryStore](#memorystore)
 - [Plugin System](#plugin-system)
+- [HumanBehaviorAdapter](#humanbehavioradapter)
+- [HumanConfig](#humanconfig)
+- [FingerprintScanner](#fingerprintscanner)
+- [FingerprintScorer](#fingerprintscorer)
+- [FingerprintScore & FingerprintCheck](#fingerprintscore--fingerprintcheck)
 
 ---
 
@@ -1314,3 +1319,191 @@ Load and replay a recording file against this browser.
 | `event_bus` | `EventBus \| None` | Access the internal EventBus |
 | `recording` | `SessionRecorder \| None` | Access the active recorder |
 | `memory` | `MemoryStore \| None` | Access the active memory store |
+
+---
+
+## HumanBehaviorAdapter
+
+**Module:** `super_browser.stealth.human`
+
+Abstracts human simulation across CloakBrowser and Patchright backends. Introduces mouse jitter, per-character typing delays, typo simulation, random pauses, and realistic scrolling.
+
+### Constructor
+
+```python
+class HumanBehaviorAdapter(
+    config: Optional[HumanConfig] = None,
+    backend: str = "patchright",
+)
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `config` | `HumanConfig \| None` | `HumanConfig()` | Behavioral configuration. |
+| `backend` | `str` | `"patchright"` | Stealth backend: `"patchright"` or `"cloak"`. |
+
+### Methods
+
+#### `humanize_click(page, selector) → None` *(async)*
+
+Click an element with human-like mouse movement and hold time.
+
+#### `humanize_type(page, selector, text) → None` *(async)*
+
+Type `text` into `selector` with per-character delays and optional typo simulation.
+
+#### `humanize_scroll(page, direction="down", amount=1) → None` *(async)*
+
+Scroll the page with human-like behavior.
+
+#### `random_pause() → None` *(async)*
+
+Sleep for a random duration within `config.pause_between_actions`.
+
+### Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `config` | `HumanConfig` | The active behavioral configuration. |
+| `backend` | `str` | The stealth backend name. |
+
+---
+
+## HumanConfig
+
+**Module:** `super_browser.stealth.human_config`
+
+Frozen dataclass controlling all human behavior parameters.
+
+```python
+@dataclass(frozen=True)
+class HumanConfig(
+    typing_delay_ms: tuple[int, int] = (50, 150),
+    mouse_jitter_px: float = 3.0,
+    click_hold_ms: tuple[int, int] = (50, 200),
+    scroll_step_px: int = 300,
+    pause_between_actions: tuple[float, float] = (0.3, 1.5),
+    typo_chance: float = 0.02,
+    preset: str = "default",
+)
+```
+
+When `preset` is set to `"careful"` or `"fast"`, individual field values are overridden with curated preset values.
+
+| Preset | Typing Delay | Jitter | Click Hold | Typo Chance |
+|---|---|---|---|---|
+| `default` | 50-150ms | 3px | 50-200ms | 2% |
+| `careful` | 80-250ms | 5px | 80-350ms | 1% |
+| `fast` | 20-60ms | 1.5px | 30-80ms | 0.5% |
+
+---
+
+## FingerprintScanner
+
+**Module:** `super_browser.stealth.fingerprint_scanner`
+
+Scans browser fingerprints against detection sites. Supports offline (default) and online modes.
+
+### Constructor
+
+```python
+class FingerprintScanner(scanner_config: Optional[dict] = None)
+```
+
+| Config Key | Type | Default | Description |
+|---|---|---|---|
+| `offline` | `bool` | `True` | Force offline mode. |
+| `backend` | `str` | `"patchright"` | Backend name for reports. |
+| `custom_checks` | `list[FingerprintCheck] \| None` | `None` | Override offline checks. |
+
+### Methods
+
+#### `scan(browser_page=None) → FingerprintScore` *(async)*
+
+Run a fingerprint scan. In offline mode, returns deterministic mock scores. In online mode, visits detection sites and parses results.
+
+#### `scan_site(browser_page, url) → FingerprintCheck` *(async)*
+
+Visit a single detection site and return a check result.
+
+#### `format_report(score) → str` *(static)*
+
+Produce a Markdown report from a `FingerprintScore`.
+
+### Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `offline` | `bool` | Whether the scanner is in offline mode. |
+
+---
+
+## FingerprintScorer
+
+**Module:** `super_browser.stealth.fingerprint_score`
+
+Computes a weighted 0-100 composite score from individual check categories.
+
+### Methods
+
+#### `score_from_checks(checks) → FingerprintScoreResult`
+
+Compute composite score and grade from a dict of check results.
+
+| Category | Weight |
+|---|---|
+| `webdriver` | 25% |
+| `headers` | 20% |
+| `plugins_mimetypes` | 15% |
+| `user_agent` | 15% |
+| `tls` | 15% |
+| `misc` | 10% |
+
+### FingerprintScoreResult
+
+```python
+@dataclass(frozen=True)
+class FingerprintScoreResult:
+    score: int                          # 0-100 composite score
+    grade: FingerprintGrade             # A/B/C/D
+    deductions: list[str]               # Failed check descriptions
+    category_scores: dict[str, int]     # Per-category scores
+```
+
+### FingerprintGrade
+
+```python
+class FingerprintGrade(StrEnum):
+    A = "A"   # 90-100
+    B = "B"   # 75-89
+    C = "C"   # 60-74
+    D = "D"   # 0-59
+```
+
+---
+
+## FingerprintScore & FingerprintCheck
+
+**Module:** `super_browser.stealth.scoring`
+
+### FingerprintScore
+
+```python
+@dataclass(frozen=True)
+class FingerprintScore:
+    overall: int                        # Composite score (0-100)
+    checks: list[FingerprintCheck]      # Individual check results
+    timestamp: float                    # Unix timestamp
+    backend: str                        # "patchright" or "cloak"
+```
+
+### FingerprintCheck
+
+```python
+@dataclass(frozen=True)
+class FingerprintCheck:
+    name: str       # Check identifier
+    passed: bool    # Whether the check passed
+    score: int      # Numeric score (0-100)
+    detail: str     # Human-readable description
+```
