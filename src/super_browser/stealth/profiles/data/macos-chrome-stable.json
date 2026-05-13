@@ -1,0 +1,130 @@
+{
+  "id": "macos-chrome-stable",
+  "version": "1.0.0",
+  "engine": "chromium",
+  "browser": {
+    "name": "chrome",
+    "channel": "stable",
+    "min_version": "131",
+    "max_version": "131",
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  },
+  "os": {
+    "name": "macos",
+    "version": "14.0",
+    "arch": "x86_64",
+    "platform_version": "14.0.0"
+  },
+  "device": {
+    "vendor": "apple",
+    "model": "MacBookPro",
+    "cpu_family": "intel-core-i7",
+    "cores": 8,
+    "memory_gb": 16
+  },
+  "display": {
+    "width": 1680,
+    "height": 1050,
+    "dpr": 2,
+    "color_depth": 30,
+    "pixel_depth": 30
+  },
+  "gpu": {
+    "vendor": "Intel Inc.",
+    "renderer": "Intel Iris Plus Graphics 655",
+    "webgl_unmasked_vendor": "Google Inc. (Intel Inc.)",
+    "webgl_unmasked_renderer": "ANGLE (Intel Inc., Intel Iris Plus Graphics 655, OpenGL 4.1)",
+    "webgl_max_texture_size": 16384,
+    "webgl_max_color_attachments": 8,
+    "webgl_extensions": [
+      "EXT_color_buffer_float",
+      "EXT_color_buffer_half_float",
+      "EXT_disjoint_timer_query_webgl2",
+      "EXT_float_blend",
+      "EXT_texture_compression_bptc",
+      "EXT_texture_filter_anisotropic",
+      "KHR_parallel_shader_compile",
+      "OES_draw_buffers_indexed",
+      "OES_texture_float_linear",
+      "WEBGL_compressed_texture_s3tc",
+      "WEBGL_compressed_texture_s3tc_srgb",
+      "WEBGL_debug_renderer_info",
+      "WEBGL_debug_shaders",
+      "WEBGL_lose_context",
+      "WEBGL_multi_draw"
+    ]
+  },
+  "audio": {
+    "context_sample_rate": 44100,
+    "audio_worklet_latency": 0.01,
+    "destination_max_channel_count": 2
+  },
+  "fonts": {
+    "family": "macos-system-pack",
+    "list": [
+      "American Typewriter",
+      "Andale Mono",
+      "Apple Chancery",
+      "Apple Color Emoji",
+      "Arial",
+      "Arial Black",
+      "Arial Narrow",
+      "Avenir",
+      "Avenir Next",
+      "Baskerville",
+      "Big Caslon",
+      "Brush Script MT",
+      "Chalkboard",
+      "Chalkboard SE",
+      "Cochin",
+      "Comic Sans MS",
+      "Copperplate",
+      "Courier",
+      "Courier New",
+      "Didot",
+      "Futura",
+      "Geneva",
+      "Georgia",
+      "Gill Sans",
+      "Helvetica",
+      "Helvetica Neue",
+      "Herculanum",
+      "Hoefler Text",
+      "Impact",
+      "Lucida Grande",
+      "Marker Felt",
+      "Menlo",
+      "Monaco",
+      "Optima",
+      "Palatino",
+      "Papyrus",
+      "Rockwell",
+      "Skia",
+      "Snell Roundhand",
+      "Symbol",
+      "Tahoma",
+      "Times New Roman",
+      "Trebuchet MS",
+      "Verdana",
+      "Webdings",
+      "Wingdings",
+      "Zapfino"
+    ]
+  },
+  "behavior": {
+    "hand": "right",
+    "tremor": 0.18,
+    "wpm": 60,
+    "scroll_style": "smooth"
+  },
+  "entropy_budget": {
+    "fixed": [],
+    "per_seed": []
+  },
+  "timezone": "America/Los_Angeles",
+  "locale": "en-US",
+  "languages": [
+    "en-US",
+    "en"
+  ]
+}

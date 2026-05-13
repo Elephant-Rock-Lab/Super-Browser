@@ -1,0 +1,103 @@
+{
+  "id": "windows-chrome-stable",
+  "version": "1.0.0",
+  "engine": "chromium",
+  "browser": {
+    "name": "chrome",
+    "channel": "stable",
+    "min_version": "131",
+    "max_version": "131",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  },
+  "os": {
+    "name": "windows",
+    "version": "10.0",
+    "arch": "x86_64",
+    "platform_version": "15.0.0"
+  },
+  "device": {
+    "vendor": "generic",
+    "model": "PC",
+    "cpu_family": "intel-core-i7",
+    "cores": 8,
+    "memory_gb": 16
+  },
+  "display": {
+    "width": 1920,
+    "height": 1080,
+    "dpr": 1,
+    "color_depth": 24,
+    "pixel_depth": 24
+  },
+  "gpu": {
+    "vendor": "NVIDIA Corporation",
+    "renderer": "NVIDIA GeForce RTX 3070 Direct3D11 vs_5_0 ps_5_0",
+    "webgl_unmasked_vendor": "Google Inc. (NVIDIA)",
+    "webgl_unmasked_renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3070 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "webgl_max_texture_size": 16384,
+    "webgl_max_color_attachments": 8,
+    "webgl_extensions": [
+      "EXT_color_buffer_float",
+      "EXT_color_buffer_half_float",
+      "EXT_disjoint_timer_query_webgl2",
+      "EXT_float_blend",
+      "EXT_texture_compression_bptc",
+      "EXT_texture_filter_anisotropic",
+      "KHR_parallel_shader_compile",
+      "OES_draw_buffers_indexed",
+      "OES_texture_float_linear",
+      "WEBGL_compressed_texture_s3tc",
+      "WEBGL_compressed_texture_s3tc_srgb",
+      "WEBGL_debug_renderer_info",
+      "WEBGL_debug_shaders",
+      "WEBGL_lose_context",
+      "WEBGL_multi_draw"
+    ]
+  },
+  "audio": {
+    "context_sample_rate": 48000,
+    "audio_worklet_latency": 0.042666666666666665,
+    "destination_max_channel_count": 2
+  },
+  "fonts": {
+    "family": "windows-system-pack",
+    "list": [
+      "Arial",
+      "Arial Black",
+      "Calibri",
+      "Cambria",
+      "Cambria Math",
+      "Comic Sans MS",
+      "Consolas",
+      "Courier New",
+      "Georgia",
+      "Impact",
+      "Lucida Console",
+      "Lucida Sans Unicode",
+      "Microsoft Sans Serif",
+      "Palatino Linotype",
+      "Segoe UI",
+      "Tahoma",
+      "Times New Roman",
+      "Trebuchet MS",
+      "Verdana",
+      "Wingdings"
+    ]
+  },
+  "behavior": {
+    "hand": "right",
+    "tremor": 0.18,
+    "wpm": 60,
+    "scroll_style": "smooth"
+  },
+  "entropy_budget": {
+    "fixed": [],
+    "per_seed": []
+  },
+  "timezone": "America/New_York",
+  "locale": "en-US",
+  "languages": [
+    "en-US",
+    "en"
+  ]
+}

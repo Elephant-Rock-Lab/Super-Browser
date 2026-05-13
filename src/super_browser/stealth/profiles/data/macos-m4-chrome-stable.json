@@ -1,0 +1,132 @@
+{
+  "id": "macos-m4-chrome-stable",
+  "version": "1.0.0",
+  "engine": "chromium",
+  "browser": {
+    "name": "chrome",
+    "channel": "stable",
+    "min_version": "131",
+    "max_version": "131",
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  },
+  "os": {
+    "name": "macos",
+    "version": "15.0",
+    "arch": "arm64",
+    "platform_version": "15.0.0"
+  },
+  "device": {
+    "vendor": "apple",
+    "model": "Mac",
+    "cpu_family": "apple-silicon-m4",
+    "cores": 10,
+    "memory_gb": 16
+  },
+  "display": {
+    "width": 1470,
+    "height": 956,
+    "dpr": 2,
+    "color_depth": 30,
+    "pixel_depth": 30
+  },
+  "gpu": {
+    "vendor": "Apple",
+    "renderer": "ANGLE Metal Renderer: Apple M4",
+    "webgl_unmasked_vendor": "Google Inc. (Apple)",
+    "webgl_unmasked_renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+    "webgl_max_texture_size": 16384,
+    "webgl_max_color_attachments": 8,
+    "webgl_extensions": [
+      "EXT_color_buffer_float",
+      "EXT_color_buffer_half_float",
+      "EXT_disjoint_timer_query_webgl2",
+      "EXT_float_blend",
+      "EXT_texture_compression_bptc",
+      "EXT_texture_filter_anisotropic",
+      "KHR_parallel_shader_compile",
+      "OES_draw_buffers_indexed",
+      "OES_texture_float_linear",
+      "WEBGL_compressed_texture_astc",
+      "WEBGL_compressed_texture_s3tc",
+      "WEBGL_compressed_texture_s3tc_srgb",
+      "WEBGL_debug_renderer_info",
+      "WEBGL_debug_shaders",
+      "WEBGL_lose_context",
+      "WEBGL_multi_draw"
+    ]
+  },
+  "audio": {
+    "context_sample_rate": 48000,
+    "audio_worklet_latency": 0.005333333333333333,
+    "destination_max_channel_count": 2
+  },
+  "fonts": {
+    "family": "macos-system-pack",
+    "list": [
+      "American Typewriter",
+      "Andale Mono",
+      "Apple Chancery",
+      "Apple Color Emoji",
+      "Apple SD Gothic Neo",
+      "Arial",
+      "Arial Black",
+      "Arial Narrow",
+      "Avenir",
+      "Avenir Next",
+      "Baskerville",
+      "Big Caslon",
+      "Brush Script MT",
+      "Chalkboard",
+      "Chalkboard SE",
+      "Cochin",
+      "Comic Sans MS",
+      "Copperplate",
+      "Courier",
+      "Courier New",
+      "Didot",
+      "Futura",
+      "Geneva",
+      "Georgia",
+      "Gill Sans",
+      "Helvetica",
+      "Helvetica Neue",
+      "Herculanum",
+      "Hoefler Text",
+      "Impact",
+      "Lucida Grande",
+      "Marker Felt",
+      "Menlo",
+      "Monaco",
+      "Optima",
+      "Palatino",
+      "Papyrus",
+      "Rockwell",
+      "Skia",
+      "Snell Roundhand",
+      "Symbol",
+      "Tahoma",
+      "Times New Roman",
+      "Trebuchet MS",
+      "Verdana",
+      "Webdings",
+      "Wingdings",
+      "Zapfino"
+    ]
+  },
+  "behavior": {
+    "hand": "right",
+    "tremor": 0.18,
+    "wpm": 60,
+    "scroll_style": "smooth"
+  },
+  "entropy_budget": {
+    "fixed": [],
+    "per_seed": []
+  },
+  "timezone": "America/Los_Angeles",
+  "locale": "en-US",
+  "languages": [
+    "en-US",
+    "en"
+  ]
+}

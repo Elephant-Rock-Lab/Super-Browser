@@ -8,12 +8,28 @@ import hashlib
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from super_browser.browser.config import SessionConfig
 
 logger = logging.getLogger(__name__)
+
+
+class ForbiddenCdpMethodError(Exception):
+    """Raised when a forbidden CDP method is called.
+
+    Certain CDP methods (e.g. ``Runtime.enable``) must never be called
+    because they expose the browser to detection.  The hard-ban is
+    enforced at the :class:`CDPBridge` level.
+    """
+
+    def __init__(self, method: str) -> None:
+        self.method = method
+        super().__init__(
+            f"CDP method {method!r} is forbidden — "
+            "it would expose the browser to fingerprint detection"
+        )
 
 # Virtual key code mapping for CDP Input.dispatchKeyEvent
 VIRTUAL_KEY_CODES: dict[str, str] = {
@@ -52,6 +68,11 @@ class CDPBridge:
     screenshot capture, evaluate, event buffering, and stale session recovery.
     """
 
+    _FORBIDDEN_METHODS: frozenset[str] = frozenset({
+        "Runtime.enable",
+        "Page.createIsolatedWorld",
+    })
+
     def __init__(self, cdp_session: Any, config: SessionConfig) -> None:
         self._session = cdp_session
         self._config = config
@@ -84,6 +105,8 @@ class CDPBridge:
 
     async def send(self, method: str, params: Optional[dict] = None) -> CDPResult:
         """Send a CDP command with timing and stale recovery."""
+        if method in self._FORBIDDEN_METHODS:
+            raise ForbiddenCdpMethodError(method)
         start = time.monotonic()
         try:
             result = await self._session.send(method, params or {})
