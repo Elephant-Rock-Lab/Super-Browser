@@ -275,4 +275,5 @@ def _dict_to_matrix(m: dict) -> FingerprintMatrix:
         navigator_product=m.get("navigator_product", "Gecko"),
         navigator_cookie_enabled=m.get("navigator_cookie_enabled", True),
         navigator_max_touch_points=m.get("navigator_max_touch_points", 0),
+        ejector_seed=m.get("seed", ""),
     )

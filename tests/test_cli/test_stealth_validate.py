@@ -136,6 +136,7 @@ def _make_matrix() -> FingerprintMatrix:
         navigator_product="Gecko",
         navigator_cookie_enabled=True,
         navigator_max_touch_points=0,
+        ejector_seed="default",
     )
 
 

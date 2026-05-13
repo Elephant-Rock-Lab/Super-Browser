@@ -258,6 +258,20 @@ class Webdriver_False(ConsistencyCheck):
         return self._make_result(not matrix.webdriver, actual, expected)
 
 
+class Canvas_Audio_Consistency(ConsistencyCheck):
+    """Ejector seed is populated when canvas/audio noise injection is active."""
+
+    check_id = "CHK-009"
+    name = "Canvas_Audio_Consistency"
+    severity = "warning"
+
+    def check(self, matrix: FingerprintMatrix, profile: DeviceProfile) -> CheckResult:
+        has_seed = bool(matrix.ejector_seed)
+        actual = f"ejector_seed={'set' if has_seed else 'empty'}"
+        expected = "ejector_seed=set"
+        return self._make_result(has_seed, actual, expected)
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -271,4 +285,5 @@ ALL_CHECKS: tuple[ConsistencyCheck, ...] = (
     Screen_DPR(),
     Timezone_Locale(),
     Webdriver_False(),
+    Canvas_Audio_Consistency(),
 )

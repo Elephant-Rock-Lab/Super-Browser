@@ -155,6 +155,7 @@ def _make_matrix(**overrides) -> FingerprintMatrix:
         navigator_product="Gecko",
         navigator_cookie_enabled=True,
         navigator_max_touch_points=0,
+        ejector_seed="seed-abc-123",
     )
     defaults.update(overrides)
     return FingerprintMatrix(**defaults)
@@ -176,7 +177,7 @@ class TestPerfectMatrix:
 
         assert report.passed is True
         assert report.score == 100.0
-        assert len(report.checks) == 8
+        assert len(report.checks) == 9
         assert all(r.passed for r in report.checks)
 
 
@@ -283,7 +284,7 @@ class TestScoreCalculation:
     """Partial pass yields correct percentage."""
 
     def test_partial_score(self) -> None:
-        """3 of 8 checks fail → score = 62.5."""
+        """3 of 9 checks fail → score = 66.7."""
         profile = _make_profile()
         # Break 3 checks: webdriver=True, device_memory=16, and
         # hardware_concurrency mismatch
@@ -293,5 +294,5 @@ class TestScoreCalculation:
 
         failed = [r for r in report.checks if not r.passed]
         assert len(failed) == 3
-        assert report.score == 62.5
+        assert round(report.score, 2) == 66.67
         assert report.passed is False
