@@ -59,3 +59,81 @@ def memory_handler(args: argparse.Namespace) -> None:
         return
 
     print("Usage: super-browser memory {list|show|clear|prune}")
+
+
+def stealth_validate_handler(args: argparse.Namespace) -> None:
+    """Handle ``super-browser stealth-validate`` CLI commands."""
+    import sys
+
+    from super_browser.stealth.consistency.derive import derive_matrix
+    from super_browser.stealth.profiles import load_profile
+    from super_browser.stealth.validation.harness import StealthRegressionHarness
+    from super_browser.stealth.validation.suite import FingerprintValidationSuite
+
+    profile_id = getattr(args, "profile", None) or "windows-chrome-stable"
+    seed = getattr(args, "seed", None) or "default"
+    baseline_dir = Path(
+        getattr(args, "baseline_dir", None) or "~/.config/super-browser/baselines"
+    ).expanduser()
+
+    profile = load_profile(profile_id)
+    matrix = derive_matrix(profile, seed)
+    suite = FingerprintValidationSuite()
+    report = suite.run(matrix, profile)
+    harness = StealthRegressionHarness(baseline_dir=baseline_dir)
+
+    if getattr(args, "capture_baseline", False):
+        harness.capture_baseline(profile, seed, matrix, report)
+        print(f"Baseline captured for {profile_id} (seed={seed})")
+        return
+
+    if getattr(args, "ci", False):
+        try:
+            baseline = harness.load_baseline(profile_id)
+        except FileNotFoundError:
+            print(f"ERROR: No baseline found for {profile_id}. Run --capture-baseline first.")
+            sys.exit(1)
+        regressed = harness.detect_regression(report, baseline)
+        if regressed:
+            for check in regressed:
+                print(f"REGRESSION: {check.name} ({check.check_id})")
+            sys.exit(1)
+        print(f"All checks passed for {profile_id}")
+        return
+
+    print(f"Profile: {profile_id}, Seed: {seed}")
+    print(f"Score: {report.score:.0f}/100, Passed: {report.passed}")
+    for check in report.checks:
+        status = "PASS" if check.passed else "FAIL"
+        print(f"  [{status}] {check.name}: {check.actual}")
+
+
+def main() -> None:
+    """Entry point for ``super-browser`` CLI."""
+    parser = argparse.ArgumentParser(
+        prog="super-browser",
+        description="Super Browser CLI",
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    mem_parser = sub.add_parser("memory", help="Agent memory management")
+    mem_parser.add_argument("memory_command", choices=["list", "show", "clear", "prune"])
+    mem_parser.add_argument("--domain", default=None)
+    mem_parser.add_argument("--dir", default=None)
+    mem_parser.add_argument("--ttl", type=int, default=30)
+
+    sv_parser = sub.add_parser("stealth-validate", help="Fingerprint validation")
+    sv_parser.add_argument("--profile", default=None, help="Device profile ID")
+    sv_parser.add_argument("--seed", default=None, help="Seed for matrix derivation")
+    sv_parser.add_argument("--baseline-dir", default=None, help="Baseline directory")
+    sv_parser.add_argument("--capture-baseline", action="store_true")
+    sv_parser.add_argument("--ci", action="store_true")
+
+    args = parser.parse_args()
+
+    if args.command == "memory":
+        memory_handler(args)
+    elif args.command == "stealth-validate":
+        stealth_validate_handler(args)
+    else:
+        parser.print_help()
