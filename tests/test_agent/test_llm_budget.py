@@ -11,11 +11,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from super_browser.agent.llm.budget_aware import (
     BudgetAwareLLMClient,
     _estimate_cost_usd,
@@ -23,7 +21,6 @@ from super_browser.agent.llm.budget_aware import (
 )
 from super_browser.budget.governor import TokenBudgetGovernor
 from super_browser.budget.types import BudgetConfig, TokenUsageRecord
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -187,10 +184,11 @@ class TestFactoryAutoDetection:
             }):
                 # Force reimport to pick up patched sys.modules
                 import importlib
+
                 import super_browser.agent.llm.factory as fmod
                 importlib.reload(fmod)
 
-                client = fmod.create_llm()
+                client = fmod.create_llm()  # noqa: F841
 
                 # Verify Anthropic was instantiated.
                 mock_anthropic.AsyncAnthropic.assert_called_once_with(api_key="sk-test-123")
@@ -208,10 +206,11 @@ class TestFactoryAutoDetection:
                 "SB_LLM_API_KEY": "sk-openai-456",
             }):
                 import importlib
+
                 import super_browser.agent.llm.factory as fmod
                 importlib.reload(fmod)
 
-                client = fmod.create_llm()
+                client = fmod.create_llm()  # noqa: F841
 
                 mock_openai.AsyncOpenAI.assert_called_once_with(api_key="sk-openai-456")
 
@@ -228,10 +227,11 @@ class TestFactoryAutoDetection:
                 "SB_LLM_API_KEY": "wrong-key",    # should be ignored
             }):
                 import importlib
+
                 import super_browser.agent.llm.factory as fmod
                 importlib.reload(fmod)
 
-                client = fmod.create_llm(
+                client = fmod.create_llm(  # noqa: F841
                     provider="openai",
                     model="gpt-4o",
                     api_key="explicit-key",
@@ -247,6 +247,7 @@ class TestFactoryAutoDetection:
             env.pop("SB_LLM_PROVIDER", None)
             with patch.dict(os.environ, env, clear=True):
                 import importlib
+
                 import super_browser.agent.llm.factory as fmod
                 importlib.reload(fmod)
 
@@ -260,6 +261,7 @@ class TestFactoryAutoDetection:
         env["SB_LLM_PROVIDER"] = "openai"
         with patch.dict(os.environ, env, clear=True):
             import importlib
+
             import super_browser.agent.llm.factory as fmod
             importlib.reload(fmod)
 
@@ -274,6 +276,7 @@ class TestFactoryAutoDetection:
         env["SB_LLM_MODEL"] = "gpt-4o"
         with patch.dict(os.environ, env, clear=True):
             import importlib
+
             import super_browser.agent.llm.factory as fmod
             importlib.reload(fmod)
 

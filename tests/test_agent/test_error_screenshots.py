@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock, MagicMock
 from super_browser.agent.debug import InteractiveDebugSession
 from super_browser.agent.types import DebugConfig
 
-
 # -- Helpers ----------------------------------------------------------------
 
 def _make_page(tmp_dir: str):

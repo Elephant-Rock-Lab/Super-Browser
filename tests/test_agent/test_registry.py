@@ -1,10 +1,6 @@
 """Tests for ToolRegistry."""
 
-import asyncio
 import threading
-import time
-from pathlib import Path
-from unittest.mock import AsyncMock
 
 from super_browser.agent.registry import ToolRegistry
 from super_browser.interaction.decorator import agent_action
@@ -141,7 +137,7 @@ def helper():
 
     def test_thread_safety(self):
         registry = ToolRegistry()
-        errors = []
+        errors = []  # noqa: F841
 
         def writer():
             for i in range(50):

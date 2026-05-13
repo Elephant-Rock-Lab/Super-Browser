@@ -7,7 +7,8 @@ import json
 import logging
 import re
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 from super_browser.browser.cdp import CDPBridge

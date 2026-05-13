@@ -4,12 +4,9 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from super_browser.browser.cdp import CDPResult
 from super_browser.interaction.controller import MultimodalController
 from super_browser.results.validation import PreExecutionValidator
-
 
 # ---------------------------------------------------------------------------
 # Helpers

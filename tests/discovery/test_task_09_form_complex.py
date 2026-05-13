@@ -16,7 +16,7 @@ import pytest
 
 pytestmark = [pytest.mark.live, pytest.mark.asyncio]
 
-from .conftest import make_result
+from .conftest import make_result  # noqa: E402
 
 
 async def test_task_09_form_complex(sb_browser):
@@ -33,7 +33,7 @@ async def test_task_09_form_complex(sb_browser):
         obs = await sb_browser.observe()
         assert obs.ok, f"Observe failed: {obs.error}"
 
-        interactive = obs.data.get("interactive_elements", 0)
+        interactive = obs.data.get("interactive_elements", 0)  # noqa: F841
 
         # Step 3: Fill the custname field
         fill_name = await sb_browser.fill(
@@ -85,7 +85,7 @@ async def test_task_09_form_complex(sb_browser):
         obs2 = await sb_browser.observe()
         response_text = ""
         if obs2.ok and obs2.data:
-            response_text = str(obs2.data.get("title", ""))
+            response_text = str(obs2.data.get("title", ""))  # noqa: F841
 
         # Extract response body (httpbin returns JSON with posted data)
         ext = await sb_browser.extract("response body")
@@ -94,7 +94,7 @@ async def test_task_09_form_complex(sb_browser):
             body_text = ext.data.get("extracted", "") or ""
 
         # Verify form was submitted with our data
-        submitted_ok = submit_result.ok and "test@discovery.local" in body_text
+        submitted_ok = submit_result.ok and "test@discovery.local" in body_text  # noqa: F841
 
         latency = (time.monotonic() - start) * 1000
         result = make_result(

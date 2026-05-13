@@ -27,9 +27,9 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 try:
+    import mcp.types as types
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
-    import mcp.types as types
 except ImportError:
     Server = None  # type: ignore[assignment,misc]
 

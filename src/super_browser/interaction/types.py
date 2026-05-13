@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from typing import Optional
-
-from enum import StrEnum
-
 
 # ---------------------------------------------------------------------------
 # Tier definitions

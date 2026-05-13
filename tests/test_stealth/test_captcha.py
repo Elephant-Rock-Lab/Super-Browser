@@ -3,12 +3,9 @@
 import asyncio
 import json
 
-import pytest
-
 from super_browser.recovery.event_bus import WatchdogEventBus
-from super_browser.recovery.types import WatchdogEvent
 from super_browser.stealth.captcha import CAPTCHAWatchdog
-from super_browser.stealth.types import CAPTCHADetection, CAPTCHAProvider, StealthConfig
+from super_browser.stealth.types import CAPTCHAProvider, StealthConfig
 
 
 def _config(**overrides):

@@ -2,11 +2,9 @@
 
 import json
 import threading
-import time
 from pathlib import Path
 
 from super_browser.results import (
-    ActionResult,
     OutputBudgetConfig,
     OutputDefender,
     SpilledResult,

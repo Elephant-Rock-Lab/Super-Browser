@@ -14,7 +14,6 @@ through two complementary approaches:
 
 import pytest
 
-
 pytestmark = pytest.mark.integration
 
 

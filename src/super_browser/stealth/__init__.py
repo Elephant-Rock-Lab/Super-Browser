@@ -2,7 +2,16 @@
 
 from super_browser.stealth.action_policy import StealthActionPolicy
 from super_browser.stealth.captcha import CAPTCHAWatchdog
-from super_browser.stealth.diagnostics import run_diagnostics, run_full_diagnostics, score_from_report
+from super_browser.stealth.diagnostics import (
+    run_diagnostics,
+    run_full_diagnostics,
+    score_from_report,
+)
+from super_browser.stealth.fingerprint_score import (
+    FingerprintGrade,
+    FingerprintScorer,
+    FingerprintScoreResult,
+)
 from super_browser.stealth.headers import HeaderRandomizer
 from super_browser.stealth.manager import (
     CaptchaTimeoutError,
@@ -25,7 +34,6 @@ from super_browser.stealth.types import (
     StealthHealthReport,
     StealthRisk,
 )
-from super_browser.stealth.fingerprint_score import FingerprintGrade, FingerprintScorer, FingerprintScoreResult
 from super_browser.stealth.user_agent_pool import UserAgentPool
 
 __all__ = [

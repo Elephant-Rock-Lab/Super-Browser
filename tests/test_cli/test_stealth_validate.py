@@ -8,7 +8,6 @@ import sys
 from unittest.mock import patch
 
 import pytest
-
 from super_browser.cli import main
 from super_browser.stealth.consistency.matrix import FingerprintMatrix
 from super_browser.stealth.profiles.schema import DeviceProfile
@@ -18,7 +17,6 @@ from super_browser.stealth.validation.harness import (
 )
 from super_browser.stealth.validation.report import CheckResult, ValidationReport
 from super_browser.stealth.validation.suite import FingerprintValidationSuite
-
 
 # Shared fixtures
 # ---------------------------------------------------------------------------

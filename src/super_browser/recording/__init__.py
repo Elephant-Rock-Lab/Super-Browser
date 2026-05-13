@@ -3,9 +3,9 @@
 from super_browser.recording.recorder import SessionRecorder
 from super_browser.recording.replayer import MismatchRecord, RecordingReplayer, ReplayReport
 from super_browser.recording.types import (
+    SCHEMA_VERSION,
     ActionRecord,
     RecordingSession,
-    SCHEMA_VERSION,
 )
 
 __all__ = [

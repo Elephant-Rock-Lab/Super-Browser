@@ -1,11 +1,10 @@
 """Tests for SubagentDelegator."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from super_browser.agent.delegator import SubagentDelegator
 from super_browser.agent.registry import ToolRegistry
-from super_browser.agent.types import DelegationStatus
 
 
 def _make_session_mock():
@@ -48,8 +47,8 @@ class TestSubagentDelegator:
     def test_child_isolation(self):
         async def _test():
             session = _make_session_mock()
-            call_count = 0
-            original_url = "https://example.com"
+            call_count = 0  # noqa: F841
+            original_url = "https://example.com"  # noqa: F841
 
             registry = ToolRegistry()
             delegator = SubagentDelegator(session, registry, _NoOpLLM(), max_concurrency=1)
@@ -63,7 +62,6 @@ class TestSubagentDelegator:
             session = _make_session_mock()
             registry = ToolRegistry()
 
-            import time
             running = 0
             max_running = 0
 

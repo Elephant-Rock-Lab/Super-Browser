@@ -5,19 +5,14 @@ from dataclasses import asdict
 from super_browser.results import (
     ActionMethod,
     ClickResult,
+    CompletionReason,
     DelegatedResult,
-    DragResult,
     FillResult,
-    HoverResult,
     JSEvalResult,
-    KeypressResult,
     NavigateResult,
-    ScrollResult,
     ScreenshotResult,
     SelectResult,
     SpilledResult,
-    ActionResult,
-    CompletionReason,
     action_result,
 )
 

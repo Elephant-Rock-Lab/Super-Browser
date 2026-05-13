@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-from pathlib import Path
 
 from super_browser.tracing.flow_logger import FlowLogger, _current_context
 from super_browser.tracing.types import SpanKind, SpanStatus
@@ -206,7 +205,7 @@ class TestRedaction:
             async with logger.trace("s1"):
                 await logger.emit_event(SpanKind.PAGE, "nav",
                                         attributes={"url": "https://example.com/page?q=hello"})
-            events = await logger.query_events(_current_context.get().trace_id if _current_context.get() else "s1", span_kind=SpanKind.PAGE)
+            events = await logger.query_events(_current_context.get().trace_id if _current_context.get() else "s1", span_kind=SpanKind.PAGE)  # noqa: F841
         asyncio.run(_test())
 
     def test_non_url_unchanged(self):
@@ -327,7 +326,7 @@ class TestResolveReentry:
             current = None
             async with logger.trace("s1") as ctx:
                 stored = ctx
-                current = _current_context.get()
+                current = _current_context.get()  # noqa: F841
             result = FlowLogger.resolve_reentry_context(stored)
             assert result.trace_id == stored.trace_id
         asyncio.run(_test())

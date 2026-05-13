@@ -2,9 +2,6 @@
 
 import json
 import tempfile
-from pathlib import Path
-
-import pytest
 
 from super_browser.security.types import PolicyDecision, PolicyRule, PolicyVerdict
 from super_browser.stealth.action_policy import StealthActionPolicy
@@ -137,7 +134,7 @@ class TestAddRule:
 
 class TestConfirmAction:
     def test_confirm_with_callback(self):
-        cb = lambda decision, details: True
+        cb = lambda decision, details: True  # noqa: E731
         policy = StealthActionPolicy(confirm_callback=cb)
         d = PolicyDecision(verdict=PolicyVerdict.CONFIRM, matched_rule=PolicyRule(action="test", verdict=PolicyVerdict.CONFIRM))
 

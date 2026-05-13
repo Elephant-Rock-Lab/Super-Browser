@@ -17,7 +17,6 @@ from typing import Any
 from super_browser import SuperBrowser
 from super_browser.results import ActionResult
 
-
 # ---------------------------------------------------------------------------
 # YAML script execution
 # ---------------------------------------------------------------------------

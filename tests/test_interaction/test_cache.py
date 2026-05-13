@@ -1,9 +1,6 @@
 """Tests for TierPreferenceCache."""
 
 import asyncio
-from pathlib import Path
-
-import pytest
 
 from super_browser.interaction.cache import CacheEntry, TierPreferenceCache
 from super_browser.interaction.types import Tier

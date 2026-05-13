@@ -6,6 +6,7 @@ Provides adjacency lookup, hand assignment, and same-hand detection.
 from __future__ import annotations
 
 import random
+
 __all__ = ["adjacent_key", "hand_for", "is_same_hand"]
 
 # Row-by-row QWERTY layout (US). Each row is a list of characters in

@@ -10,19 +10,15 @@ Test IDs:
 import asyncio
 from unittest.mock import MagicMock
 
-import pytest
-
 from super_browser.agent.llm.budget_aware import BudgetAwareLLMClient
 from super_browser.budget.cascade import ModelCascade
 from super_browser.budget.compressor import ContextCompressor
 from super_browser.budget.governor import TokenBudgetGovernor
 from super_browser.budget.types import (
     BudgetConfig,
-    CascadeResult,
     CostTier,
     TokenUsageRecord,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

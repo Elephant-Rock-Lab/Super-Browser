@@ -11,8 +11,9 @@ HB-24-03: No LLM credentials required — all commands use direct browser calls.
 from __future__ import annotations
 
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from super_browser import SuperBrowser
 

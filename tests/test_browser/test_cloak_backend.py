@@ -12,11 +12,8 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from super_browser.browser import BrowserSession, SessionConfig, SessionMode
 from super_browser.config import CloakConfig
-
 
 # ── TEST-27-01-01: cloakbrowser not installed → Patchright ──────────────
 

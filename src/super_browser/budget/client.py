@@ -12,7 +12,6 @@ from super_browser.budget.governor import TokenBudgetGovernor
 from super_browser.budget.types import (
     BudgetBlock,
     BudgetScope,
-    CostTier,
     TokenUsageRecord,
 )
 

@@ -9,10 +9,7 @@ TEST-27-03-04: README mentions CloakBrowser
 from __future__ import annotations
 
 import ast
-import os
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 

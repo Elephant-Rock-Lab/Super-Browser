@@ -9,38 +9,27 @@ All LLM calls are mocked — no API keys required (HB-14-01).
 from __future__ import annotations
 
 import asyncio
-import json
-import time
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
-from super_browser.agent.loop import AgentLoop
 from super_browser.agent.registry import ToolRegistry
 from super_browser.agent.types import (
     ChildTask,
     DelegationResult,
     DelegationStatus,
-    LoopResult,
-    PlanItem,
-    PlanStatus,
-    StepResult,
 )
 from super_browser.interaction.decorator import agent_action
 from super_browser.results import (
     ActionResult,
-    CompletionReason,
     DelegatedResult,
     ExtractResult,
     NavigateResult,
     action_result,
 )
 
-from .conftest import MockLLMClient, SIMPLE_HTML, CHECKPOINT_HTML
-
+from .conftest import MockLLMClient
 
 # ═══════════════════════════════════════════════════════════════════════════
 # TEST-14-01-01: SuperBrowser() creates without error

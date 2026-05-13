@@ -2,16 +2,12 @@
 
 import asyncio
 
-import pytest
-
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.skills import (
-    ActivationConfig,
     DomainSkill,
     SkillProvenance,
     SkillQuery,
     SkillRegistry,
-    SkillStatus,
     compute_activation,
 )
 
@@ -31,11 +27,7 @@ class TestConfigWiring:
 class TestImportCheck:
     def test_all_public_types_importable(self):
         from super_browser.skills import (
-            InvalidSkillFormat,
-            SelectorConflictWarning,
-            SkillImportError,
             SkillQuery,
-            SkillSizeExceeded,
             parse_markdown_skills,
         )
         assert SkillQuery is not None
@@ -62,7 +54,7 @@ class TestEndToEndFlow:
         async def _test():
             import time as _time
             # Register a skill
-            s = await reg.register(DomainSkill(
+            s = await reg.register(DomainSkill(  # noqa: F841
                 skill_id="gh-login",
                 domain="github.com",
                 name="login",

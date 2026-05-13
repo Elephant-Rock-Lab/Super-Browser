@@ -3,8 +3,6 @@
 from super_browser.security.injection import PromptInjectionDetector
 from super_browser.security.types import (
     InjectionPattern,
-    InjectionVerdict,
-    RiskLevel,
     SecurityConfig,
 )
 

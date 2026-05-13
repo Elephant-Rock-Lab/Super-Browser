@@ -1,24 +1,17 @@
 """Tests for StealthManager — orchestrator lifecycle, delegation, HTTP requests."""
 
 import asyncio
-import json
-import time
 
 import pytest
-
+from super_browser.security.types import PolicyVerdict
 from super_browser.stealth.manager import CaptchaTimeoutError, StealthManager
 from super_browser.stealth.types import (
     EscalationRecord,
-    HTTPMorphRequestConfig,
-    HTTPMorphResponse,
     ProxyTier,
     StealthConfig,
     StealthDiagnostic,
-    StealthHealthItem,
     StealthHealthReport,
-    ProxyPoolConfig,
 )
-from super_browser.security.types import PolicyVerdict
 
 
 class _FakeCDPResult:
@@ -339,8 +332,8 @@ class TestInjectInitScripts:
 class TestGrepAddScript:
     """TEST-08-01-01: Verify no addScriptToEvaluateOnNewDocument calls in codebase."""
     def test_no_add_script_to_evaluate(self):
-        import subprocess
         import os
+        import subprocess
         src_dir = os.path.join(
             os.path.dirname(__file__), "..", "..", "src"
         )

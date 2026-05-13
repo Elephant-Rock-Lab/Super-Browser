@@ -1,9 +1,7 @@
 """Tests for TokenBudgetGovernor."""
 
-import json
-import time
 import threading
-from pathlib import Path
+import time
 
 from super_browser.budget.governor import TokenBudgetGovernor
 from super_browser.budget.types import (

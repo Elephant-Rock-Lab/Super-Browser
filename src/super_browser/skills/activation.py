@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 from super_browser.skills.types import ActivationConfig, DomainSkill, SkillStatus
 

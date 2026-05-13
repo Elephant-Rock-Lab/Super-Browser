@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 from super_browser.browser.cdp import CDPResult
 from super_browser.interaction.snapshot import SnapshotProvider
-from super_browser.interaction.types import AXNode, AXSnapshot
+from super_browser.interaction.types import AXSnapshot
 
 
 def _make_cdp_with_ax_tree(nodes=None):

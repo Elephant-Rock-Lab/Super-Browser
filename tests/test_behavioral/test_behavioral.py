@@ -8,7 +8,6 @@ from __future__ import annotations
 import math
 
 import pytest
-
 from super_browser.behavioral import (
     synthesize_keystrokes,
     synthesize_mouse_trajectory,
@@ -17,13 +16,10 @@ from super_browser.behavioral import (
 from super_browser.behavioral.bezier import dist, perpendicular_unit, sample_cubic_bezier
 from super_browser.behavioral.fitts import fitts_mt
 from super_browser.behavioral.gauss import GaussianSampler
-from super_browser.behavioral.keyboard import synthesize_keystrokes as kb_synthesize
 from super_browser.behavioral.mouse import Box
 from super_browser.behavioral.prng import prng_for
 from super_browser.behavioral.qwerty import adjacent_key, hand_for, is_same_hand
-from super_browser.behavioral.scroll import synthesize_scroll as sc_synthesize
-from super_browser.behavioral.types import BehaviorProfile, KeystrokeEvent, ScrollEvent, TrajectoryEvent
-
+from super_browser.behavioral.types import BehaviorProfile, TrajectoryEvent
 
 # ==================================================================
 # TEST-32-01-01: TrajectoryEvent and BehaviorProfile are frozen dataclasses

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 from super_browser.recovery.types import (
     ReflectionResult,

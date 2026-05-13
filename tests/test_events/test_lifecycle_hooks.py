@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
-
 from super_browser.events.bus import EventBus
 from super_browser.events.types import (
     AFTER_ACTION,
@@ -17,8 +15,8 @@ from super_browser.events.types import (
     ON_ERROR,
     ON_LOOP_DETECTED,
 )
-from super_browser.plugins.hooks import clear_registry, get_registered_hooks
 from super_browser.plugins.decorators import hook
+from super_browser.plugins.hooks import clear_registry, get_registered_hooks
 
 
 # ---------------------------------------------------------------------------

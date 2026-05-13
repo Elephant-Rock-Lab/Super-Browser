@@ -9,16 +9,12 @@ Reads environment variables to configure the LLM client and browser:
 from __future__ import annotations
 
 import os
-import time
 from typing import Any
 
 import pytest
-
 from super_browser.agent.config import SuperBrowserConfig
-from super_browser.agent.llm.factory import create_llm
-from super_browser.browser.config import SessionConfig
 from super_browser.agent.facade import SuperBrowser
-
+from super_browser.agent.llm.factory import create_llm
 
 # ---------------------------------------------------------------------------
 # Marker registration

@@ -3,10 +3,6 @@
 from __future__ import annotations
 
 import json
-import time
-from unittest.mock import MagicMock
-
-import pytest
 
 from super_browser.events.bus import EventBus
 from super_browser.events.types import (
@@ -17,7 +13,7 @@ from super_browser.events.types import (
     ON_ERROR,
 )
 from super_browser.recording.recorder import SessionRecorder
-from super_browser.recording.types import ActionRecord, RecordingSession
+from super_browser.recording.types import RecordingSession
 
 
 # ---------------------------------------------------------------------------

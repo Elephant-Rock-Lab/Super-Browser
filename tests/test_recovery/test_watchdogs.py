@@ -4,9 +4,8 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 from super_browser.recovery.event_bus import WatchdogEventBus
-from super_browser.recovery.types import ActionFingerprint, WatchdogEvent
+from super_browser.recovery.types import ActionFingerprint
 from super_browser.recovery.watchdogs import (
-    BaseWatchdog,
     CrashWatchdog,
     LoopWatchdog,
     NavigationWatchdog,

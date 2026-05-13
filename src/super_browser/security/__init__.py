@@ -1,5 +1,11 @@
 """GAP-10 Security Envelope — unified security for browser automation."""
 
+from super_browser.security.approval import CommandApprover
+from super_browser.security.domain_filter import DomainFilter
+from super_browser.security.injection import PromptInjectionDetector
+from super_browser.security.manager import SecurityManager
+from super_browser.security.policy import ActionPolicyEngine
+from super_browser.security.redactor import SecretRedactor
 from super_browser.security.types import (
     CommandSafety,
     CommandVerdict,
@@ -19,12 +25,7 @@ from super_browser.security.types import (
     SecurityEventType,
     SecurityLevel,
 )
-from super_browser.security.injection import PromptInjectionDetector
-from super_browser.security.redactor import SecretRedactor
-from super_browser.security.approval import CommandApprover
-from super_browser.security.policy import ActionPolicyEngine
-from super_browser.security.domain_filter import DomainFilter
-from super_browser.security.manager import SecurityManager
+
 
 # CredentialVault requires cryptography — lazy import to avoid
 # ImportError when [security] extras are not installed.

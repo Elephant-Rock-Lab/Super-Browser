@@ -1,7 +1,5 @@
 """Tests for SessionDB."""
 
-import time
-from pathlib import Path
 
 from super_browser.tracing.session_db import SessionDB
 from super_browser.tracing.types import CostRecord, SessionSummary

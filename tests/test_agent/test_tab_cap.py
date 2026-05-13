@@ -4,15 +4,10 @@ TEST-10-02-01 through TEST-10-02-04.
 """
 
 import asyncio
-import time
 from unittest.mock import AsyncMock, MagicMock
-
-import pytest
 
 from super_browser.agent.delegator import SubagentDelegator
 from super_browser.agent.registry import ToolRegistry
-from super_browser.agent.types import DelegationStatus
-
 
 # ---------------------------------------------------------------------------
 # Helpers

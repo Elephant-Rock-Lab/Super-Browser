@@ -6,9 +6,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from super_browser.agent.facade import ConfigurationError, SuperBrowser
-from super_browser.results import action_result, ClickResult
 
 
 def _make_browser_without_llm():
@@ -62,4 +60,4 @@ class TestNoNoOpLLMInSource:
         )
         # grep returns 1 when no matches found (which is what we want)
         output = result.stdout.strip()
-        assert output == "1", f"_NoOpLLM found in source tree"
+        assert output == "1", "_NoOpLLM found in source tree"

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from super_browser.security.redactor import SecretRedactor
-from super_browser.security.types import RedactionResult, SecretType, SecurityConfig
+from super_browser.security.types import SecretType, SecurityConfig
 
 
 def _redactor(**kwargs) -> SecretRedactor:

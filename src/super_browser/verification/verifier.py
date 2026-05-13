@@ -8,7 +8,8 @@ import hashlib
 import io
 import logging
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any, Optional
 
 from PIL import Image, ImageDraw
 
@@ -20,12 +21,11 @@ from super_browser.verification.ax_diff import diff_ax_trees
 from super_browser.verification.hasher import HasherCache, compute_hash
 from super_browser.verification.types import (
     ActionVerifiability,
-    PerceptualHash,
-    VerifierConfig,
     VerificationActionType,
     VerificationLevel,
     VerificationResult,
     VerificationSnapshot,
+    VerifierConfig,
 )
 
 logger = logging.getLogger(__name__)

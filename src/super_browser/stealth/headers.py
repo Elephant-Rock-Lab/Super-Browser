@@ -7,7 +7,6 @@ headers that mimic a real Chrome browser on each request.
 from __future__ import annotations
 
 import random
-from typing import Any
 
 # -- Accept header pools --------------------------------------------------
 

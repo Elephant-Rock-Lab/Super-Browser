@@ -1,13 +1,10 @@
 """Tests for RecoveryCoordinator — full pipeline orchestration."""
 
 import asyncio
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 from super_browser.recovery.coordinator import RecoveryCoordinator
 from super_browser.recovery.types import (
-    ActionRecord,
-    RecoveryStrategy,
     WatchdogEvent,
 )
 
@@ -86,7 +83,7 @@ class TestExecuteWithRecovery:
                 r.ok = call_count > 2
                 return r
 
-            result = await coord.execute_with_recovery(
+            result = await coord.execute_with_recovery(  # noqa: F841
                 action, {"action_type": "click", "target": "#btn"},
             )
             history = coord.get_recovery_history()

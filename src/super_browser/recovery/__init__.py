@@ -11,8 +11,8 @@ from super_browser.recovery.session_recovery import SessionRecovery
 from super_browser.recovery.types import (
     ActionFingerprint,
     ActionRecord,
-    ClassifiedError,
     Checkpoint,
+    ClassifiedError,
     ErrorType,
     NudgePayload,
     RecoveryEvent,

@@ -4,15 +4,11 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 from super_browser.config import Config, MemoryConfig
 from super_browser.memory.store import MemoryStore
 from super_browser.memory.types import ActionSequence, DomainMemory
-
 
 # ---------------------------------------------------------------------------
 # TEST-25-03-01: "memory list" shows domains
@@ -130,7 +126,7 @@ class TestCredentialFilteringInCLI:
         # Read raw file
         path = store._domain_path("api.example.com")
         raw = path.read_text(encoding="utf-8")
-        data = json.loads(raw)
+        data = json.loads(raw)  # noqa: F841
 
         # Password and api_key values must be redacted
         assert "s3cret!" not in raw
@@ -164,6 +160,7 @@ class TestCLIMemoryFunction:
     def test_cli_list_no_domains(self, tmp_path, capsys):
         """CLI list command with no domains prints message."""
         import argparse
+
         from super_browser.cli import memory_handler
 
         args = argparse.Namespace(
@@ -178,6 +175,7 @@ class TestCLIMemoryFunction:
     def test_cli_show_empty_domain(self, tmp_path, capsys):
         """CLI show command for nonexistent domain."""
         import argparse
+
         from super_browser.cli import memory_handler
 
         args = argparse.Namespace(
@@ -193,6 +191,7 @@ class TestCLIMemoryFunction:
     def test_cli_clear(self, tmp_path, capsys):
         """CLI clear command removes domain file."""
         import argparse
+
         from super_browser.cli import memory_handler
 
         store = MemoryStore(tmp_path / "mem")
@@ -214,6 +213,7 @@ class TestCLIMemoryFunction:
     def test_cli_prune(self, tmp_path, capsys):
         """CLI prune command runs."""
         import argparse
+
         from super_browser.cli import memory_handler
 
         args = argparse.Namespace(
@@ -229,6 +229,7 @@ class TestCLIMemoryFunction:
     def test_cli_show_with_data(self, tmp_path, capsys):
         """CLI show command displays memory contents."""
         import argparse
+
         from super_browser.cli import memory_handler
 
         store = MemoryStore(tmp_path / "mem")

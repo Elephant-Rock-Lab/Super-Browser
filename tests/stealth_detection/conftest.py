@@ -12,7 +12,6 @@ The browser context is configured with a patched user-agent string that
 removes the "HeadlessChrome" token, matching the production StealthManager.
 """
 
-import pytest
 import pytest_asyncio
 from patchright.async_api import async_playwright
 

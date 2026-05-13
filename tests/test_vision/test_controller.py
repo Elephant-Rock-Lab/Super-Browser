@@ -1,7 +1,7 @@
 """Tests for VisionController — cascade, caching, failover, OCR fallback, cost tracking."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from super_browser.interaction.types import VisionResponse
 from super_browser.vision.cache import VisionCache
@@ -9,9 +9,9 @@ from super_browser.vision.controller import VisionController
 from super_browser.vision.factory import VisionProviderFactory
 from super_browser.vision.ocr import OCRGrounding
 from super_browser.vision.types import (
-    CascadeConfig,
     CaptchaSolution,
     CaptchaType,
+    CascadeConfig,
     StateInference,
     VisionProviderName,
     VisionTaskComplexity,
@@ -19,8 +19,9 @@ from super_browser.vision.types import (
 
 
 def _make_png():
-    from PIL import Image
     from io import BytesIO
+
+    from PIL import Image
     img = Image.new("RGB", (10, 10), (128, 128, 128))
     buf = BytesIO()
     img.save(buf, format="PNG")

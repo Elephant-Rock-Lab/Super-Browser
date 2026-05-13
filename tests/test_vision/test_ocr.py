@@ -1,9 +1,9 @@
 """Tests for OCRGrounding — text matching, box combining, quoted extraction."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from super_browser.vision.ocr import OCRGrounding
-from super_browser.vision.types import OCRWord, VisionLocation
+from super_browser.vision.types import OCRWord
 
 
 def _words():

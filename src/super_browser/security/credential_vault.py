@@ -110,7 +110,7 @@ class CredentialVault:
         self._fernet: Optional[Fernet] = None
 
     @property
-    def _cipher(self) -> "Fernet":
+    def _cipher(self) -> Fernet:
         """Lazy-initialised Fernet cipher."""
         if Fernet is None:
             raise ImportError(

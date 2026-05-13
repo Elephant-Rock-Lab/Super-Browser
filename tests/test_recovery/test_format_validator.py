@@ -97,7 +97,7 @@ class TestValidateSemantic:
 class TestBuildRepromptMessage:
     def test_includes_errors(self):
         v = FormatValidator()
-        from super_browser.recovery.types import ValidationResult, ValidationLevel
+        from super_browser.recovery.types import ValidationLevel, ValidationResult
         validation = ValidationResult(
             valid=False, level=ValidationLevel.STRUCTURAL,
             errors=["Missing action field", "Invalid JSON"],
@@ -108,7 +108,7 @@ class TestBuildRepromptMessage:
 
     def test_includes_selectors(self):
         v = FormatValidator()
-        from super_browser.recovery.types import ValidationResult, ValidationLevel
+        from super_browser.recovery.types import ValidationLevel, ValidationResult
         validation = ValidationResult(valid=False, level=ValidationLevel.SEMANTIC, errors=["bad"])
         msg = v.build_reprompt_message(validation, available_selectors=["#btn", "#link"])
         assert "#btn" in msg

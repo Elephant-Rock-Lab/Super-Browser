@@ -14,7 +14,6 @@ import logging
 from typing import Any
 
 from super_browser.agent.llm.protocol import LLMClient
-from super_browser.budget.cost_estimator import CostEstimator
 from super_browser.budget.governor import TokenBudgetGovernor
 from super_browser.budget.types import TokenUsageRecord
 

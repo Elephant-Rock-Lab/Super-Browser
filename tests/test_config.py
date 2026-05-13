@@ -6,15 +6,12 @@ import os
 from pathlib import Path
 from unittest import mock
 
-import pytest
-
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.browser.config import SessionConfig
 from super_browser.budget.types import BudgetConfig
 from super_browser.config import AgentConfig, Config, TracingConfig
 from super_browser.security.types import SecurityConfig
 from super_browser.stealth.types import StealthConfig
-
 
 # ── TEST-03-01-01: Config.from_env() reads SB_LLM_PROVIDER and SB_HEADLESS ──
 

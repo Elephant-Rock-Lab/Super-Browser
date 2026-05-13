@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import time
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
-
 from super_browser.agent.loop import AgentLoop
 from super_browser.agent.registry import ToolRegistry
-from super_browser.agent.types import PlanItem, PlanStatus, StepEvent, StepResult
 from super_browser.memory.integration import (
     build_memory_context,
     create_memory_store,
@@ -19,8 +16,6 @@ from super_browser.memory.integration import (
     record_task_result,
 )
 from super_browser.memory.store import MemoryStore
-from super_browser.memory.types import ActionSequence, DomainMemory
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -167,7 +162,7 @@ class TestFailedTaskNoSave:
             max_steps=1,
         )
         loop.set_memory_store(store, current_url="https://fail.example.com")
-        result = await loop.run("do something impossible")
+        result = await loop.run("do something impossible")  # noqa: F841
         # The loop should complete (with error) but NOT save to memory
         loaded = store.load("fail.example.com")
         assert len(loaded.sequences) == 0

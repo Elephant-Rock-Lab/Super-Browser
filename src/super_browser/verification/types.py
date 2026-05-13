@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Optional
+from typing import Optional
 
 from super_browser.interaction.types import AXSnapshot
-
 
 # ---------------------------------------------------------------------------
 # Enums

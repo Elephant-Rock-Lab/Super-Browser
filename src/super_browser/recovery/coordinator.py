@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from super_browser.recovery.checkpoint import CheckpointManager
 from super_browser.recovery.classifier import ErrorClassifier

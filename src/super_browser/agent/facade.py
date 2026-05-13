@@ -5,17 +5,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Callable, Optional, TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Optional
 
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.delegator import SubagentDelegator
 from super_browser.agent.loop import AgentLoop
-from super_browser.agent.loop_detector import ActionLoopDetector
 from super_browser.agent.registry import ToolRegistry
 from super_browser.agent.types import DelegationResult
 from super_browser.browser.config import SessionConfig
 from super_browser.browser.session import BrowserSession
-from super_browser.browser.tabs import TabManager, TabHandle, TabSnapshot
+from super_browser.browser.tabs import TabManager, TabSnapshot
 from super_browser.interaction.controller import MultimodalController
 from super_browser.results import (
     ActionError,
@@ -111,13 +111,14 @@ class SuperBrowser:
             sinks = [ConsoleSink()]
             if self._config.trace_output_dir:
                 from pathlib import Path
+
                 from super_browser.tracing.sinks import FileSink
                 path = Path(self._config.trace_output_dir) / "trace.jsonl"
                 sinks.append(FileSink(path))
             self._flow_logger = FlowLogger(sinks=sinks)
             await self._flow_logger.start()
         if self._config.enable_security:
-            from super_browser.security import SecurityManager, SecurityConfig
+            from super_browser.security import SecurityConfig, SecurityManager
             sec_config = SecurityConfig()
             self._security_manager = SecurityManager(sec_config)
         logger.info("SuperBrowser started")
@@ -157,7 +158,7 @@ class SuperBrowser:
         if self._skill_registry:
             try:
                 discovered = await self._skill_registry.auto_discover(url)
-                skills_data = {"skills": [{"id": s.skill_id, "name": s.name} for s in discovered]}
+                skills_data = {"skills": [{"id": s.skill_id, "name": s.name} for s in discovered]}  # noqa: F841
             except Exception:
                 pass
         return timed_action_result(
@@ -649,7 +650,7 @@ class SuperBrowser:
     # -- Verification --
 
     def configure_verification(self, config: Any = None) -> None:
-        from super_browser.verification import VerifierConfig, VisualVerifier
+        from super_browser.verification import VisualVerifier
         from super_browser.verification.types import VerifierConfig as VC
         vconfig = config or VC()
         verifier = VisualVerifier(
@@ -665,8 +666,9 @@ class SuperBrowser:
     def _configure_vision(self) -> None:
         if not self._config.enable_vision:
             return
-        from super_browser.vision import VisionController, VisionCache, VisionProviderFactory
         from pathlib import Path
+
+        from super_browser.vision import VisionCache, VisionController, VisionProviderFactory
         factory = VisionProviderFactory.from_env()
         cache_dir = Path(self._config.vision_cache_dir) if self._config.vision_cache_dir else None
         cache = VisionCache(cache_dir=cache_dir)
@@ -676,7 +678,7 @@ class SuperBrowser:
     def _configure_stealth(self) -> None:
         if not self._config.enable_stealth:
             return
-        from super_browser.stealth import StealthManager, StealthConfig
+        from super_browser.stealth import StealthConfig, StealthManager
         stealth_config = StealthConfig()
         self._stealth_manager = StealthManager(
             stealth_config, cdp=self._page.cdp, page=self._page.raw_page,
@@ -687,6 +689,7 @@ class SuperBrowser:
         if not self._config.enable_skills:
             return
         from pathlib import Path
+
         from super_browser.skills import SkillRegistry
         skills_dir = Path(self._config.skills_dir) if self._config.skills_dir else None
         self._skill_registry = SkillRegistry(skills_dir=skills_dir)

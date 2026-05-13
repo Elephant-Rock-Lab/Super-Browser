@@ -8,12 +8,9 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from super_browser.agent.facade import SuperBrowser
-from super_browser.agent.registry import ToolRegistry
 from super_browser.interaction.decorator import agent_action
-from super_browser.results import ActionResult, action_result
+from super_browser.results import action_result
 
 from .conftest import MockLLMClient
 

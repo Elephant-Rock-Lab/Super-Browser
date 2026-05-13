@@ -1,7 +1,6 @@
 """Tests for AgentLoop."""
 
 import asyncio
-import time
 from unittest.mock import AsyncMock, MagicMock
 
 from super_browser.agent.loop import AgentLoop
@@ -150,7 +149,7 @@ class TestAgentLoop:
         asyncio.run(_test())
 
     def test_page_change_detection(self):
-        detector = ActionLoopDetector()
+        detector = ActionLoopDetector()  # noqa: F841
         loop = AgentLoop(
             controller=_make_controller(),
             registry=_make_registry(),
@@ -230,7 +229,7 @@ class TestAgentLoop:
                 loop_detector=detector,
             )
 
-            result = await loop.run("test")
+            result = await loop.run("test")  # noqa: F841
             # After 5+ identical actions, nudge from step N feeds into step N+1's prompt
             nudge_prompts = [p for p in prompts_seen if "LOOP DETECTED" in p]
             assert len(nudge_prompts) >= 1, (
@@ -241,7 +240,7 @@ class TestAgentLoop:
 
     def test_build_prompt_contains_nudge(self):
         """C1: _build_prompt must include nudge text when a LoopNudge is provided."""
-        from super_browser.agent.types import LoopNudge, PlanItem, PlanStatus
+        from super_browser.agent.types import LoopNudge, PlanItem
 
         loop = AgentLoop(
             controller=_make_controller(),

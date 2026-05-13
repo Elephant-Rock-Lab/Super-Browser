@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import json
-import subprocess
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers — mock the OpenAI SDK so tests run without a real API key
@@ -49,6 +46,7 @@ def openai_mock():
         "openai": MagicMock(AsyncOpenAI=MagicMock(return_value=mock_client)),
     }):
         import importlib
+
         import super_browser.agent.llm.openai_client as mod
         importlib.reload(mod)
         yield mock_client, mod
@@ -95,6 +93,7 @@ class TestFactoryAnthropic:
             "anthropic": MagicMock(AsyncAnthropic=MagicMock(return_value=AsyncMock())),
         }):
             import importlib
+
             import super_browser.agent.llm.anthropic_client as ac_mod
             importlib.reload(ac_mod)
             import super_browser.agent.llm.factory as f_mod
@@ -116,6 +115,7 @@ class TestFactoryOpenAI:
             "openai": MagicMock(AsyncOpenAI=MagicMock(return_value=AsyncMock())),
         }):
             import importlib
+
             import super_browser.agent.llm.openai_client as oc_mod
             importlib.reload(oc_mod)
             import super_browser.agent.llm.factory as f_mod
@@ -134,7 +134,7 @@ class TestActNoLLM:
     @pytest.mark.asyncio()
     async def test_raises_configuration_error(self) -> None:
         """TEST-01-02-04: act() without llm_client raises ConfigurationError."""
-        from super_browser.agent.facade import SuperBrowser, ConfigurationError
+        from super_browser.agent.facade import ConfigurationError, SuperBrowser
 
         browser = SuperBrowser()
         browser._controller = MagicMock()  # so act() doesn't bail on controller check
@@ -172,6 +172,7 @@ class TestFactoryUnknownProvider:
     def test_raises_value_error(self) -> None:
         """TEST-01-02-06: create_llm("unknown", ...) raises ValueError."""
         import importlib
+
         import super_browser.agent.llm.factory as f_mod
         importlib.reload(f_mod)
 

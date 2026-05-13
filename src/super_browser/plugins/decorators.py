@@ -15,7 +15,7 @@ are installed on its internal ``EventBus``.
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from super_browser.events.types import Handler
 from super_browser.plugins.hooks import register_hook

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Sequence
 
 from super_browser.stealth.consistency.matrix import FingerprintMatrix
 from super_browser.stealth.profiles.schema import DeviceProfile
@@ -74,7 +74,7 @@ class StealthRegressionHarness:
         baseline = BaselineResult(
             profile_id=profile.id,
             seed=seed,
-            captured_at=datetime.now(timezone.utc).isoformat(),
+            captured_at=datetime.now(UTC).isoformat(),
             matrix_hash=_matrix_hash(matrix),
             check_results=report.checks,
         )

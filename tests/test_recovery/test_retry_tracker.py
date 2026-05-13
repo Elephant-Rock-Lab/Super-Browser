@@ -2,7 +2,6 @@
 
 from super_browser.recovery.classifier import ErrorClassifier
 from super_browser.recovery.retry_tracker import RetryTracker
-from super_browser.recovery.types import RecoveryStrategy
 
 
 def _make_classified_error(error_type_str: str = "timeout"):

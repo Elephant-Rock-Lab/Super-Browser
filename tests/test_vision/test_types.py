@@ -1,9 +1,9 @@
 """Tests for vision types — enums, dataclasses, configuration."""
 
 from super_browser.vision.types import (
-    CascadeConfig,
     CaptchaSolution,
     CaptchaType,
+    CascadeConfig,
     OCRWord,
     StateInference,
     VisionCacheEntry,

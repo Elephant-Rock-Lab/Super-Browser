@@ -11,11 +11,11 @@ from super_browser.verification.types import (
     ActionVerifiability,
     AXDiffResult,
     PerceptualHash,
-    VerifierConfig,
     VerificationActionType,
     VerificationLevel,
     VerificationResult,
     VerificationSnapshot,
+    VerifierConfig,
     VLMVerificationDetail,
 )
 from super_browser.verification.verifier import VisualVerifier

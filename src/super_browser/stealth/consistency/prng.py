@@ -24,7 +24,7 @@ def _rotl(x: int, k: int) -> int:
 def _seed_to_state(profile_id: str, seed_string: str) -> tuple[int, int, int, int]:
     """Derive 4 × u64 state from SHA-256(profile_id + ':' + seed_string)."""
     digest = hashlib.sha256(
-        f"{profile_id}:{seed_string}".encode("utf-8")
+        f"{profile_id}:{seed_string}".encode()
     ).digest()
     s0 = int.from_bytes(digest[0:8], "little")
     s1 = int.from_bytes(digest[8:16], "little")

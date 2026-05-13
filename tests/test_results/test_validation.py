@@ -1,7 +1,6 @@
 """Tests for PreExecutionValidator."""
 
 import time
-from unittest.mock import MagicMock
 
 from super_browser.results import (
     ErrorCategory,

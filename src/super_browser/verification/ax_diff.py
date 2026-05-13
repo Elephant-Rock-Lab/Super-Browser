@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from super_browser.interaction.types import AXNode, AXSnapshot, _INTERACTIVE_ROLES
+from super_browser.interaction.types import _INTERACTIVE_ROLES, AXNode, AXSnapshot
 from super_browser.verification.types import AXDiffResult
 
 

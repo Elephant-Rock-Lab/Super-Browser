@@ -1,8 +1,8 @@
 """GAP-06 Vision-Based Element Location — public API."""
 
 from super_browser.vision.cache import VisionCache
-from super_browser.vision.coords import normalize_coordinates, resize_coordinates, smart_resize
 from super_browser.vision.controller import VisionController
+from super_browser.vision.coords import normalize_coordinates, resize_coordinates, smart_resize
 from super_browser.vision.factory import VisionProviderFactory
 from super_browser.vision.ocr import OCRGrounding
 from super_browser.vision.providers import (
@@ -12,9 +12,9 @@ from super_browser.vision.providers import (
     VisionProviderBase,
 )
 from super_browser.vision.types import (
-    CascadeConfig,
     CaptchaSolution,
     CaptchaType,
+    CascadeConfig,
     OCRWord,
     StateInference,
     VisionCacheEntry,

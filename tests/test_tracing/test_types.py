@@ -1,7 +1,6 @@
 """Tests for tracing types."""
 
 import json
-import time
 
 from super_browser.tracing.types import (
     CostRecord,

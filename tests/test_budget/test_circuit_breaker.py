@@ -3,7 +3,6 @@
 import time
 
 from super_browser.budget.credential_pool import CircuitBreaker
-from super_browser.budget.types import CircuitState
 
 
 class TestCircuitBreaker:

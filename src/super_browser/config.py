@@ -18,7 +18,6 @@ from super_browser.budget.types import BudgetConfig
 from super_browser.security.types import SecurityConfig
 from super_browser.stealth.types import ProxyTier, StealthConfig
 
-
 # ---------------------------------------------------------------------------
 # New sub-configs
 # ---------------------------------------------------------------------------

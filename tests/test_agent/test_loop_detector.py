@@ -1,7 +1,6 @@
 """Tests for ActionLoopDetector."""
 
 from super_browser.agent.loop_detector import ActionLoopDetector
-from super_browser.agent.types import LoopNudge
 
 
 class TestActionLoopDetector:

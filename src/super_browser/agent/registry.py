@@ -6,9 +6,10 @@ import ast
 import inspect
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ class ToolRegistry:
         count = 0
         module_name = module_path.stem
         for func_name in names:
-            full_name = f"{module_name}.{func_name}"
+            full_name = f"{module_name}.{func_name}"  # noqa: F841
             placeholder = _placeholder_function(func_name)
             self.register(placeholder, toolsets=())
             count += 1

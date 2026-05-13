@@ -4,7 +4,6 @@ import asyncio
 from unittest.mock import patch
 
 import pytest
-
 from super_browser.interaction.types import VisionRequest, VisionResponse
 from super_browser.interaction.vision import VisionProvider, VisionProviderFactory
 

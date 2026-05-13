@@ -16,7 +16,6 @@ from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
-
 from super_browser.stealth.profiles import (
     AudioInfo,
     BehaviorInfo,

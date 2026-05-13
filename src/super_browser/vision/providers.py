@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 import logging
@@ -306,8 +305,9 @@ class UITARSProvider(VisionProviderBase):
             return VisionResponse(found=False, model=self.model_id)
         start = time.monotonic()
         try:
-            from PIL import Image
             from io import BytesIO
+
+            from PIL import Image
             img = Image.open(BytesIO(request.screenshot)).convert("RGB")
             prompt = (
                 f"Locate the element in this screenshot: {request.element_description}\n"

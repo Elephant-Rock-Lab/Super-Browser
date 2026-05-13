@@ -14,7 +14,7 @@ import pytest
 
 pytestmark = [pytest.mark.live, pytest.mark.asyncio]
 
-from .conftest import make_result
+from .conftest import make_result  # noqa: E402
 
 
 async def test_task_03_github_login(sb):
@@ -50,7 +50,7 @@ async def test_task_03_github_login(sb):
         both_filled = fill_user.ok and fill_pass.ok
 
         # Step 5: Observe again to confirm values
-        obs2 = await sb.observe()
+        obs2 = await sb.observe()  # noqa: F841
 
         latency = (time.monotonic() - start) * 1000
         result = make_result(

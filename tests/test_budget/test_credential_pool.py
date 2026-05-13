@@ -1,11 +1,8 @@
 """Tests for CredentialPool."""
 
-import json
-import time
-from pathlib import Path
 
 from super_browser.budget.credential_pool import CredentialPool
-from super_browser.budget.types import CredentialRotated, SelectionStrategy
+from super_browser.budget.types import SelectionStrategy
 
 
 class TestCredentialPoolRegister:

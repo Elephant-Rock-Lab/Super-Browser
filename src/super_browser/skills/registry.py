@@ -9,8 +9,9 @@ import os
 import re
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 from super_browser.skills.activation import compute_activation

@@ -3,18 +3,15 @@
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
-
 from super_browser.events.bus import EventBus
 from super_browser.events.types import BEFORE_ACTION, BEFORE_NAVIGATE, ON_ERROR
 from super_browser.recording.persistence import load, save
-from super_browser.recording.report import export_html, save_html
 from super_browser.recording.recorder import SessionRecorder
-from super_browser.recording.types import ActionRecord, RecordingSession
+from super_browser.recording.report import export_html, save_html
+from super_browser.recording.types import RecordingSession
 
 
 def _make_session_with_actions() -> RecordingSession:

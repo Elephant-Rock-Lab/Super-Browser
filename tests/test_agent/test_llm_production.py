@@ -10,12 +10,9 @@ Test IDs:
 from __future__ import annotations
 
 import asyncio
-import json
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -92,6 +89,7 @@ def anthropic_mock():
     )
     with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
         import importlib
+
         import super_browser.agent.llm.anthropic_client as mod
         importlib.reload(mod)
         yield mock_client, mod
@@ -115,6 +113,7 @@ def openai_mock():
     )
     with patch.dict("sys.modules", {"openai": mock_openai}):
         import importlib
+
         import super_browser.agent.llm.openai_client as mod
         importlib.reload(mod)
         yield mock_client, mod

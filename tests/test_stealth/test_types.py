@@ -3,7 +3,6 @@
 import time
 
 import pytest
-
 from super_browser.stealth.types import (
     CAPTCHADetection,
     CAPTCHAProvider,
@@ -19,7 +18,6 @@ from super_browser.stealth.types import (
     StealthHealthReport,
     StealthRisk,
 )
-
 
 # -- Enum values --
 

@@ -6,7 +6,6 @@ to JavaScript.  This is the single most important stealth signal.
 
 import pytest
 
-
 pytestmark = pytest.mark.integration
 
 

@@ -2,15 +2,12 @@
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import AsyncMock, MagicMock
 
 from super_browser.browser.cdp import CDPResult
 from super_browser.interaction.cache import TierPreferenceCache
 from super_browser.interaction.controller import MultimodalController
 from super_browser.interaction.types import AXNode, AXSnapshot, Tier
-from super_browser.interaction.vision import VisionProviderFactory
 from super_browser.results import ActionMethod, ErrorCategory
 
 
@@ -229,7 +226,7 @@ class TestKeypress:
     def test_with_modifiers(self):
         async def _test():
             ctrl = _make_controller()
-            result = await ctrl.keypress("c", modifiers=2)
+            result = await ctrl.keypress("c", modifiers=2)  # noqa: F841
             ctrl._cdp.compositor_key_press.assert_called_once_with("c", modifiers=2)
         asyncio.run(_test())
 

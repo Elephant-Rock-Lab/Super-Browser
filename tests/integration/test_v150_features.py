@@ -8,7 +8,6 @@ Exercise: consistency engine → inject → behavioral v2 → Chromium fetch
 from __future__ import annotations
 
 import pytest
-
 from super_browser.behavioral import (
     synthesize_keystrokes,
     synthesize_mouse_trajectory,
@@ -18,7 +17,6 @@ from super_browser.browser.fetch import BrowserFetch
 from super_browser.stealth.consistency.derive import derive_matrix
 from super_browser.stealth.profiles import load_profile
 from super_browser.stealth.validation.suite import FingerprintValidationSuite
-
 
 # ---------------------------------------------------------------------------
 # TEST-33-03-01: Full pipeline: profile+seed → matrix

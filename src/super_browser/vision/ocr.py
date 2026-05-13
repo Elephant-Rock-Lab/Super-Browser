@@ -12,9 +12,10 @@ logger = logging.getLogger(__name__)
 
 _HAS_TESSERACT = False
 try:
+    from io import BytesIO
+
     import pytesseract
     from PIL import Image
-    from io import BytesIO
     _HAS_TESSERACT = True
 except ImportError:
     pass

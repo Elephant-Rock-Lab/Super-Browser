@@ -8,7 +8,6 @@ because the library is an optional dependency.
 
 import pytest
 
-
 pytestmark = pytest.mark.integration
 
 # The expected JA4 fingerprint prefix for Chrome 143 on macOS.

@@ -13,7 +13,6 @@ We verify this two ways:
 
 import pytest
 
-
 pytestmark = pytest.mark.integration
 
 

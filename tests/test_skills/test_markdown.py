@@ -1,6 +1,5 @@
 """Tests for markdown skill importer."""
 
-import pytest
 from pathlib import Path
 
 from super_browser.skills.markdown import parse_markdown_skills

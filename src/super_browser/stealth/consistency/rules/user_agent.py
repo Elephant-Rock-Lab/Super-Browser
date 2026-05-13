@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from super_browser.stealth.consistency.rule import Rule, define_rule
 from super_browser.stealth.consistency.prng import Xoshiro256PRNG
+from super_browser.stealth.consistency.rule import Rule, define_rule
 
 __all__ = ["USER_AGENT_RULES"]
 

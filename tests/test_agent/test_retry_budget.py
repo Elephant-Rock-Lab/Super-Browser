@@ -5,7 +5,6 @@ TEST-11-02-02: Action exceeds budget → logged, not retried
 TEST-11-02-03: Default retry budget: click=3, type=3, navigate=2
 """
 
-import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock
 
@@ -14,7 +13,6 @@ from super_browser.agent.registry import ToolRegistry
 from super_browser.agent.types import RetryBudget
 from super_browser.interaction.decorator import agent_action
 from super_browser.results import action_result
-
 
 # -- Helpers ----------------------------------------------------------------
 

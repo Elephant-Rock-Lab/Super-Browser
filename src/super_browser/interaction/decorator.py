@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 def agent_action(func: Callable = None, *, security_level: str = "sensitive") -> Callable:

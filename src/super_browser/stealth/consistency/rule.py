@@ -9,8 +9,9 @@ verifies the DAG is acyclic before any rule runs.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from super_browser.stealth.consistency.prng import Xoshiro256PRNG
 

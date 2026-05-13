@@ -1,9 +1,9 @@
 """Tests for vision providers — construction, properties, mocked locate calls."""
 
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-from super_browser.interaction.types import VisionRequest, VisionResponse
+from super_browser.interaction.types import VisionRequest
 from super_browser.vision.providers import (
     AnthropicCUAProvider,
     OpenAIResponseProvider,
@@ -13,8 +13,9 @@ from super_browser.vision.providers import (
 
 
 def _make_request(desc="test element"):
-    from PIL import Image
     from io import BytesIO
+
+    from PIL import Image
     img = Image.new("RGB", (10, 10), (128, 128, 128))
     buf = BytesIO()
     img.save(buf, format="PNG")

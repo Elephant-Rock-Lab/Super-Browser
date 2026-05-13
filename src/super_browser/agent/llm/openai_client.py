@@ -7,8 +7,6 @@ import json
 import logging
 from typing import Any
 
-from super_browser.agent.llm.protocol import LLMClient
-
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
