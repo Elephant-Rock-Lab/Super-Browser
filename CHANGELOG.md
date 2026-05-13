@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] — 2026-05-13
+
+### Added — Anti-Detection Hardening (12 Fingerprint Surfaces)
+
+**Ejecta Framework** (`stealth/ejecta/`) — Deterministic noise injection via JS payloads
+- `config.py`: EjectorConfig with per-surface toggles (canvas, audio, webrtc, timing, browser_apis)
+- `types.py`: EjectorResult with ejector_id, js_payload, inject_order, size_bytes
+- `registry.py`: build_ejector_payloads() orchestrates all 5 ejectors
+
+**5 Ejectors:**
+- `canvas.py`: CanvasEjector — ±2 RGBA noise on toDataURL/toBlob/getImageData/readPixels/OffscreenCanvas
+- `audio.py`: AudioEjector — ±0.0001 sample noise on getChannelData/getFloatFrequencyData/createBuffer
+- `webrtc.py`: WebRTCEjector — blocks RTCPeerConnection/webkit/moz variants, mocks enumerateDevices
+- `timing.py`: TimingEjector — performance.now 1ms precision floor + micro-jitter, Math constant perturbation (±1e-15)
+- `browser_apis.py`: BrowserAPIsEjector — blocks getBattery/permissions, mocks speechSynthesis, blocks CSS :visited, jitters ClientRects (±0.5px)
+
+**Validation:**
+- CHK-009 Canvas_Audio_Consistency, CHK-010 WebRTC_Blocked, CHK-011 Timing_Precision, CHK-012 Browser_APIs
+- Suite expanded from 8 → 12 checks
+
+**Integration:**
+- FingerprintMatrix extended with ejector_seed field
+- derive_matrix populates ejector_seed from session seed
+- All payloads use inline mulberry32 PRNG for per-session determinism
+
+### Tests
+- +120 new tests across 3 batches (BATCH-36, 37, 38)
+- 1,915 total tests passing
+
 ## [1.5.0] — 2026-05-13
 
 ### Added — Fingerprint Consistency Engine (BATCH-30)

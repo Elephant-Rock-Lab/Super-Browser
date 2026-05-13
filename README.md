@@ -2,7 +2,7 @@
 
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/example/super-browser)
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green)](https://github.com/example/super-browser)
-[![PyPI](https://img.shields.io/badge/PyPI-1.5.0-blue)](https://pypi.org/project/super-browser/)
+[![PyPI](https://img.shields.io/badge/PyPI-1.6.0-blue)](https://pypi.org/project/super-browser/)
 
 **Super Browser** is a comprehensive browser-control library for AI agents. It provides a three-tier cascade (LLM client → built-in skills → raw browser), self-healing selectors, stealth-mode navigation, output-budget management, and security guardrails — all behind a single `SuperBrowser` façade.
 
@@ -77,6 +77,34 @@ Additional subsystems:
 | **Vision** | Screenshot-based fallback for pages that resist DOM inspection |
 
 Full API documentation lives in [`docs/`](docs/).
+
+## What's New in v1.6
+
+### Anti-Detection Hardening — 12 Fingerprint Surfaces
+
+Deterministic noise injection via the **Ejecta Framework** (`stealth/ejecta/`):
+
+```python
+from super_browser.stealth.ejecta.config import EjectorConfig
+from super_browser.stealth.ejecta.registry import build_ejector_payloads
+
+config = EjectorConfig(seed="my-session-seed")
+payloads = build_ejector_payloads(config)
+# 5 JS payloads: canvas, audio, webrtc, timing, browser_apis
+# Each deterministic — same seed → same noise
+```
+
+| Ejector | Surface | Noise |
+|:--------|:--------|:------|
+| Canvas | toDataURL, toBlob, readPixels | ±2 RGBA |
+| Audio | getChannelData, getFloatFrequencyData | ±0.0001 sample |
+| WebRTC | RTCPeerConnection | Blocked |
+| Timing | performance.now, Math constants | 1ms floor + ±1e-15 |
+| Browser APIs | getBattery, permissions, speech, :visited, ClientRect | Blocked/jittered |
+
+Validation suite expanded from 8 → 12 checks (CHK-009 through CHK-012).
+
+---
 
 ## What's New in v1.5
 
