@@ -104,7 +104,7 @@ class TestHumanBehaviorAdapterDispatch:
 
     @pytest.mark.asyncio
     async def test_patchright_click_uses_mouse_jitter(self):
-        """Patchright click path simulates mouse movement with jitter."""
+        """Patchright click path uses behavioral synthesis for mouse trajectory."""
         adapter = HumanBehaviorAdapter(
             config=HumanConfig(preset="fast"),
             backend="patchright",
@@ -127,8 +127,8 @@ class TestHumanBehaviorAdapterDispatch:
 
         await adapter.humanize_click(mock_page, "#btn")
 
-        # Verify mouse movement was triggered
-        mock_page.mouse.move.assert_called_once()
+        # Verify mouse movement was triggered (behavioral synthesis sends multiple moves)
+        assert mock_page.mouse.move.call_count >= 5, "Expected multiple mouse moves from trajectory"
         mock_page.mouse.down.assert_called_once()
         mock_page.mouse.up.assert_called_once()
 
@@ -176,14 +176,15 @@ class TestHumanBehaviorAdapterDispatch:
 
     @pytest.mark.asyncio
     async def test_humanize_scroll_uses_mouse_wheel(self):
-        """Scroll uses mouse.wheel for both backends."""
+        """Scroll uses behavioral synthesis with multiple wheel events."""
         adapter = HumanBehaviorAdapter()
         mock_page = AsyncMock()
         mock_page.mouse.wheel = AsyncMock()
 
         await adapter.humanize_scroll(mock_page, "down", amount=2)
 
-        mock_page.mouse.wheel.assert_called_once()
+        # Behavioral synthesis sends multiple wheel events (inertial model)
+        assert mock_page.mouse.wheel.call_count >= 1, "Expected wheel events from scroll synthesis"
 
     def test_careful_preset_applies_values(self):
         """Careful preset applies slower, more cautious values."""

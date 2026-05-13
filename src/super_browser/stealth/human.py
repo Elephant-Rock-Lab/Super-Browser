@@ -1,11 +1,11 @@
 """HumanBehaviorAdapter — abstracts human simulation across backends.
 
-When the CloakBrowser backend is active, the adapter delegates to CloakBrowser's
-built-in humanize system (configured via launch args).
+v2 integrates the behavioral synthesis layer for Patchright backend:
+  - Mouse clicks dispatch via ``synthesize_mouse_trajectory``
+  - Keystrokes dispatch via ``synthesize_keystrokes``
+  - Scroll dispatches via ``synthesize_scroll``
 
-When the Patchright backend is active, the adapter provides basic behavioral
-simulation using ``page.mouse.move`` (jitter), ``page.keyboard.type`` (with
-delay), and ``asyncio.sleep`` (random pauses).
+CloakBrowser delegation is unchanged.
 """
 
 from __future__ import annotations
@@ -13,8 +13,20 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import time
 from typing import Any, Optional
 
+from super_browser.behavioral import (
+    synthesize_keystrokes,
+    synthesize_mouse_trajectory,
+    synthesize_scroll,
+)
+from super_browser.behavioral.mouse import Box
+from super_browser.behavioral.types import (
+    KeystrokeEvent,
+    ScrollEvent,
+    TrajectoryEvent,
+)
 from super_browser.stealth.human_config import HumanConfig
 
 logger = logging.getLogger(__name__)
@@ -31,9 +43,15 @@ class HumanBehaviorAdapter:
         await adapter.humanize_type(page, "#search", "hello world")
     """
 
-    def __init__(self, config: Optional[HumanConfig] = None, backend: str = "patchright") -> None:
+    def __init__(
+        self,
+        config: Optional[HumanConfig] = None,
+        backend: str = "patchright",
+    ) -> None:
         self._config = config or HumanConfig()
         self._backend = backend
+        # Track last known cursor position for cross-click chaining.
+        self._last_cursor: tuple[float, float] = (0.0, 0.0)
 
     @property
     def config(self) -> HumanConfig:
@@ -42,6 +60,20 @@ class HumanBehaviorAdapter:
     @property
     def backend(self) -> str:
         return self._backend
+
+    # ------------------------------------------------------------------
+    # Seed helpers
+    # ------------------------------------------------------------------
+
+    def _action_seed(
+        self,
+        action_type: str,
+        selector: str,
+    ) -> str:
+        """Build a unique per-action seed for deterministic replay."""
+        ts = time.monotonic_ns()
+        base = self._config.session_seed or "rand"
+        return f"{base}:{action_type}:{selector}:{ts}"
 
     # ------------------------------------------------------------------
     # Public API
@@ -54,20 +86,31 @@ class HumanBehaviorAdapter:
         else:
             await self._patchright_click(page, selector)
 
-    async def humanize_type(self, page: Any, selector: str, text: str) -> None:
+    async def humanize_type(
+        self, page: Any, selector: str, text: str
+    ) -> None:
         """Type ``text`` into ``selector`` with per-character delays."""
         if self._backend == "cloak":
             await self._cloak_type(page, selector, text)
         else:
             await self._patchright_type(page, selector, text)
 
-    async def humanize_scroll(self, page: Any, direction: str = "down", amount: int = 1) -> None:
+    async def humanize_scroll(
+        self,
+        page: Any,
+        direction: str = "down",
+        amount: int = 1,
+    ) -> None:
         """Scroll the page with human-like behaviour."""
-        delta = self._config.scroll_step_px * amount
-        if direction == "up":
-            delta = -delta
-        await page.mouse.wheel(0, delta)
-        await self.random_pause()
+        if self._backend == "cloak":
+            # CloakBrowser: basic scroll, unchanged.
+            delta = self._config.scroll_step_px * amount
+            if direction == "up":
+                delta = -delta
+            await page.mouse.wheel(0, delta)
+            await self.random_pause()
+        else:
+            await self._patchright_scroll(page, direction, amount)
 
     async def random_pause(self) -> None:
         """Sleep for a random duration within the configured range."""
@@ -76,7 +119,7 @@ class HumanBehaviorAdapter:
         await asyncio.sleep(delay)
 
     # ------------------------------------------------------------------
-    # CloakBrowser delegation
+    # CloakBrowser delegation — UNCHANGED
     # ------------------------------------------------------------------
 
     async def _cloak_click(self, page: Any, selector: str) -> None:
@@ -117,74 +160,186 @@ class HumanBehaviorAdapter:
             await asyncio.sleep(delay_ms / 1000.0)
 
     # ------------------------------------------------------------------
-    # Patchright basic simulation
+    # Patchright — behavioral v2 synthesis
     # ------------------------------------------------------------------
 
     async def _patchright_click(self, page: Any, selector: str) -> None:
-        """Simulate a human click with mouse jitter and hold time."""
+        """Synthesize a human click with behavioral mouse trajectory."""
+        seed = self._action_seed("click", selector)
+        profile = self._config.to_behavior_profile()
+
         el = await page.query_selector(selector)
         if el is None:
-            # Fallback: use Playwright's native click with delay
-            await page.click(selector, delay=random.randint(
-                self._config.click_hold_ms[0],
-                self._config.click_hold_ms[1],
-            ))
+            # Fallback: use Playwright's native click with delay.
+            await page.click(
+                selector,
+                delay=random.randint(
+                    self._config.click_hold_ms[0],
+                    self._config.click_hold_ms[1],
+                ),
+            )
             await self.random_pause()
             return
 
-        box = await el.bounding_box()
-        if box is None:
+        raw_box = await el.bounding_box()
+        if raw_box is None:
             await el.click()
             await self.random_pause()
             return
 
-        cx = box["x"] + box["width"] / 2
-        cy = box["y"] + box["height"] / 2
-
-        # Add mouse jitter
-        jitter = self._config.mouse_jitter_px
-        tx = cx + random.uniform(-jitter, jitter)
-        ty = cy + random.uniform(-jitter, jitter)
-
-        # Move to target with steps for realistic path
-        await page.mouse.move(tx, ty, steps=random.randint(5, 15))
-
-        # Hold and release
-        hold_ms = random.randint(
-            self._config.click_hold_ms[0],
-            self._config.click_hold_ms[1],
+        box = Box(
+            x=raw_box["x"],
+            y=raw_box["y"],
+            width=raw_box["width"],
+            height=raw_box["height"],
         )
-        await page.mouse.down()
-        await asyncio.sleep(hold_ms / 1000.0)
-        await page.mouse.up()
+
+        events: list[TrajectoryEvent] = synthesize_mouse_trajectory(
+            from_pt=self._last_cursor,
+            to_pt=(box.x + box.width / 2, box.y + box.height / 2),
+            box=box,
+            profile=profile,
+            seed=seed,
+        )
+
+        await _dispatch_trajectory(page, events)
+
+        # Update last cursor position from the final event.
+        if events:
+            last = events[-1]
+            self._last_cursor = (last.x, last.y)
 
         await self.random_pause()
 
-    async def _patchright_type(self, page: Any, selector: str, text: str) -> None:
-        """Type with per-character delay and optional typo simulation."""
+    async def _patchright_type(
+        self, page: Any, selector: str, text: str
+    ) -> None:
+        """Synthesize keystrokes with behavioral timing."""
+        seed = self._action_seed("type", selector)
+        profile = self._config.to_behavior_profile()
+
         await page.click(selector)
         await self.random_pause()
 
-        for ch in text:
-            # Typo simulation: occasionally type wrong char then correct
-            if random.random() < self._config.typo_chance and ch.isalpha():
-                wrong = _nearby_key(ch)
-                await page.keyboard.type(wrong, delay=0)
-                delay_ms = random.uniform(
-                    self._config.typing_delay_ms[0],
-                    self._config.typing_delay_ms[1],
-                )
-                await asyncio.sleep(delay_ms / 1000.0)
-                # Correct the typo
-                await page.keyboard.press("Backspace")
-                await asyncio.sleep(delay_ms / 1000.0)
+        events: list[KeystrokeEvent] = synthesize_keystrokes(
+            text=text,
+            profile=profile,
+            seed=seed,
+            mistake_rate=self._config.typo_chance,
+        )
 
-            await page.keyboard.type(ch, delay=0)
-            delay_ms = random.uniform(
-                self._config.typing_delay_ms[0],
-                self._config.typing_delay_ms[1],
-            )
-            await asyncio.sleep(delay_ms / 1000.0)
+        await _dispatch_keystrokes(page, events)
+
+    async def _patchright_scroll(
+        self,
+        page: Any,
+        direction: str = "down",
+        amount: int = 1,
+    ) -> None:
+        """Synthesize inertial scroll with behavioral timing."""
+        seed = self._action_seed("scroll", f"{direction}:{amount}")
+        profile = self._config.to_behavior_profile()
+
+        from_pos = 0.0
+        to_pos = float(self._config.scroll_step_px * amount)
+        if direction == "up":
+            to_pos = -to_pos
+
+        events: list[ScrollEvent] = synthesize_scroll(
+            from_pos=from_pos,
+            to_pos=to_pos,
+            profile=profile,
+            seed=seed,
+        )
+
+        await _dispatch_scroll(page, events)
+        await self.random_pause()
+
+
+# ------------------------------------------------------------------
+# Dispatch helpers — separate functions for testability
+# ------------------------------------------------------------------
+
+
+async def _dispatch_trajectory(
+    page: Any, events: list[TrajectoryEvent]
+) -> None:
+    """Dispatch ``TrajectoryEvent``\\ s via ``page.mouse``."""
+    if not events:
+        return
+
+    prev_t = 0.0
+    for ev in events:
+        # Pace to match the synthesis timing.
+        wait = (ev.t_ms - prev_t) / 1000.0
+        if wait > 0:
+            await asyncio.sleep(wait)
+        prev_t = ev.t_ms
+
+        if ev.event_type == "move":
+            await page.mouse.move(ev.x, ev.y)
+        elif ev.event_type == "press":
+            await page.mouse.down()
+        elif ev.event_type == "release":
+            await page.mouse.up()
+
+    # Ensure the final click (down/up) is dispatched.
+    # TrajectoryEvent from synthesis uses "move" for the path.
+    # We add press/release at the end position.
+    if events:
+        last = events[-1]
+        await page.mouse.move(last.x, last.y)
+        await page.mouse.down()
+        # Tiny hold mimicking real click.
+        await asyncio.sleep(0.05)
+        await page.mouse.up()
+
+
+async def _dispatch_keystrokes(
+    page: Any, events: list[KeystrokeEvent]
+) -> None:
+    """Dispatch ``KeystrokeEvent``\\ s via ``page.keyboard``."""
+    if not events:
+        return
+
+    prev_t = 0.0
+    for ev in events:
+        wait = (ev.t_ms - prev_t) / 1000.0
+        if wait > 0:
+            await asyncio.sleep(wait)
+        prev_t = ev.t_ms
+
+        if ev.event_type == "keydown":
+            if ev.key == "Backspace":
+                await page.keyboard.press("Backspace")
+            elif len(ev.key) == 1:
+                await page.keyboard.type(ev.key, delay=0)
+            else:
+                await page.keyboard.press(ev.key)
+        # keyup events are implicitly handled by Playwright's
+        # press()/type() — no explicit dispatch needed.
+
+
+async def _dispatch_scroll(
+    page: Any, events: list[ScrollEvent]
+) -> None:
+    """Dispatch ``ScrollEvent``\\ s via ``page.mouse.wheel``."""
+    if not events:
+        return
+
+    prev_t = 0.0
+    for ev in events:
+        wait = (ev.t_ms - prev_t) / 1000.0
+        if wait > 0:
+            await asyncio.sleep(wait)
+        prev_t = ev.t_ms
+
+        await page.mouse.wheel(ev.delta_x, ev.delta_y)
+
+
+# ------------------------------------------------------------------
+# Legacy helper retained for backward compat
+# ------------------------------------------------------------------
 
 
 def _nearby_key(ch: str) -> str:
