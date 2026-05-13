@@ -12,6 +12,7 @@ def create_llm(
     provider: Optional[str] = None,
     model: Optional[str] = None,
     api_key: Optional[str] = None,
+    browser_fetch: Optional[object] = None,
 ) -> LLMClient:
     """Create an LLM client for the given provider.
 
@@ -33,6 +34,10 @@ def create_llm(
             Falls back to ``SB_LLM_MODEL`` when ``None``.
         api_key: The API key for the chosen provider.
             Falls back to ``SB_LLM_API_KEY`` when ``None``.
+        browser_fetch: When provided, a :class:`BrowserFetch` instance.
+            All API traffic is routed through Chromium instead of the
+            native SDK.  When ``None`` (default), the standard SDK path
+            is used.
 
     Returns:
         A concrete :class:`LLMClient` implementation.
@@ -58,6 +63,16 @@ def create_llm(
     if not api_key:
         raise EnvironmentError(
             "No API key specified. Pass api_key= or set SB_LLM_API_KEY."
+        )
+
+    # When browser_fetch is provided, route all API calls through Chromium.
+    if browser_fetch is not None:
+        from super_browser.agent.llm.browser_transport import BrowserLLMClient
+        return BrowserLLMClient(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            browser_fetch=browser_fetch,
         )
 
     if provider == "anthropic":
