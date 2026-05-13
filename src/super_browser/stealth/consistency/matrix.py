@@ -96,3 +96,6 @@ class FingerprintMatrix:
     navigator_product: str
     navigator_cookie_enabled: bool
     navigator_max_touch_points: int
+
+    # Ejector (fingerprint noise injection)
+    ejector_seed: str = ""
