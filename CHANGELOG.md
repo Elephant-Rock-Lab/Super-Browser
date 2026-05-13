@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-05-13
+
+### Added — Fingerprint Consistency Engine (BATCH-30)
+- Deterministic rule DAG deriving all fingerprint surfaces from `(profile, seed)` pair
+- 38 consistency rules across 9 modules (screen, webgl, fonts, audio, navigator, storage, connection, behavior, security)
+- 4 real-device profiles (Windows, macOS, macOS-M4, Linux Chrome stable)
+- xoshiro256** PRNG for reproducible randomness
+- Fetch.fulfillRequest inject delivery (body-splice technique)
+- Runtime.enable hard-ban at CDP transport layer
+
+### Added — Chromium-Native Networking (BATCH-31)
+- `session.fetch()` routing through Chromium BoringSSL stack
+- `BrowserFetch` with dual CDP mechanisms (Network.loadNetworkResource + in-page fetch)
+- `BrowserLLMClient` for opt-in LLM-via-browser routing
+- `NetworkConfig` (browser_fetch, llm_via_browser) in main config
+
+### Added — Biomechanical Behavior v2 (BATCH-32)
+- Cubic Bézier mouse trajectories with Fitts's Law timing
+- 10% overshoot probability with corrective sub-curves
+- Autocorrelated Gaussian jitter (τ ≈ 30ms)
+- QWERTY-aware digraph keystroke timing with lognormal delays
+- Mistake injection (2% default) with backspace correction
+- WPM scaling (40–120 WPM range)
+- Inertial scroll with exponential friction decay (τ ≈ 350ms)
+- Pure-data synthesis — fully testable without browser
+
+### Added — Stealth Integration & Regression Harness (BATCH-33)
+- `FingerprintValidationSuite` with 8 cross-surface consistency checks
+- `StealthRegressionHarness` with baseline capture + diff + CI mode
+- `super-browser stealth-validate` CLI command
+- 11 cross-feature integration tests for full v1.5.0 stack
+
+### Technical Details
+- **New modules:** `stealth/profiles/`, `stealth/consistency/`, `behavioral/`, `stealth/validation/`, `browser/fetch.py`, `agent/llm/browser_transport.py`
+- **Test count:** ~1,794 total (+208 new since v1.4.0)
+- **PRNG:** xoshiro256** shared between consistency engine and behavioral synthesis
+- **Pipe-mode CDP:** Researched and documented as not feasible through Patchright (deferred to v2.0)
+
+---
+
 ## [1.4.0] — 2026-05-08
 
 ### Added — CloakBrowser Stealth Backend
