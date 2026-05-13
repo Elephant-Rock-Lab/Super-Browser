@@ -2,7 +2,7 @@
 
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/example/super-browser)
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green)](https://github.com/example/super-browser)
-[![PyPI](https://img.shields.io/badge/PyPI-1.0.0-blue)](https://pypi.org/project/super-browser/)
+[![PyPI](https://img.shields.io/badge/PyPI-1.5.0-blue)](https://pypi.org/project/super-browser/)
 
 **Super Browser** is a comprehensive browser-control library for AI agents. It provides a three-tier cascade (LLM client → built-in skills → raw browser), self-healing selectors, stealth-mode navigation, output-budget management, and security guardrails — all behind a single `SuperBrowser` façade.
 
@@ -77,6 +77,65 @@ Additional subsystems:
 | **Vision** | Screenshot-based fallback for pages that resist DOM inspection |
 
 Full API documentation lives in [`docs/`](docs/).
+
+## What's New in v1.5
+
+### Fingerprint Consistency Engine
+
+Deterministic fingerprint derivation from a single `(profile, seed)` pair:
+
+```python
+from super_browser.stealth.profiles import load_profile
+from super_browser.stealth.consistency.derive import derive_matrix
+
+profile = load_profile("windows-chrome-stable")
+matrix = derive_matrix(profile, "my-session-seed")
+# Every surface (UA, GPU, screen, fonts, audio, timezone) is consistent
+```
+
+4 real-device profiles, 38 consistency rules, xoshiro256** PRNG, Fetch.fulfillRequest inject delivery.
+
+### Biomechanical Behavior v2
+
+Scientifically grounded behavioral synthesis — no more random jitter:
+
+```python
+from super_browser.behavioral import synthesize_mouse_trajectory, synthesize_keystrokes
+
+# Bézier mouse path with Fitts's Law timing
+traj = synthesize_mouse_trajectory(from_pt=(100,100), to_pt=(800,600),
+                                     profile=bp, seed="session-1")
+
+# QWERTY-aware typing with digraph delays + mistake injection
+keys = synthesize_keystrokes(text="hello world", profile=bp, seed="session-1")
+```
+
+Cubic Bézier paths, Fitts's Law movement time, autocorrelated jitter, lognormal digraph delays, inertial scroll.
+
+### Chromium-Native Networking
+
+Route HTTP requests through the browser's BoringSSL stack:
+
+```python
+from super_browser.browser.fetch import BrowserFetch
+
+fetch = BrowserFetch(bridge=cdp)
+response = await fetch.fetch("https://api.example.com/data")
+# TLS fingerprint matches the browser session — no httpx JA4 mismatch
+```
+
+### Fingerprint Validation & Regression Harness
+
+CI gate for stealth consistency:
+
+```bash
+super-browser stealth-validate --capture-baseline   # Record baseline
+super-browser stealth-validate --ci                   # Fail CI on regression
+```
+
+8 cross-surface checks (UA/OS match, GPU vendor, cores, memory cap, fonts, DPR, timezone, webdriver).
+
+---
 
 ## What's New in v1.4
 
