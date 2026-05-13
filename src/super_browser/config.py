@@ -68,6 +68,14 @@ class TracingConfig:
 
 
 @dataclass(frozen=True)
+class NetworkConfig:
+    """Configuration for Chromium-native networking."""
+
+    browser_fetch: bool = True            # Enable session.fetch()
+    llm_via_browser: bool = False          # Route LLM calls through browser (opt-in)
+
+
+@dataclass(frozen=True)
 class MemoryConfig:
     """Memory sub-config — per-domain agent memory."""
 
@@ -115,6 +123,7 @@ class Config:
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     cloak: CloakConfig = field(default_factory=CloakConfig)
     consistency: ConsistencyConfig = field(default_factory=ConsistencyConfig)
+    network: NetworkConfig = field(default_factory=NetworkConfig)
 
     # ------------------------------------------------------------------
     # from_env
@@ -186,6 +195,11 @@ class Config:
         _env_str(consistency_kw, "SB_CONSISTENCY_PROFILE_ID", "profile_id")
         _env_str(consistency_kw, "SB_CONSISTENCY_SEED", "seed")
 
+        # -- Network -----------------------------------------------
+        network_kw: dict = {}
+        _env_bool(network_kw, "SB_BROWSER_FETCH", "browser_fetch")
+        _env_bool(network_kw, "SB_LLM_VIA_BROWSER", "llm_via_browser")
+
         return cls(
             browser=_suppress_deprecation(SessionConfig, **browser_kw),
             agent=AgentConfig(**agent_kw),
@@ -196,6 +210,7 @@ class Config:
             memory=MemoryConfig(**memory_kw),
             cloak=CloakConfig(**cloak_kw),
             consistency=ConsistencyConfig(**consistency_kw),
+            network=NetworkConfig(**network_kw),
         )
 
     # ------------------------------------------------------------------
@@ -260,6 +275,7 @@ class Config:
             memory=_build_sub(MemoryConfig, d.get("memory", {})),
             cloak=_build_sub(CloakConfig, d.get("cloak", {})),
             consistency=_build_sub(ConsistencyConfig, d.get("consistency", {})),
+            network=_build_sub(NetworkConfig, d.get("network", {})),
         )
 
     # ------------------------------------------------------------------

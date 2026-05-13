@@ -10,6 +10,7 @@ from typing import Any, Optional, TYPE_CHECKING
 from super_browser.browser.cdp import CDPBridge
 from super_browser.browser.config import SessionConfig, SessionMode
 from super_browser.browser.discovery import BrowserDiscovery
+from super_browser.browser.fetch import BrowserFetch
 from super_browser.browser.page import PageHandle
 
 if TYPE_CHECKING:
@@ -58,6 +59,7 @@ class BrowserSession:
         self._browser: Any = None
         self._context: Any = None
         self._pages: list[PageHandle] = []
+        self._fetch: Optional[BrowserFetch] = None
 
     async def start(self) -> BrowserState:
         """Launch or attach to a browser."""
@@ -216,6 +218,13 @@ class BrowserSession:
             except Exception:
                 pass
 
+        if self._fetch is not None:
+            try:
+                await self._fetch.close()
+            except Exception:
+                pass
+            self._fetch = None
+
         self._state.connected = False
         self._state.page_count = 0
 
@@ -231,6 +240,11 @@ class BrowserSession:
         cdp.set_reattach_fn(self._make_reattach_fn(page))
 
         ph = PageHandle(page, cdp)
+
+        # Initialise BrowserFetch on first page (reuses same CDP bridge)
+        if self._fetch is None:
+            self._fetch = BrowserFetch(cdp)
+
         self._pages.append(ph)
         self._state.page_count = len(self._pages)
         self._state.last_activity_at = time.monotonic()
@@ -241,6 +255,15 @@ class BrowserSession:
             self._state.stale_recoveries += 1
             return await self._context.new_cdp_session(page)
         return reattach
+
+    @property
+    def fetch(self) -> BrowserFetch:
+        """Lazily-created :class:`BrowserFetch` for CDP-routed HTTP."""
+        if self._fetch is None:
+            raise RuntimeError(
+                "No CDP bridge available. Open a page first."
+            )
+        return self._fetch
 
     def state(self) -> BrowserState:
         return self._state
