@@ -177,7 +177,7 @@ class TestPerfectMatrix:
 
         assert report.passed is True
         assert report.score == 100.0
-        assert len(report.checks) == 9
+        assert len(report.checks) == 11
         assert all(r.passed for r in report.checks)
 
 
@@ -294,5 +294,5 @@ class TestScoreCalculation:
 
         failed = [r for r in report.checks if not r.passed]
         assert len(failed) == 3
-        assert round(report.score, 2) == 66.67
+        assert round(report.score, 2) == 72.73
         assert report.passed is False
