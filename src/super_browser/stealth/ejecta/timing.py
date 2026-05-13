@@ -90,40 +90,52 @@ def _build_js_payload(config: EjectorConfig) -> str:
   }}
 
   // ── 3. Perturb Math constants ────────────────────────────────────
-  Object.defineProperty(Math, 'PI', {{
-    value: Math.PI + _noisePI,
-    writable: false,
-    configurable: true,
-    enumerable: false
-  }});
+  // NOTE: V8 marks Math properties as non-configurable, so we wrap
+  // each in try/catch to avoid cascade failures.
+  try {{
+    Object.defineProperty(Math, 'PI', {{
+      value: Math.PI + _noisePI,
+      writable: false,
+      configurable: true,
+      enumerable: false
+    }});
+  }} catch(e) {{}}
 
-  Object.defineProperty(Math, 'E', {{
-    value: Math.E + _noiseE,
-    writable: false,
-    configurable: true,
-    enumerable: false
-  }});
+  try {{
+    Object.defineProperty(Math, 'E', {{
+      value: Math.E + _noiseE,
+      writable: false,
+      configurable: true,
+      enumerable: false
+    }});
+  }} catch(e) {{}}
 
-  Object.defineProperty(Math, 'SQRT2', {{
-    value: Math.SQRT2 + _noiseSQRT2,
-    writable: false,
-    configurable: true,
-    enumerable: false
-  }});
+  try {{
+    Object.defineProperty(Math, 'SQRT2', {{
+      value: Math.SQRT2 + _noiseSQRT2,
+      writable: false,
+      configurable: true,
+      enumerable: false
+    }});
+  }} catch(e) {{}}
 
-  Object.defineProperty(Math, 'LOG2E', {{
-    value: Math.LOG2E + _noiseLOG2E,
-    writable: false,
-    configurable: true,
-    enumerable: false
-  }});
+  try {{
+    Object.defineProperty(Math, 'LOG2E', {{
+      value: Math.LOG2E + _noiseLOG2E,
+      writable: false,
+      configurable: true,
+      enumerable: false
+    }});
+  }} catch(e) {{}}
 
-  Object.defineProperty(Math, 'LN10', {{
-    value: Math.LN10 + _noiseLN10,
-    writable: false,
-    configurable: true,
-    enumerable: false
-  }});
+  try {{
+    Object.defineProperty(Math, 'LN10', {{
+      value: Math.LN10 + _noiseLN10,
+      writable: false,
+      configurable: true,
+      enumerable: false
+    }});
+  }} catch(e) {{}}
 }})();
 """
 
