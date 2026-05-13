@@ -6,21 +6,15 @@ Each test uses mocked page/CDP to validate synthesis wiring without
 a real browser.
 """
 
-import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from super_browser.behavioral.types import (
     BehaviorProfile,
-    KeystrokeEvent,
-    ScrollEvent,
     TrajectoryEvent,
 )
-from super_browser.stealth.human import HumanBehaviorAdapter, _dispatch_keystrokes, _dispatch_scroll, _dispatch_trajectory
+from super_browser.stealth.human import HumanBehaviorAdapter, _dispatch_trajectory
 from super_browser.stealth.human_config import HumanConfig
-
 
 # -- Fixtures ---------------------------------------------------------------
 

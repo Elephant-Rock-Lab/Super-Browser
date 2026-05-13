@@ -7,11 +7,9 @@ import fnmatch
 import logging
 import time
 from abc import ABC, abstractmethod
-from collections import deque
 from typing import Any, Optional
 
 from super_browser.agent.loop_detector import ActionLoopDetector
-from super_browser.agent.types import LoopNudge
 from super_browser.recovery.event_bus import WatchdogEventBus
 from super_browser.recovery.types import (
     ActionFingerprint,

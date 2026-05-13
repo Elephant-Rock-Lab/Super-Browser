@@ -14,23 +14,18 @@ Tests:
 
 from __future__ import annotations
 
-import asyncio
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from super_browser.browser.cloak_backend import (
     CloakBrowserAdapter,
-    CloakLaunchResult,
     is_cloak_available,
 )
 from super_browser.stealth.fingerprint_scanner import FingerprintScanner
-from super_browser.stealth.fingerprint_score import FingerprintScorer, FingerprintGrade
+from super_browser.stealth.fingerprint_score import FingerprintGrade, FingerprintScorer
 from super_browser.stealth.human import HumanBehaviorAdapter
 from super_browser.stealth.human_config import HumanConfig
 from super_browser.stealth.scoring import FingerprintCheck, FingerprintScore
-
 
 # ---------------------------------------------------------------------------
 # TEST-29-01: CloakBrowser backend detection works

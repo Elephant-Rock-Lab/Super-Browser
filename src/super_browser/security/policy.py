@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import time
 from fnmatch import fnmatch
-from typing import Any, Optional
 
 from super_browser.security.types import (
     PolicyDecision,
@@ -24,7 +23,7 @@ class ActionPolicyEngine:
             self.load_rules(config.policy_file)
 
     def load_rules(self, policy_file: str) -> None:
-        with open(policy_file, "r", encoding="utf-8") as f:
+        with open(policy_file, encoding="utf-8") as f:
             data = json.load(f)
         for rule_data in data.get("rules", []):
             self._rules.append(PolicyRule(

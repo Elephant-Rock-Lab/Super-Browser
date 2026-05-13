@@ -6,7 +6,8 @@ import asyncio
 import hashlib
 import logging
 import time
-from typing import Any, Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any, Optional
 
 from super_browser.agent.loop_detector import ActionLoopDetector
 from super_browser.agent.registry import ToolRegistry

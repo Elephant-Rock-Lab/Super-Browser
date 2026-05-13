@@ -12,7 +12,6 @@ present.
 
 import pytest
 
-
 pytestmark = pytest.mark.integration
 
 # Automation-leak globals that should never be present.

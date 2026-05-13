@@ -5,11 +5,9 @@ from __future__ import annotations
 import warnings
 
 import pytest
-
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.browser.config import SessionConfig
 from super_browser.config import AgentConfig, Config
-
 
 # ── TEST-03-02-01: Old SuperBrowserConfig() emits DeprecationWarning ──
 
@@ -20,7 +18,7 @@ class TestSuperBrowserConfigDeprecation:
     def test_default_construction_warns(self) -> None:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            cfg = SuperBrowserConfig()
+            cfg = SuperBrowserConfig()  # noqa: F841
         assert len(w) == 1
         assert issubclass(w[0].category, DeprecationWarning)
         assert "SuperBrowserConfig is deprecated" in str(w[0].message)
@@ -44,7 +42,7 @@ class TestSessionConfigDeprecation:
     def test_default_construction_warns(self) -> None:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            cfg = SessionConfig()
+            cfg = SessionConfig()  # noqa: F841
         assert len(w) == 1
         assert issubclass(w[0].category, DeprecationWarning)
         assert "SessionConfig is deprecated" in str(w[0].message)

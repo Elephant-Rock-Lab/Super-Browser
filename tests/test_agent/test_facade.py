@@ -1,14 +1,12 @@
 """Tests for SuperBrowser facade."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from super_browser.agent.facade import ConfigurationError, SuperBrowser
-from super_browser.agent.registry import ToolRegistry
 from super_browser.interaction.decorator import agent_action
-from super_browser.results import ActionResult, ClickResult, FillResult, NavigateResult, action_result
+from super_browser.results import ClickResult, FillResult, NavigateResult, action_result
 
 
 def _make_browser_with_mocks():

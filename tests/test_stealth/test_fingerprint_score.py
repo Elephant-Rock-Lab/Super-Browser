@@ -5,16 +5,13 @@ Test IDs: TEST-13-02-01 through TEST-13-02-03
 
 import asyncio
 
-import pytest
-
 from super_browser.stealth.diagnostics import run_full_diagnostics
 from super_browser.stealth.fingerprint_score import (
     FingerprintGrade,
     FingerprintScorer,
     FingerprintScoreResult,
 )
-from super_browser.stealth.types import StealthConfig, StealthHealthItem
-
+from super_browser.stealth.types import StealthConfig
 
 # -- Helpers ----------------------------------------------------------------
 

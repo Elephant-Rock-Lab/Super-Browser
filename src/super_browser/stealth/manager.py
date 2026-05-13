@@ -9,10 +9,15 @@ from typing import Any, Optional
 
 from super_browser.stealth.action_policy import StealthActionPolicy
 from super_browser.stealth.captcha import CAPTCHAWatchdog
+from super_browser.stealth.consistency import (
+    InjectDelivery,
+    derive_matrix,
+    generate_inject,
+)
 from super_browser.stealth.diagnostics import run_diagnostics
 from super_browser.stealth.headers import HeaderRandomizer
+from super_browser.stealth.profiles import load_profile
 from super_browser.stealth.proxy import ProxyEscalator
-from super_browser.stealth.user_agent_pool import UserAgentPool
 from super_browser.stealth.types import (
     CAPTCHADetection,
     EscalationRecord,
@@ -24,12 +29,7 @@ from super_browser.stealth.types import (
     StealthHealthItem,
     StealthHealthReport,
 )
-from super_browser.stealth.consistency import (
-    InjectDelivery,
-    derive_matrix,
-    generate_inject,
-)
-from super_browser.stealth.profiles import load_profile
+from super_browser.stealth.user_agent_pool import UserAgentPool
 
 logger = logging.getLogger(__name__)
 

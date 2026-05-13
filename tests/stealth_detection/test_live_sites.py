@@ -82,7 +82,7 @@ async def test_incolumitas_low_bot_score(browser_page):
         # the rendered text for an explicit "Human" verdict.
         body_text = await page.evaluate("document.body.innerText")
         assert "human" in body_text.lower(), (
-            f"bot.incolumitas.com: did not identify browser as human"
+            "bot.incolumitas.com: did not identify browser as human"
         )
         return
 

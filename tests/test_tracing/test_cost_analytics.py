@@ -1,10 +1,7 @@
 """Tests for CostAnalytics."""
 
-import asyncio
-from pathlib import Path
 
 import pytest
-
 from super_browser.tracing.cost_analytics import CostAnalytics
 from super_browser.tracing.session_db import SessionDB
 from super_browser.tracing.types import CostRecord

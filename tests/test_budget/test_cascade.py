@@ -1,6 +1,6 @@
 """Tests for ModelCascade."""
 
-from super_browser.budget.cascade import ModelCascade, DEFAULT_TIERS
+from super_browser.budget.cascade import ModelCascade
 from super_browser.budget.types import (
     CascadeConfig,
     CascadeTier,

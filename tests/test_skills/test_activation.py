@@ -3,8 +3,6 @@
 import math
 import time
 
-import pytest
-
 from super_browser.skills.activation import compute_activation
 from super_browser.skills.types import ActivationConfig, DomainSkill, SkillStatus
 
@@ -52,13 +50,13 @@ class TestContextBoost:
         assert compute_activation(s, current_task="Login") == 0.0
 
     def test_with_similarity_fn(self):
-        sim = lambda a, b: 1.0 if a == b else 0.0
+        sim = lambda a, b: 1.0 if a == b else 0.0  # noqa: E731
         s = _skill(access_count=1, last_used=time.monotonic(), description="Login")
         score = compute_activation(s, current_task="Login", similarity_fn=sim)
         assert score > compute_activation(s, current_task="Login")
 
     def test_context_boost_capped(self):
-        sim = lambda a, b: 10.0
+        sim = lambda a, b: 10.0  # noqa: E731
         cfg = ActivationConfig(context_weight=1.0, max_context_boost=2.0)
         s = _skill(access_count=0, last_used=0.0, description="x")
         score = compute_activation(s, current_task="x", config=cfg, similarity_fn=sim)

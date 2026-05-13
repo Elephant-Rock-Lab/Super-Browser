@@ -1,7 +1,7 @@
 """Tests for BudgetCascadeClient (renamed from BudgetAwareLLMClient)."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from super_browser.budget.cascade import ModelCascade
 from super_browser.budget.client import (
@@ -12,7 +12,7 @@ from super_browser.budget.client import (
 from super_browser.budget.compressor import ContextCompressor
 from super_browser.budget.credential_pool import CircuitBreaker, CredentialPool
 from super_browser.budget.governor import TokenBudgetGovernor
-from super_browser.budget.types import BudgetConfig, CostTier, TokenUsageRecord
+from super_browser.budget.types import BudgetConfig, CostTier
 
 
 def _make_client(*, daily_cap=100.0, llm_client=None):

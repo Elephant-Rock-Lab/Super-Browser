@@ -1,7 +1,6 @@
 """Tests for BrowserDiscovery."""
 
 import os
-from pathlib import Path
 from unittest.mock import patch
 
 from super_browser.browser import BrowserDiscovery

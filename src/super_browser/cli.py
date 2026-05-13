@@ -17,10 +17,10 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command")
 
     # version
-    ver = sub.add_parser("version", help="Print version")
+    ver = sub.add_parser("version", help="Print version")  # noqa: F841
 
     # info
-    info = sub.add_parser("info", help="Show system info")
+    info = sub.add_parser("info", help="Show system info")  # noqa: F841
 
     # run
     run = sub.add_parser("run", help="Run a simple automation task")
@@ -29,7 +29,7 @@ def main() -> None:
     run.add_argument("--output", default="-", help="Output file (- for stdout)")
 
     # interactive
-    interactive = sub.add_parser("interactive", help="Start interactive REPL with persistent browser")
+    interactive = sub.add_parser("interactive", help="Start interactive REPL with persistent browser")  # noqa: F841
 
     # script
     script_parser = sub.add_parser("script", help="Execute a YAML script file")
@@ -200,6 +200,7 @@ async def _act(args: argparse.Namespace) -> None:
 def _memory(args: argparse.Namespace) -> None:
     """Handle memory CLI commands: list, show, clear, prune."""
     from pathlib import Path
+
     from super_browser.memory.store import MemoryStore
 
     memory_dir = args.dir or "~/.config/super-browser/memory"
@@ -234,7 +235,7 @@ def _memory(args: argparse.Namespace) -> None:
                 for element, selector in mem.selectors.items():
                     print(f"    {element}: {selector}")
             if mem.preferences:
-                print(f"  Preferences:")
+                print("  Preferences:")
                 for key, value in mem.preferences.items():
                     print(f"    {key}: {value}")
         return

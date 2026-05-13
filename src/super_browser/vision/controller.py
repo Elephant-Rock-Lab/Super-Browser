@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 import time
@@ -14,12 +13,11 @@ from super_browser.vision.cache import VisionCache
 from super_browser.vision.factory import VisionProviderFactory
 from super_browser.vision.ocr import OCRGrounding
 from super_browser.vision.types import (
-    CascadeConfig,
     CaptchaSolution,
     CaptchaType,
+    CascadeConfig,
     StateInference,
     VisionCostTracker,
-    VisionLocation,
     VisionTaskComplexity,
 )
 
@@ -172,7 +170,7 @@ class VisionController(VisionProvider):
                 token_cost=response.token_cost,
                 duration_ms=dur,
             )
-        except Exception as exc:
+        except Exception:
             dur = (time.monotonic() - start) * 1000
             return CaptchaSolution(solved=False, duration_ms=dur)
 
@@ -302,7 +300,7 @@ class VisionController(VisionProvider):
 
             start = time.monotonic()
             response = await self._call_with_failover(request, provider)
-            dur = (time.monotonic() - start) * 1000
+            dur = (time.monotonic() - start) * 1000  # noqa: F841
 
             if response.found:
                 self._cost_tracker.record(response.token_cost)

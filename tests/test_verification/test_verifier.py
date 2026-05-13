@@ -1,18 +1,15 @@
 """Tests for VisualVerifier: snapshot, verify, look_act_look, classify."""
 
 import asyncio
-import hashlib
 import io
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from PIL import Image
-
 from super_browser.verification.types import (
     PerceptualHash,
-    VerifierConfig,
     VerificationActionType,
     VerificationLevel,
-    VerificationResult,
+    VerifierConfig,
 )
 from super_browser.verification.verifier import VisualVerifier
 
@@ -92,7 +89,7 @@ class TestVerifyHash:
     def test_same_image_no_change(self):
         async def _test():
             v = _make_verifier()
-            data = _make_screenshot_bytes()
+            data = _make_screenshot_bytes()  # noqa: F841
             page = MagicMock()
             page.url = "https://example.com"
             page.title = AsyncMock(return_value="Test")

@@ -86,3 +86,41 @@ markers = [
     "live: tests requiring a real browser AND real LLM API (excluded from CI)",
     "live_stealth: tests requiring live detection sites (excluded from CI)",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+no_strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = false
+[[tool.mypy.overrides]]
+module = "patchright.*"
+ignore_missing_imports = true
+[[tool.mypy.overrides]]
+module = "httpx.*"
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["super_browser"]
+omit = ["tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "pass",
+]

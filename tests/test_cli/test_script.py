@@ -9,23 +9,18 @@ TEST-24-02-04: act command calls sb.act()
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from super_browser import SuperBrowser
-from super_browser.testing import MockLLMClient
-from super_browser.results import ActionResult, NavigateResult
 from super_browser.cli.script import (
-    run_script,
-    run_replay,
-    run_act,
-    _load_yaml_steps,
     _execute_step,
+    run_act,
+    run_replay,
+    run_script,
 )
-
+from super_browser.results import ActionResult
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -107,7 +102,7 @@ class TestScriptExecution:
             mock_sb.stop = AsyncMock()
             MockSB.return_value = mock_sb
 
-            results = await run_script(str(script_file), output_path=str(output_file))
+            results = await run_script(str(script_file), output_path=str(output_file))  # noqa: F841
 
         assert output_file.exists()
         written = json.loads(output_file.read_text())

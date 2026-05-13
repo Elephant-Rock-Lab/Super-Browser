@@ -9,22 +9,17 @@ TEST-24-01-05: Browser persists between commands
 
 from __future__ import annotations
 
-import asyncio
 import io
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from super_browser import SuperBrowser
-from super_browser.testing import MockLLMClient
 from super_browser.cli.commands import (
-    CommandResult,
-    dispatch,
     COMMANDS,
-    HELP_TEXT,
+    dispatch,
 )
 from super_browser.results import ActionResult, NavigateResult
-
+from super_browser.testing import MockLLMClient
 
 # ---------------------------------------------------------------------------
 # Helpers

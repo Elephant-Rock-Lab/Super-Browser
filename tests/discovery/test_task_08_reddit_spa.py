@@ -16,7 +16,7 @@ import pytest
 
 pytestmark = [pytest.mark.live, pytest.mark.asyncio]
 
-from .conftest import make_result
+from .conftest import make_result  # noqa: E402
 
 
 async def test_task_08_reddit_spa(sb):
@@ -60,7 +60,7 @@ async def test_task_08_reddit_spa(sb):
 
         # Verify SPA loaded content
         has_posts = len(posts_text) > 20
-        has_interactive = interactive > 5
+        has_interactive = interactive > 5  # noqa: F841
 
         latency = (time.monotonic() - start) * 1000
         result = make_result(

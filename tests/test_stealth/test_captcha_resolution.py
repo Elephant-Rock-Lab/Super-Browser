@@ -4,13 +4,10 @@ TEST-10-01-01 through TEST-10-01-05.
 """
 
 import asyncio
-import json
 import time
 
 import pytest
-
 from super_browser.recovery.event_bus import WatchdogEventBus
-from super_browser.recovery.types import WatchdogEvent
 from super_browser.stealth.captcha import CAPTCHAWatchdog
 from super_browser.stealth.types import (
     CAPTCHADetection,
@@ -18,7 +15,6 @@ from super_browser.stealth.types import (
     CAPTCHAResolution,
     StealthConfig,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -127,7 +123,7 @@ class TestResolveTurnstile:
             cdp_value=False,  # JS poll never returns True
         )
         # Override the CDP send to return False consistently (timeout quickly)
-        original_send = wd._cdp.send
+        original_send = wd._cdp.send  # noqa: F841
 
         async def _fast_false_send(method, params=None):
             return _FakeCDPResult(False)

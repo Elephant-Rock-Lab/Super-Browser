@@ -8,8 +8,9 @@ import hashlib
 import logging
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from super_browser.browser.config import SessionConfig
 

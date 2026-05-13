@@ -188,7 +188,7 @@ class CheckpointManager:
                 # to avoid JS injection from form values via string concatenation.
                 import json as _json
                 # CDP Runtime.evaluate with the values as a proper JS argument
-                result = await self._cdp.send("Runtime.evaluate", {
+                result = await self._cdp.send("Runtime.evaluate", {  # noqa: F841
                     "expression": "(function(values) {"
                         "var inputs = document.querySelectorAll('input, textarea, select');"
                         "for (var i = 0; i < inputs.length; i++) {"

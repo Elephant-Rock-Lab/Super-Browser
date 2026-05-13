@@ -6,11 +6,9 @@ Test IDs: TEST-28-03-01 through TEST-28-03-04
 import time
 
 import pytest
-
 from super_browser.stealth.fingerprint_scanner import FingerprintScanner
 from super_browser.stealth.report import StealthReport
 from super_browser.stealth.scoring import FingerprintCheck, FingerprintScore
-
 
 # -- TEST-28-03-01: stealth-check command runs -----------------------------
 

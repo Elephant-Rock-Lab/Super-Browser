@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import math
 
-
 __all__ = ["dist", "perpendicular_unit", "sample_cubic_bezier"]
 
 Point = tuple[float, float]

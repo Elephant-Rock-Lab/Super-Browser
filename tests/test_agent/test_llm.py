@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from super_browser.agent.llm.protocol import LLMClient
-
 
 # ---------------------------------------------------------------------------
 # TEST-01-01-01 — Protocol defines three async methods
@@ -82,6 +79,7 @@ def anthropic_mock():
     }):
         # Force re-import so the patched module is picked up.
         import importlib
+
         import super_browser.agent.llm.anthropic_client as mod
         importlib.reload(mod)
         yield mock_client, mod

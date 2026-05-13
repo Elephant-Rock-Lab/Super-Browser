@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from super_browser.agent.facade import SuperBrowser
 from super_browser.recording.persistence import save
-from super_browser.recording.replayer import MismatchRecord, RecordingReplayer, ReplayReport
+from super_browser.recording.replayer import RecordingReplayer
 from super_browser.recording.types import ActionRecord, RecordingSession
 
 
@@ -58,7 +56,7 @@ class TestReplayNavigate:
         replayer = RecordingReplayer(sb)
         recording = _make_recording_with_actions()
 
-        report = await replayer.replay(recording, delay_ms=0)
+        report = await replayer.replay(recording, delay_ms=0)  # noqa: F841
 
         sb.navigate.assert_called()
         call_args = sb.navigate.call_args_list
@@ -80,7 +78,7 @@ class TestReplayClick:
         replayer = RecordingReplayer(sb)
         recording = _make_recording_with_actions()
 
-        report = await replayer.replay(recording, delay_ms=0)
+        report = await replayer.replay(recording, delay_ms=0)  # noqa: F841
 
         sb.click.assert_called()
         call_args = sb.click.call_args_list
@@ -103,7 +101,7 @@ class TestReplayFill:
         replayer = RecordingReplayer(sb)
         recording = _make_recording_with_actions()
 
-        report = await replayer.replay(recording, delay_ms=0)
+        report = await replayer.replay(recording, delay_ms=0)  # noqa: F841
 
         sb.fill.assert_called()
         call_args = sb.fill.call_args_list

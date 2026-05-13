@@ -5,7 +5,6 @@ import json
 import time
 
 import pytest
-
 from super_browser.skills.registry import SkillRegistry
 from super_browser.skills.types import (
     ActivationConfig,
@@ -164,7 +163,7 @@ class TestListByDomain:
         reg = _registry(tmp_path)
 
         async def _test():
-            s1 = await reg.register(_make_skill(name="active"))
+            s1 = await reg.register(_make_skill(name="active"))  # noqa: F841
             s2 = await reg.register(_make_skill(name="archived"))
             s2.status = SkillStatus.ARCHIVED
             skills = await reg.list_by_domain("example.com")
@@ -305,8 +304,8 @@ class TestHotSkills:
         reg = _registry(tmp_path, activation_threshold=2.0)
 
         async def _test():
-            s_hot = await reg.register(_make_skill(name="hot", access_count=50, last_used=time.monotonic()))
-            s_cold = await reg.register(_make_skill(name="cold", access_count=0, last_used=0.0))
+            s_hot = await reg.register(_make_skill(name="hot", access_count=50, last_used=time.monotonic()))  # noqa: F841
+            s_cold = await reg.register(_make_skill(name="cold", access_count=0, last_used=0.0))  # noqa: F841
             reg.compute_and_cache_activations("example.com")
             hot = reg.hot_skills("example.com")
             hot_names = [s.name for s in hot]

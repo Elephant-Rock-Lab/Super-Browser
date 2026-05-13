@@ -13,18 +13,18 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from super_browser.events.bus import EventBus
 from super_browser.events.types import AFTER_ACTION, AFTER_NAVIGATE, BEFORE_ACTION, BEFORE_NAVIGATE
 from super_browser.memory.store import MemoryStore
-# Memory types imported as needed in tests
-from super_browser.plugins.hooks import register_hook, get_registered_hooks, clear_registry
 from super_browser.plugins.decorators import hook
-from super_browser.recording.persistence import save as save_recording, load as load_recording
+
+# Memory types imported as needed in tests
+from super_browser.plugins.hooks import clear_registry, get_registered_hooks, register_hook
+from super_browser.recording.persistence import load as load_recording
+from super_browser.recording.persistence import save as save_recording
 from super_browser.recording.recorder import SessionRecorder
 from super_browser.recording.replayer import RecordingReplayer
 from super_browser.recording.types import ActionRecord, RecordingSession
-
 
 # ---------------------------------------------------------------------------
 # TEST-26-01-01: Hook fires during a recorded session

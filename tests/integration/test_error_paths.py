@@ -13,11 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.loop import AgentLoop
 from super_browser.agent.registry import ToolRegistry

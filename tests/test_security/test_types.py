@@ -1,15 +1,12 @@
 """Tests for security types — enums, dataclasses, SecurityConfig."""
 
 import pytest
-
 from super_browser.security.types import (
     CommandSafety,
     CommandVerdict,
-    DomainVerdict,
     InjectionMatch,
     InjectionPattern,
     InjectionVerdict,
-    PolicyDecision,
     PolicyRule,
     PolicyVerdict,
     RedactionEntry,

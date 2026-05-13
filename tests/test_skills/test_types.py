@@ -1,10 +1,8 @@
 """Tests for GAP-05 skills types — enums, dataclasses, serialization."""
 
 import json
-import time
 
 import pytest
-
 from super_browser.skills.types import (
     ActivationConfig,
     DomainSkill,
@@ -16,7 +14,6 @@ from super_browser.skills.types import (
     SkillSizeExceeded,
     SkillStatus,
 )
-
 
 # -- Enums --
 

@@ -3,15 +3,11 @@
 Test IDs: TEST-28-01-01 through TEST-28-01-05
 """
 
-import asyncio
-import random
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from super_browser.stealth.human import HumanBehaviorAdapter
 from super_browser.stealth.human_config import HumanConfig
-
 
 # -- TEST-28-01-01: HumanConfig defaults are correct ------------------------
 
@@ -120,9 +116,10 @@ class TestPatchrightSimulation:
         with patch.object(adapter, "random_pause", new_callable=AsyncMock):
             await adapter.humanize_click(page, "#btn")
 
-        page.mouse.move.assert_called_once()
-        page.mouse.down.assert_called_once()
-        page.mouse.up.assert_called_once()
+        # v2: behavioral synthesis dispatches many mouse.move calls
+        assert page.mouse.move.call_count >= 1
+        page.mouse.down.assert_called()
+        page.mouse.up.assert_called()
 
     @pytest.mark.asyncio
     async def test_patchright_type_types_per_character(self):

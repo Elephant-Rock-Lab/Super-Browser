@@ -7,8 +7,7 @@ versions (130–136) and OS combinations (Windows 10/11, macOS 13/14, Linux).
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 # -- Chrome UA string templates --------------------------------------------
 # Format: Mozilla/5.0 (<platform>) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/<ver> Safari/537.36

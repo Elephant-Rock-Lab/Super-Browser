@@ -18,7 +18,6 @@ from dataclasses import asdict
 from typing import Any
 
 import pytest
-
 from super_browser.stealth.consistency import (
     DeviceProfile,
     FingerprintMatrix,
@@ -34,7 +33,6 @@ from super_browser.stealth.consistency.errors import (
 from super_browser.stealth.consistency.rule import define_rule
 from super_browser.stealth.consistency.rules import ALL_RULES
 from super_browser.stealth.profiles import list_profiles, load_profile
-
 
 # ---------------------------------------------------------------------------
 # Helpers

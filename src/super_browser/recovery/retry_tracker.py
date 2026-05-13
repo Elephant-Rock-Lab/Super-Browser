@@ -6,7 +6,6 @@ from typing import Any, Optional
 
 from super_browser.recovery.types import ClassifiedError, RecoveryStrategy
 
-
 _TIER_ORDER = ["selector", "coordinate", "vision"]
 
 

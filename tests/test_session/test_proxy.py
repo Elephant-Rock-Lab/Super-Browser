@@ -8,7 +8,6 @@ Test IDs:
 import asyncio
 
 import pytest
-
 from super_browser.session.proxy import ProxyPool
 
 
@@ -98,7 +97,7 @@ class TestUnhealthyProxySkipped:
             return True
 
         pool._test_proxy = mock_test  # type: ignore[assignment]
-        results = asyncio.run(pool.health_check())
+        results = asyncio.run(pool.health_check())  # noqa: F841
         assert pool.healthy_count == 2
 
     def test_health_check_marks_failing_proxies(self):

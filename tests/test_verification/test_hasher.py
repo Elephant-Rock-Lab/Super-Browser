@@ -3,9 +3,7 @@
 import hashlib
 import io
 
-import pytest
 from PIL import Image
-
 from super_browser.verification.hasher import (
     HasherCache,
     compute_dhash,

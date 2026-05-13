@@ -14,7 +14,6 @@ the fixture patches it.
 
 import pytest
 
-
 pytestmark = pytest.mark.integration
 
 

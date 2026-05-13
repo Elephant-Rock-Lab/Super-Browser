@@ -2,8 +2,8 @@
 
 import asyncio
 import json
-from pathlib import Path
 
+import pytest
 from super_browser.tracing.session_db import SessionDB
 from super_browser.tracing.sinks import (
     ConsoleSink,
@@ -12,7 +12,7 @@ from super_browser.tracing.sinks import (
     SQLiteSink,
     TraceSink,
 )
-from super_browser.tracing.types import SpanKind, SpanStatus, TraceEvent
+from super_browser.tracing.types import SpanKind, TraceEvent
 
 
 def _make_event(**kwargs) -> TraceEvent:
@@ -120,6 +120,7 @@ class TestPrometheusSink:
             await sink.close()
         asyncio.run(_test())
 
+    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     def test_no_error_without_prometheus(self):
         async def _test():
             sink = PrometheusSink()

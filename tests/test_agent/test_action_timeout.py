@@ -6,7 +6,6 @@ Test IDs:
 """
 
 import asyncio
-import time
 from unittest.mock import AsyncMock, MagicMock
 
 from super_browser.agent.loop import AgentLoop

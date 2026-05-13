@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Coroutine, Union
+from collections.abc import Callable, Coroutine
+from typing import Any, Union
 
 # -- Handler types --
 

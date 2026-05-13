@@ -18,7 +18,7 @@ import pytest
 
 pytestmark = [pytest.mark.live, pytest.mark.asyncio]
 
-from .conftest import make_result
+from .conftest import make_result  # noqa: E402
 
 
 async def test_task_04_amazon_search(sb):
@@ -77,7 +77,7 @@ async def test_task_04_amazon_search(sb):
                 pass
 
         # Step 7: Observe product page — check for Add to Cart
-        obs2 = await sb.observe()
+        obs2 = await sb.observe()  # noqa: F841
         ext2 = await sb.extract("add to cart", selector="#add-to-cart-button")
 
         has_add_to_cart = False

@@ -15,7 +15,7 @@ import pytest
 
 pytestmark = [pytest.mark.live, pytest.mark.asyncio]
 
-from .conftest import make_result
+from .conftest import make_result  # noqa: E402
 
 
 async def test_task_02_google_search(sb):
@@ -48,14 +48,14 @@ async def test_task_02_google_search(sb):
                 max_steps=10,
             )
             if not act_result.ok:
-                raise RuntimeError(f"Both fill and act failed for search box")
+                raise RuntimeError("Both fill and act failed for search box")
 
         # Step 4: Wait for results to load
         import asyncio
         await asyncio.sleep(3)
 
         # Step 5: Extract search results
-        obs = await sb.observe()
+        obs = await sb.observe()  # noqa: F841
         ext = await sb.extract("search results")
         extracted_text = ""
         if ext.ok and ext.data:

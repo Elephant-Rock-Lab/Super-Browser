@@ -1,7 +1,6 @@
 """Tests for ReflectionAgent and CheckpointManager stub."""
 
 import asyncio
-from unittest.mock import AsyncMock
 
 from super_browser.recovery.reflection import ReflectionAgent
 from super_browser.recovery.types import TrajectoryState

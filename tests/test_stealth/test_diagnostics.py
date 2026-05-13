@@ -2,10 +2,8 @@
 
 import asyncio
 
-import pytest
-
 from super_browser.stealth.diagnostics import run_diagnostics
-from super_browser.stealth.types import StealthConfig, StealthHealthItem, ProxyTier
+from super_browser.stealth.types import ProxyTier, StealthConfig, StealthHealthItem
 
 
 class _FakeCDPResult:

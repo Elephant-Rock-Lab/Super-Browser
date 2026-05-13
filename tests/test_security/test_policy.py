@@ -152,4 +152,4 @@ class TestEvaluationTime:
         assert d.evaluation_time_ms < 5.0
 
 
-import asyncio
+import asyncio  # noqa: E402

@@ -1,15 +1,6 @@
 """GAP-12: Structured Action Results."""
 
-from super_browser.results.types import (
-    ActionError,
-    ActionMethod,
-    ActionResult,
-    CompletionReason,
-    ErrorCategory,
-    ResultMeta,
-    action_result,
-    timed_action_result,
-)
+from super_browser.results.output import OutputBudgetConfig, OutputDefender
 from super_browser.results.typed import (
     ClickResult,
     DelegatedResult,
@@ -22,14 +13,23 @@ from super_browser.results.typed import (
     KeypressResult,
     NavigateResult,
     NetworkInterceptResult,
-    ScrollResult,
     ScreenshotResult,
+    ScrollResult,
     SelectResult,
     ShadowQueryResult,
     SpilledResult,
     UploadResult,
 )
-from super_browser.results.output import OutputBudgetConfig, OutputDefender
+from super_browser.results.types import (
+    ActionError,
+    ActionMethod,
+    ActionResult,
+    CompletionReason,
+    ErrorCategory,
+    ResultMeta,
+    action_result,
+    timed_action_result,
+)
 from super_browser.results.validation import PreExecutionValidator
 
 __all__ = [

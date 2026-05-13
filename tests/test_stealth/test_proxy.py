@@ -2,8 +2,6 @@
 
 import time
 
-import pytest
-
 from super_browser.stealth.proxy import ProxyEscalator
 from super_browser.stealth.types import EscalationRecord, ProxyPoolConfig, ProxyTier, StealthConfig
 

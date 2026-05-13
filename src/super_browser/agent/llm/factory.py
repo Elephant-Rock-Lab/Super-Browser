@@ -53,15 +53,15 @@ def create_llm(
     api_key = api_key or os.environ.get("SB_LLM_API_KEY")
 
     if not provider:
-        raise EnvironmentError(
+        raise OSError(
             "No LLM provider specified. Pass provider= or set SB_LLM_PROVIDER."
         )
     if not model:
-        raise EnvironmentError(
+        raise OSError(
             "No LLM model specified. Pass model= or set SB_LLM_MODEL."
         )
     if not api_key:
-        raise EnvironmentError(
+        raise OSError(
             "No API key specified. Pass api_key= or set SB_LLM_API_KEY."
         )
 

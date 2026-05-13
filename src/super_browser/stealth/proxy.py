@@ -6,7 +6,7 @@ import logging
 import time
 from typing import Optional
 
-from super_browser.stealth.types import EscalationRecord, ProxyTier, ProxyPoolConfig, StealthConfig
+from super_browser.stealth.types import EscalationRecord, ProxyPoolConfig, ProxyTier, StealthConfig
 
 logger = logging.getLogger(__name__)
 

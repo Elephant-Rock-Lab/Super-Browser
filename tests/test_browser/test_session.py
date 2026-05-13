@@ -3,9 +3,7 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
-from super_browser.browser import BrowserSession, SessionConfig, SessionMode
+from super_browser.browser import BrowserSession, SessionConfig
 
 
 class TestBrowserSession:

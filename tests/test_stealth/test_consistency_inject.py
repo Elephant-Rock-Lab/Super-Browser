@@ -15,12 +15,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import asdict
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from super_browser.stealth.consistency import (
     FingerprintMatrix,
     derive_matrix,
@@ -28,7 +25,6 @@ from super_browser.stealth.consistency import (
 )
 from super_browser.stealth.consistency.inject_delivery import InjectDelivery
 from super_browser.stealth.profiles import list_profiles, load_profile
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -146,7 +142,6 @@ class TestJsSyntaxValidity:
         # Use Python's subprocess to check with node if available,
         # otherwise parse manually.
         import subprocess
-        import sys
 
         try:
             result = subprocess.run(

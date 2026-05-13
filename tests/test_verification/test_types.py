@@ -4,12 +4,10 @@ from super_browser.verification.types import (
     ActionVerifiability,
     AXDiffResult,
     PerceptualHash,
-    VerifierConfig,
     VerificationActionType,
     VerificationLevel,
     VerificationResult,
-    VerificationSnapshot,
-    VLMVerificationDetail,
+    VerifierConfig,
 )
 
 

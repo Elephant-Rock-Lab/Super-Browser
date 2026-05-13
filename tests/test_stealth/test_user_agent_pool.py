@@ -10,7 +10,6 @@ import re
 
 from super_browser.stealth.user_agent_pool import UserAgentPool
 
-
 # Regex to validate a realistic Chrome UA string
 _UA_RE = re.compile(
     r"Mozilla/5\.0 \(.+\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/\d+\.\d+\.\d+\.\d+ Safari/537\.36"
@@ -107,9 +106,9 @@ class TestOSDistribution:
         """Every UA in the pool should be categorised under a known OS."""
         pool = UserAgentPool()
         known = {"Windows 10", "Windows 11", "macOS 13", "macOS 14", "Linux"}
-        from super_browser.stealth.user_agent_pool import _UA_TEMPLATES, _CHROME_VERSIONS
+        from super_browser.stealth.user_agent_pool import _CHROME_VERSIONS, _UA_TEMPLATES
         for template in _UA_TEMPLATES:
             for ver in _CHROME_VERSIONS:
-                ua = template.format(ver=ver)
+                ua = template.format(ver=ver)  # noqa: F841
                 os_label = pool._extract_os_label(template)
                 assert os_label in known, f"Unknown OS label: {os_label!r} for template"

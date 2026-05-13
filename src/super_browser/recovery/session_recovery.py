@@ -112,7 +112,7 @@ class SessionRecovery:
             snap = await self._controller.capture_ax_snapshot()
             if snap is None:
                 return False
-            target = action_context.get("target", "")
+            target = action_context.get("target", "")  # noqa: F841
             role = action_context.get("element_role", "")
             name = action_context.get("element_name", "")
             if name:

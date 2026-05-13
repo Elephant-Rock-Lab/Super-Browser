@@ -10,14 +10,11 @@ TEST-27-02-05: cloak_config property returns CloakConfig
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch, call
-
-import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from super_browser.browser import BrowserSession, SessionConfig, SessionMode
-from super_browser.browser.cloak_backend import CloakBrowserAdapter, CloakLaunchResult
+from super_browser.browser.cloak_backend import CloakBrowserAdapter
 from super_browser.config import CloakConfig
-
 
 # ── TEST-27-02-01: proxy passed to cloakbrowser.launch ──────────────────
 

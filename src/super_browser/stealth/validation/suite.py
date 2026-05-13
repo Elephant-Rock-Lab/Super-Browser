@@ -42,7 +42,7 @@ class FingerprintValidationSuite:
         return ValidationReport(
             profile_id=profile.id,
             seed=matrix.seed,
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             checks=tuple(results),
             passed=passed_count == total,
             score=score,

@@ -20,7 +20,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from super_browser.events.bus import EventBus
 from super_browser.events.types import (
     AFTER_ACTION,
@@ -30,11 +29,13 @@ from super_browser.events.types import (
     ON_ERROR,
 )
 from super_browser.memory.store import MemoryStore
-from super_browser.plugins.hooks import clear_registry, get_registered_hooks
 from super_browser.plugins.decorators import hook
-from super_browser.recording.persistence import save as save_recording, load as load_recording
+from super_browser.plugins.hooks import clear_registry, get_registered_hooks
+from super_browser.recording.persistence import load as load_recording
+from super_browser.recording.persistence import save as save_recording
 from super_browser.recording.recorder import SessionRecorder
 from super_browser.recording.replayer import RecordingReplayer
+
 # Recording types used via recorder/persistence modules
 
 

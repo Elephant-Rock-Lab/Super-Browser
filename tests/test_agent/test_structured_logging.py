@@ -13,7 +13,6 @@ from super_browser.agent.structured_logging import (
     setup_structured_logging,
 )
 
-
 # -- Helpers ----------------------------------------------------------------
 
 def _make_record(msg: str = "hello", level: int = logging.INFO, **extra):

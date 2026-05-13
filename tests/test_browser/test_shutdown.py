@@ -1,17 +1,15 @@
 """Tests for ShutdownSupervisor."""
 
 import asyncio
-import signal
 
 import pytest
-
 from super_browser.browser import ShutdownSupervisor
 
 
 class TestShutdownSupervisor:
     def test_graceful_shutdown_calls_terminate(self):
         async def _test():
-            with pytest.MonkeyPatch.context() as mp:
+            with pytest.MonkeyPatch.context() as mp:  # noqa: F841
                 # Use a non-existent PID to avoid actual kills
                 supervisor = ShutdownSupervisor(browser_pid=999999999, grace_period=0.1)
                 # Should not raise even for non-existent PID

@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from super_browser.events.bus import EventBus
-from super_browser.events.types import BEFORE_NAVIGATE, BEFORE_ACTION
+from super_browser.events.types import BEFORE_ACTION, BEFORE_NAVIGATE
 
 
 # ---------------------------------------------------------------------------

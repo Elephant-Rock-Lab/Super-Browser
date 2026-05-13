@@ -2,9 +2,9 @@
 
 from super_browser.events.bus import EventBus
 from super_browser.events.types import (
-    ALL_EVENT_TYPES,
     AFTER_ACTION,
     AFTER_NAVIGATE,
+    ALL_EVENT_TYPES,
     BEFORE_ACTION,
     BEFORE_NAVIGATE,
     ON_BUDGET_ALERT,

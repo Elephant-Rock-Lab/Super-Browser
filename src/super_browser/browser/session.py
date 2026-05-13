@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Any, Optional, TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Optional
 
 from super_browser.browser.cdp import CDPBridge
 from super_browser.browser.config import SessionConfig, SessionMode
@@ -14,8 +14,7 @@ from super_browser.browser.fetch import BrowserFetch
 from super_browser.browser.page import PageHandle
 
 if TYPE_CHECKING:
-    from super_browser.browser.cloak_backend import CloakBrowserAdapter, CloakLaunchResult
-    from super_browser.config import CloakConfig
+    pass
 
 logger = logging.getLogger(__name__)
 

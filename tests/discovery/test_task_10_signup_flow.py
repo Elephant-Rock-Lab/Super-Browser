@@ -19,7 +19,7 @@ import pytest
 
 pytestmark = [pytest.mark.live, pytest.mark.asyncio]
 
-from .conftest import make_result
+from .conftest import make_result  # noqa: E402
 
 
 async def test_task_10_signup_flow(sb_browser):
@@ -37,7 +37,7 @@ async def test_task_10_signup_flow(sb_browser):
         # Step 2: Observe the login form
         obs = await sb_browser.observe()
         assert obs.ok, f"Observe failed: {obs.error}"
-        interactive = obs.data.get("interactive_elements", 0)
+        interactive = obs.data.get("interactive_elements", 0)  # noqa: F841
 
         # Step 3: Fill username
         fill_user = await sb_browser.fill(
@@ -66,7 +66,7 @@ async def test_task_10_signup_flow(sb_browser):
         obs2 = await sb_browser.observe()
         assert obs2.ok, f"Post-login observe failed: {obs2.error}"
 
-        page_title = obs2.data.get("title", "")
+        page_title = obs2.data.get("title", "")  # noqa: F841
         page_url = obs2.data.get("url", "")
 
         # Step 7: Extract the flash message (success indicator)

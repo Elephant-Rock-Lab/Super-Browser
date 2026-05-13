@@ -1,7 +1,6 @@
 """Tests for VisionCache — LRU, dHash invalidation, persistence."""
 
 import asyncio
-import json
 import tempfile
 from pathlib import Path
 
@@ -11,8 +10,9 @@ from super_browser.vision.cache import VisionCache
 
 def _make_png():
     """Create a valid PNG image — all white (produces dHash 0)."""
-    from PIL import Image
     from io import BytesIO
+
+    from PIL import Image
     img = Image.new("L", (100, 100), 255)
     buf = BytesIO()
     img.save(buf, format="PNG")
@@ -21,8 +21,9 @@ def _make_png():
 
 def _make_png_different():
     """Create a valid PNG image — checkerboard (produces very different dHash)."""
-    from PIL import Image
     from io import BytesIO
+
+    from PIL import Image
     img = Image.new("L", (100, 100), 0)
     for x in range(100):
         for y in range(100):

@@ -9,13 +9,11 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from super_browser.agent.llm.browser_transport import (
     BrowserLLMClient,
     BrowserLLMError,
 )
 from super_browser.browser.fetch import BrowserFetchResponse
-
 
 # ---------------------------------------------------------------------------
 # Helpers

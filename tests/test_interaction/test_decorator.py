@@ -1,7 +1,6 @@
 """Tests for @agent_action decorator and build_action_api_description."""
 
 import inspect
-from unittest.mock import MagicMock
 
 from super_browser.interaction.decorator import agent_action, build_action_api_description
 

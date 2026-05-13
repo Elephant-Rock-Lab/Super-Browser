@@ -17,7 +17,7 @@ import pytest
 
 pytestmark = [pytest.mark.live, pytest.mark.asyncio]
 
-from .conftest import make_result
+from .conftest import make_result  # noqa: E402
 
 # Public Google Form for testing (a simple feedback form or similar)
 FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfzPThYQJYeGN06snemT1gCYCfoFElx20Y2RppBZcjOlPfI1g/viewform"

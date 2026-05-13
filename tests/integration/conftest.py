@@ -6,16 +6,12 @@ AsyncMock. Tests pass without ANTHROPIC_API_KEY or OPENAI_API_KEY.
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import Any, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Optional
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
-from super_browser.agent.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 

@@ -10,12 +10,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 from super_browser.agent.debug import InteractiveDebugSession
 from super_browser.agent.loop import AgentLoop
-from super_browser.agent.loop_detector import ActionLoopDetector
 from super_browser.agent.registry import ToolRegistry
-from super_browser.agent.types import DebugConfig, StepEvent
+from super_browser.agent.types import DebugConfig
 from super_browser.interaction.decorator import agent_action
 from super_browser.results import action_result
-
 
 # -- Helpers ----------------------------------------------------------------
 

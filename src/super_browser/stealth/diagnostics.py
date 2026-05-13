@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 
 from super_browser.stealth.fingerprint_score import FingerprintScorer, FingerprintScoreResult
 from super_browser.stealth.types import (
@@ -81,7 +81,7 @@ def _check_cli_switches(config: StealthConfig) -> StealthDiagnostic:
     return StealthDiagnostic(
         check=StealthHealthItem.CLI_SWITCHES_CLEAN,
         passed=not has_bad and has_good,
-        detail=f"Automation flags clean: no --enable-automation, has --disable-blink-features",
+        detail="Automation flags clean: no --enable-automation, has --disable-blink-features",
     )
 
 

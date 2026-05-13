@@ -5,7 +5,6 @@ from super_browser.recovery.types import (
     ActionRecord,
     ClassifiedError,
     ErrorType,
-    NudgePayload,
     RecoveryEvent,
     RecoveryHint,
     RecoveryStrategy,

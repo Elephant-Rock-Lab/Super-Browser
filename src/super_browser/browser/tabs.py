@@ -128,7 +128,7 @@ class TabManager:
         if tab_id is None:
             tab_id = self._active_id
         if tab_id is None or tab_id not in self._tab_map:
-            raise KeyError(f"No active tab. Open a tab first.")
+            raise KeyError("No active tab. Open a tab first.")
         return self._tab_map[tab_id]
 
     @property

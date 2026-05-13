@@ -13,7 +13,6 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
-
 from super_browser.stealth.consistency.matrix import FingerprintMatrix
 from super_browser.stealth.profiles.schema import (
     AudioInfo,
@@ -32,7 +31,6 @@ from super_browser.stealth.validation import (
     FingerprintValidationSuite,
     ValidationReport,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

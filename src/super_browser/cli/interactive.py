@@ -18,8 +18,8 @@ from __future__ import annotations
 import sys
 
 from super_browser import SuperBrowser
-from super_browser.testing import MockLLMClient
 from super_browser.cli.commands import dispatch
+from super_browser.testing import MockLLMClient
 
 
 async def run_interactive(

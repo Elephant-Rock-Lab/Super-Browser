@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 
 _HAS_PIL = False
 try:
-    from PIL import Image
     from io import BytesIO
+
+    from PIL import Image
     _HAS_PIL = True
 except ImportError:
     pass

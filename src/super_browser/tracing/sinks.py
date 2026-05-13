@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -117,7 +116,7 @@ class PrometheusSink(TraceSink):
         self._available = False
         self._metrics: dict[str, Any] = {}
         try:
-            from prometheus_client import Counter, Histogram, Gauge
+            from prometheus_client import Counter, Gauge, Histogram
 
             self._metrics["cdp_calls"] = Counter(
                 "sb_cdp_calls_total", "Total CDP calls", ["method"],

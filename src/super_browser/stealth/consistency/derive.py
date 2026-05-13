@@ -13,14 +13,14 @@ Determinism: same (profile, seed) → same matrix (except derived_at timestamp).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from super_browser.stealth.consistency.dag import RulePlan, validate_and_order
 from super_browser.stealth.consistency.errors import MissingInputError
 from super_browser.stealth.consistency.matrix import ENGINE_VERSION, FingerprintMatrix
 from super_browser.stealth.consistency.prng import Xoshiro256PRNG
-from super_browser.stealth.profiles import DeviceProfile
 from super_browser.stealth.consistency.rules import ALL_RULES
+from super_browser.stealth.profiles import DeviceProfile
 
 __all__ = ["derive_matrix"]
 
@@ -132,7 +132,7 @@ def derive_matrix(profile: DeviceProfile, seed: str) -> FingerprintMatrix:
     matrix = _profile_to_dict(profile)
     matrix["seed"] = seed
     matrix["profile_id"] = profile.id
-    matrix["derived_at"] = datetime.now(timezone.utc).isoformat()
+    matrix["derived_at"] = datetime.now(UTC).isoformat()
     matrix["consistency_engine_version"] = ENGINE_VERSION
 
     # Walk rules in topological order.

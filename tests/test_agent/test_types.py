@@ -3,7 +3,6 @@
 from super_browser.agent.types import (
     ChildTask,
     DelegationResult,
-    DelegationStatus,
     LoopNudge,
     LoopResult,
     PlanItem,

@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 from super_browser.budget.cost_estimator import CostEstimator
-from super_browser.budget.types import ModelPricing
 
 
 class TestCostEstimator:
