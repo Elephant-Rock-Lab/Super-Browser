@@ -89,53 +89,31 @@ def _build_js_payload(config: EjectorConfig) -> str:
     }});
   }}
 
-  // ── 3. Perturb Math constants ────────────────────────────────────
-  // NOTE: V8 marks Math properties as non-configurable, so we wrap
-  // each in try/catch to avoid cascade failures.
-  try {{
-    Object.defineProperty(Math, 'PI', {{
-      value: Math.PI + _noisePI,
-      writable: false,
-      configurable: true,
-      enumerable: false
-    }});
-  }} catch(e) {{}}
-
-  try {{
-    Object.defineProperty(Math, 'E', {{
-      value: Math.E + _noiseE,
-      writable: false,
-      configurable: true,
-      enumerable: false
-    }});
-  }} catch(e) {{}}
-
-  try {{
-    Object.defineProperty(Math, 'SQRT2', {{
-      value: Math.SQRT2 + _noiseSQRT2,
-      writable: false,
-      configurable: true,
-      enumerable: false
-    }});
-  }} catch(e) {{}}
-
-  try {{
-    Object.defineProperty(Math, 'LOG2E', {{
-      value: Math.LOG2E + _noiseLOG2E,
-      writable: false,
-      configurable: true,
-      enumerable: false
-    }});
-  }} catch(e) {{}}
-
-  try {{
-    Object.defineProperty(Math, 'LN10', {{
-      value: Math.LN10 + _noiseLN10,
-      writable: false,
-      configurable: true,
-      enumerable: false
-    }});
-  }} catch(e) {{}}
+  // ── 3. Perturb Math constants via prototype shadow ─────────────
+  // V8 marks Math properties as non-configurable AND enforces Proxy
+  // invariants requiring get traps to return the exact value for
+  // non-configurable data properties. Solution: create a new object
+  // that inherits from Math via Object.create, then shadow the
+  // constants as own writable properties. Fingerprinters access
+  // window.Math and get perturbed values; internal Math usage by V8
+  // internals is unaffected.
+  var _shadowMath = Object.create(Math);
+  Object.defineProperty(_shadowMath, 'PI', {{
+    value: Math.PI + _noisePI, writable: true, configurable: true, enumerable: false
+  }});
+  Object.defineProperty(_shadowMath, 'E', {{
+    value: Math.E + _noiseE, writable: true, configurable: true, enumerable: false
+  }});
+  Object.defineProperty(_shadowMath, 'SQRT2', {{
+    value: Math.SQRT2 + _noiseSQRT2, writable: true, configurable: true, enumerable: false
+  }});
+  Object.defineProperty(_shadowMath, 'LOG2E', {{
+    value: Math.LOG2E + _noiseLOG2E, writable: true, configurable: true, enumerable: false
+  }});
+  Object.defineProperty(_shadowMath, 'LN10', {{
+    value: Math.LN10 + _noiseLN10, writable: true, configurable: true, enumerable: false
+  }});
+  window.Math = _shadowMath;
 }})();
 """
 
