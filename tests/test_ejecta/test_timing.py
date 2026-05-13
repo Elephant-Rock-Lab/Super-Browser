@@ -90,9 +90,10 @@ class TestPerturbsMathConstants:
 
     def test_all_constants_overridden(self) -> None:
         js = TimingEjector().generate(EjectorConfig()).js_payload
-        for const in self.MATH_CONSTANTS:
-            # The override uses Object.defineProperty with value: Math.X + _noise
-            assert f"value: {const} + _noise" in js, f"Missing override for {const}"
+        # Uses Object.create(Math) + shadow properties
+        assert "Object.create(Math)" in js, "Must use prototype shadow"
+        for const in ("PI", "E", "SQRT2", "LOG2E", "LN10"):
+            assert f"Math.{const} + _noise" in js, f"Missing perturbation for Math.{const}"
 
     def test_noise_magnitude_is_1e15(self) -> None:
         js = TimingEjector().generate(EjectorConfig()).js_payload
