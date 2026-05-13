@@ -7,6 +7,7 @@ so the delivery layer can inject them in the correct sequence.
 from __future__ import annotations
 
 from super_browser.stealth.ejecta.audio import AudioEjector
+from super_browser.stealth.ejecta.browser_apis import BrowserAPIsEjector
 from super_browser.stealth.ejecta.canvas import CanvasEjector
 from super_browser.stealth.ejecta.config import EjectorConfig
 from super_browser.stealth.ejecta.timing import TimingEjector
@@ -46,6 +47,9 @@ def build_ejector_payloads(config: EjectorConfig) -> list[EjectorResult]:
 
     if config.timing_enabled:
         results.append(TimingEjector().generate(config))
+
+    if config.browser_apis_enabled:
+        results.append(BrowserAPIsEjector().generate(config))
 
     results.sort(key=lambda r: r.inject_order)
     return results
