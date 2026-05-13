@@ -24,6 +24,12 @@ from super_browser.stealth.types import (
     StealthHealthItem,
     StealthHealthReport,
 )
+from super_browser.stealth.consistency import (
+    InjectDelivery,
+    derive_matrix,
+    generate_inject,
+)
+from super_browser.stealth.profiles import load_profile
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +64,7 @@ class StealthManager:
         )
         self._header_randomizer = HeaderRandomizer()
         self._ua_pool: Optional[UserAgentPool] = None
+        self._inject_delivery: Optional[InjectDelivery] = None
         self._initialized = False
 
     async def initialize(self, session: Any = None) -> None:
@@ -73,8 +80,22 @@ class StealthManager:
         if self._captcha_watchdog and session:
             page = getattr(session, "_page", None) or session
             await self._captcha_watchdog.start(page=page)
-        if self._page or self._cdp:
-            await self._inject_init_scripts()
+
+        # ── Consistency engine path ────────────────────────────────
+        consistency_cfg = getattr(
+            getattr(session, "_config", None), "consistency", None
+        ) if session else None
+        # Also check if a Config was passed via StealthConfig
+        if consistency_cfg is None:
+            consistency_cfg = _detect_consistency_config()
+
+        if consistency_cfg is not None and consistency_cfg.enabled:
+            await self._initialize_consistency(consistency_cfg)
+        else:
+            # Legacy path — UA pool + route-based init scripts.
+            if self._page or self._cdp:
+                await self._inject_init_scripts()
+
         self._initialized = True
         logger.info("StealthManager initialized")
 
@@ -281,7 +302,7 @@ class StealthManager:
 
                 # Inject stealth script as the first element in <head>.
                 if "<head" in body:
-                    body = body.replace("<head", f"<head", 1)
+                    body = body.replace("<head", "<head", 1)
                     # Find the closing '>' of the <head> tag.
                     head_close = body.find(">", body.find("<head"))
                     if head_close != -1:
@@ -330,6 +351,42 @@ class StealthManager:
         except Exception:
             return ""
 
+    async def _initialize_consistency(self, consistency_cfg: Any) -> None:
+        """Load profile → derive_matrix → generate_inject → install delivery."""
+        profile_id = consistency_cfg.profile_id
+        if profile_id is None:
+            profile_id = _detect_host_profile()
+            logger.info("Auto-detected host profile: %s", profile_id)
+
+        try:
+            profile = load_profile(profile_id)
+        except Exception as exc:
+            logger.warning(
+                "Failed to load profile %r: %s — falling back to legacy path",
+                profile_id, exc,
+            )
+            if self._page or self._cdp:
+                await self._inject_init_scripts()
+            return
+
+        matrix = derive_matrix(profile, consistency_cfg.seed)
+        js_payload = generate_inject(matrix)
+
+        self._inject_delivery = InjectDelivery(js_payload)
+
+        if self._cdp or self._page:
+            await self._inject_delivery.install(self._cdp, self._page)
+        else:
+            logger.warning(
+                "No CDP/page available for inject delivery; "
+                "consistency engine payloads will not be injected."
+            )
+
+        logger.info(
+            "Consistency engine active (profile=%s, seed=%s, %d bytes JS)",
+            profile_id, consistency_cfg.seed, len(js_payload),
+        )
+
     @property
     def config(self) -> StealthConfig:
         return self._config
@@ -341,3 +398,36 @@ class StealthManager:
     @property
     def action_policy(self) -> StealthActionPolicy:
         return self._action_policy
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers
+# ---------------------------------------------------------------------------
+
+
+def _detect_host_profile() -> str:
+    """Auto-detect the best device profile for the current host OS.
+
+    Returns one of the standard profile IDs or falls back to
+    ``"windows-chrome-stable"``.
+    """
+    import platform
+
+    system = platform.system().lower()
+    if system == "darwin":
+        machine = platform.machine().lower()
+        if "arm" in machine or "aarch" in machine:
+            return "macos-m4-chrome-stable"
+        return "macos-chrome-stable"
+    if system == "linux":
+        return "linux-chrome-stable"
+    return "windows-chrome-stable"
+
+
+def _detect_consistency_config() -> Any:
+    """Try to find a ConsistencyConfig from the importable config module."""
+    try:
+        from super_browser.config import ConsistencyConfig
+        return ConsistencyConfig()
+    except ImportError:
+        return None

@@ -16,12 +16,29 @@ from super_browser.agent.config import SuperBrowserConfig
 from super_browser.browser.config import SessionConfig
 from super_browser.budget.types import BudgetConfig
 from super_browser.security.types import SecurityConfig
-from super_browser.stealth.types import ProxyPoolConfig, ProxyTier, StealthConfig
+from super_browser.stealth.types import ProxyTier, StealthConfig
 
 
 # ---------------------------------------------------------------------------
 # New sub-configs
 # ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ConsistencyConfig:
+    """Configuration for the consistency fingerprint engine.
+
+    When ``enabled`` is *True* (default), StealthManager will load a device
+    profile, derive a deterministic FingerprintMatrix, and inject JavaScript
+    overrides via the inject pipeline instead of the legacy UA-pool approach.
+
+    When *False*, the legacy ``UserAgentPool`` + ``custom_init_scripts``
+    path is used (backward compatible).
+    """
+
+    enabled: bool = True
+    profile_id: Optional[str] = None  # None = auto-detect host OS
+    seed: str = "default"
 
 
 @dataclass(frozen=True)
@@ -97,6 +114,7 @@ class Config:
     tracing: TracingConfig = field(default_factory=TracingConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     cloak: CloakConfig = field(default_factory=CloakConfig)
+    consistency: ConsistencyConfig = field(default_factory=ConsistencyConfig)
 
     # ------------------------------------------------------------------
     # from_env
@@ -162,6 +180,12 @@ class Config:
         _env_bool(cloak_kw, "SB_CLOAK_GEOIP", "cloak_geoip")
         _env_str(cloak_kw, "SB_CLOAK_PLATFORM", "cloak_platform")
 
+        # -- Consistency -------------------------------------------
+        consistency_kw: dict = {}
+        _env_bool(consistency_kw, "SB_CONSISTENCY_ENABLED", "enabled")
+        _env_str(consistency_kw, "SB_CONSISTENCY_PROFILE_ID", "profile_id")
+        _env_str(consistency_kw, "SB_CONSISTENCY_SEED", "seed")
+
         return cls(
             browser=_suppress_deprecation(SessionConfig, **browser_kw),
             agent=AgentConfig(**agent_kw),
@@ -171,6 +195,7 @@ class Config:
             tracing=TracingConfig(**tracing_kw),
             memory=MemoryConfig(**memory_kw),
             cloak=CloakConfig(**cloak_kw),
+            consistency=ConsistencyConfig(**consistency_kw),
         )
 
     # ------------------------------------------------------------------
@@ -234,6 +259,7 @@ class Config:
             tracing=_build_sub(TracingConfig, d.get("tracing", {})),
             memory=_build_sub(MemoryConfig, d.get("memory", {})),
             cloak=_build_sub(CloakConfig, d.get("cloak", {})),
+            consistency=_build_sub(ConsistencyConfig, d.get("consistency", {})),
         )
 
     # ------------------------------------------------------------------

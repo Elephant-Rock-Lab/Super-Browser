@@ -1,0 +1,98 @@
+{
+  "id": "linux-chrome-stable",
+  "version": "1.0.0",
+  "engine": "chromium",
+  "browser": {
+    "name": "chrome",
+    "channel": "stable",
+    "min_version": "131",
+    "max_version": "131",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  },
+  "os": {
+    "name": "linux",
+    "version": "22.04",
+    "arch": "x86_64",
+    "platform_version": "22.04"
+  },
+  "device": {
+    "vendor": "generic",
+    "model": "generic-x86_64",
+    "cpu_family": "intel-core-i5",
+    "cores": 4,
+    "memory_gb": 8
+  },
+  "display": {
+    "width": 1920,
+    "height": 1080,
+    "dpr": 1,
+    "color_depth": 24,
+    "pixel_depth": 24
+  },
+  "gpu": {
+    "vendor": "Mesa",
+    "renderer": "Mesa Intel(R) UHD Graphics 630 (CFL GT2)",
+    "webgl_unmasked_vendor": "Google Inc. (Intel)",
+    "webgl_unmasked_renderer": "ANGLE (Intel, Mesa Intel(R) UHD Graphics 630 (CFL GT2), OpenGL 4.6)",
+    "webgl_max_texture_size": 16384,
+    "webgl_max_color_attachments": 8,
+    "webgl_extensions": [
+      "EXT_color_buffer_float",
+      "EXT_color_buffer_half_float",
+      "EXT_disjoint_timer_query_webgl2",
+      "EXT_float_blend",
+      "EXT_texture_compression_bptc",
+      "EXT_texture_filter_anisotropic",
+      "KHR_parallel_shader_compile",
+      "OES_draw_buffers_indexed",
+      "OES_texture_float_linear",
+      "WEBGL_compressed_texture_s3tc",
+      "WEBGL_compressed_texture_s3tc_srgb",
+      "WEBGL_debug_renderer_info",
+      "WEBGL_debug_shaders",
+      "WEBGL_lose_context",
+      "WEBGL_multi_draw"
+    ]
+  },
+  "audio": {
+    "context_sample_rate": 44100,
+    "audio_worklet_latency": 0.01,
+    "destination_max_channel_count": 2
+  },
+  "fonts": {
+    "family": "linux-system-pack",
+    "list": [
+      "Arial",
+      "Courier",
+      "Courier New",
+      "DejaVu Sans",
+      "DejaVu Sans Mono",
+      "DejaVu Serif",
+      "Helvetica",
+      "Liberation Mono",
+      "Liberation Sans",
+      "Liberation Serif",
+      "Noto Sans",
+      "Noto Serif",
+      "Times New Roman",
+      "Ubuntu",
+      "Ubuntu Mono"
+    ]
+  },
+  "behavior": {
+    "hand": "right",
+    "tremor": 0.18,
+    "wpm": 60,
+    "scroll_style": "smooth"
+  },
+  "entropy_budget": {
+    "fixed": [],
+    "per_seed": []
+  },
+  "timezone": "UTC",
+  "locale": "en-US",
+  "languages": [
+    "en-US",
+    "en"
+  ]
+}
