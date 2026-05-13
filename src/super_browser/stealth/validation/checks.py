@@ -300,6 +300,20 @@ class Timing_Precision(ConsistencyCheck):
         return self._make_result(has_seed, actual, expected)
 
 
+class Browser_APIs(ConsistencyCheck):
+    """Browser API surface noise ejector is configured."""
+
+    check_id = "CHK-012"
+    name = "Browser_APIs"
+    severity = "info"
+
+    def check(self, matrix: FingerprintMatrix, profile: DeviceProfile) -> CheckResult:
+        has_seed = bool(matrix.ejector_seed)
+        actual = f"browser_apis_ejector={'configured' if has_seed else 'unconfigured'}"
+        expected = "browser_apis_ejector=configured"
+        return self._make_result(has_seed, actual, expected)
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -316,4 +330,5 @@ ALL_CHECKS: tuple[ConsistencyCheck, ...] = (
     Canvas_Audio_Consistency(),
     WebRTC_Blocked(),
     Timing_Precision(),
+    Browser_APIs(),
 )

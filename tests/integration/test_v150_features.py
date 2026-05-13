@@ -155,7 +155,7 @@ class TestValidationSuiteAgainstMatrix:
         suite = FingerprintValidationSuite()
         report = suite.run(matrix, profile)
 
-        assert len(report.checks) == 11, f"Expected 11 checks, got {len(report.checks)}"
+        assert len(report.checks) == 12, f"Expected 12 checks, got {len(report.checks)}"
         assert 0 <= report.score <= 100, f"Score must be 0-100, got {report.score}"
         assert isinstance(report.passed, bool)
         assert report.profile_id == "windows-chrome-stable"

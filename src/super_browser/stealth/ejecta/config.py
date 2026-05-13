@@ -27,6 +27,9 @@ class EjectorConfig:
         Whether timing-based fingerprint noise injection is active.
     timing_precision_ms:
         Resolution (ms) to which ``performance.now()`` is floored.
+    browser_apis_enabled:
+        Whether browser-API fingerprint mitigation is active (getBattery,
+        permissions, speechSynthesis, :visited, getBoundingClientRect).
     profile_id:
         Browser profile identifier — used to derive deterministic state.
     seed:
@@ -40,5 +43,6 @@ class EjectorConfig:
     webrtc_enabled: bool = True
     timing_enabled: bool = True
     timing_precision_ms: int = 1
+    browser_apis_enabled: bool = True
     profile_id: str = ""
     seed: str = "default"

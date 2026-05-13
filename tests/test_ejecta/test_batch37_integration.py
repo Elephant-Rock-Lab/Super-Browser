@@ -13,21 +13,23 @@ from super_browser.stealth.validation.suite import FingerprintValidationSuite
 
 
 class TestAllEjectorsInRegistry:
-    """TEST-37-03-01: All 4 ejectors in registry."""
+    """TEST-37-03-01: All 5 ejectors in registry."""
 
-    def test_four_ejectors_when_all_enabled(self):
+    def test_five_ejectors_when_all_enabled(self):
         config = EjectorConfig(
             canvas_enabled=True, audio_enabled=True,
             webrtc_enabled=True, timing_enabled=True,
+            browser_apis_enabled=True,
             seed="full-pipeline",
         )
         payloads = build_ejector_payloads(config)
         ejector_ids = [p.ejector_id for p in payloads]
-        assert len(payloads) == 4
+        assert len(payloads) == 5
         assert "canvas" in ejector_ids
         assert "audio" in ejector_ids
         assert "webrtc" in ejector_ids
         assert "timing" in ejector_ids
+        assert "browser_apis" in ejector_ids
 
 
 class TestIndividualDisable:
@@ -55,7 +57,7 @@ class TestNewValidationChecks:
         check_ids = [c.check_id for c in report.checks]
         assert "CHK-010" in check_ids, "WebRTC_Blocked (CHK-010) must be present"
         assert "CHK-011" in check_ids, "Timing_Precision (CHK-011) must be present"
-        assert len(report.checks) == 11, f"Expected 11 checks, got {len(report.checks)}"
+        assert len(report.checks) == 12, f"Expected 11 checks, got {len(report.checks)}"
 
 
 class TestFullPipelineValidJs:
