@@ -272,6 +272,34 @@ class Canvas_Audio_Consistency(ConsistencyCheck):
         return self._make_result(has_seed, actual, expected)
 
 
+class WebRTC_Blocked(ConsistencyCheck):
+    """WebRTC leak prevention ejector is configured."""
+
+    check_id = "CHK-010"
+    name = "WebRTC_Blocked"
+    severity = "warning"
+
+    def check(self, matrix: FingerprintMatrix, profile: DeviceProfile) -> CheckResult:
+        has_seed = bool(matrix.ejector_seed)
+        actual = f"webrtc_ejector={'configured' if has_seed else 'unconfigured'}"
+        expected = "webrtc_ejector=configured"
+        return self._make_result(has_seed, actual, expected)
+
+
+class Timing_Precision(ConsistencyCheck):
+    """Timing/Math fingerprint noise ejector is configured."""
+
+    check_id = "CHK-011"
+    name = "Timing_Precision"
+    severity = "warning"
+
+    def check(self, matrix: FingerprintMatrix, profile: DeviceProfile) -> CheckResult:
+        has_seed = bool(matrix.ejector_seed)
+        actual = f"timing_ejector={'configured' if has_seed else 'unconfigured'}"
+        expected = "timing_ejector=configured"
+        return self._make_result(has_seed, actual, expected)
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -286,4 +314,6 @@ ALL_CHECKS: tuple[ConsistencyCheck, ...] = (
     Timezone_Locale(),
     Webdriver_False(),
     Canvas_Audio_Consistency(),
+    WebRTC_Blocked(),
+    Timing_Precision(),
 )

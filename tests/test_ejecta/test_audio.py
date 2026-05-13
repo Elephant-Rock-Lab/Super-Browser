@@ -143,14 +143,14 @@ class TestRegistryIntegration:
         audio = [r for r in results if r.ejector_id == "audio"]
         assert len(audio) == 0
 
-    def test_both_enabled_returns_two_results(self) -> None:
+    def test_both_enabled_returns_at_least_two_results(self) -> None:
         results = build_ejector_payloads(
             EjectorConfig(canvas_enabled=True, audio_enabled=True)
         )
         ids = [r.ejector_id for r in results]
         assert "canvas" in ids
         assert "audio" in ids
-        assert len(results) == 2
+        assert len(results) >= 2
 
     def test_canvas_before_audio_in_order(self) -> None:
         results = build_ejector_payloads(

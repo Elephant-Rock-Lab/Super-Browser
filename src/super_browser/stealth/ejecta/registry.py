@@ -9,7 +9,9 @@ from __future__ import annotations
 from super_browser.stealth.ejecta.audio import AudioEjector
 from super_browser.stealth.ejecta.canvas import CanvasEjector
 from super_browser.stealth.ejecta.config import EjectorConfig
+from super_browser.stealth.ejecta.timing import TimingEjector
 from super_browser.stealth.ejecta.types import EjectorResult
+from super_browser.stealth.ejecta.webrtc import WebRTCEjector
 
 __all__ = ["build_ejector_payloads"]
 
@@ -38,6 +40,12 @@ def build_ejector_payloads(config: EjectorConfig) -> list[EjectorResult]:
 
     if config.audio_enabled:
         results.append(AudioEjector().generate(config))
+
+    if config.webrtc_enabled:
+        results.append(WebRTCEjector().generate(config))
+
+    if config.timing_enabled:
+        results.append(TimingEjector().generate(config))
 
     results.sort(key=lambda r: r.inject_order)
     return results
