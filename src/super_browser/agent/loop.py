@@ -22,7 +22,14 @@ from super_browser.agent.types import (
     StepEvent,
     StepResult,
 )
-from super_browser.results import ActionError, ActionResult, ErrorCategory, action_result
+from super_browser.results import (
+    ActionError,
+    ActionResult,
+    ErrorCategory,
+    PageFingerprint,
+    action_result,
+    compute_page_change,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +96,7 @@ class AgentLoop:
         plan = list(initial_plan) if initial_plan else []
         stalled_count = 0
         prev_fingerprint = ""
+        self._rich_before: PageFingerprint | None = None
 
         if self._flow_logger:
             async with self._flow_logger.trace(instruction[:64]):
@@ -158,8 +166,26 @@ class AgentLoop:
                     result = await self._dispatch_action(action_name, action_params)
                 duration = (time.monotonic() - step_start) * 1000
 
+                # -- Structured result categories --
+                if result.ok:
+                    result.result_category = "success"
+                else:
+                    result.result_category = "failure"
+
                 new_fingerprint = await self._compute_page_fingerprint()
                 page_changed = self._detect_page_change(prev_fingerprint, new_fingerprint)
+
+                # -- PageChangeSummary from rich fingerprint --
+                if result.ok:
+                    try:
+                        rich_after = await self._compute_page_fingerprint_rich()
+                        if self._rich_before is None:
+                            self._rich_before = rich_after
+                        result.page_change_summary = compute_page_change(self._rich_before, rich_after)
+                        self._rich_before = rich_after
+                    except Exception:
+                        pass
+
                 prev_fingerprint = new_fingerprint
 
                 if page_changed:
@@ -388,6 +414,24 @@ class AgentLoop:
             return hashlib.sha256(f"{url}|{title}".encode()).hexdigest()[:16]
         except Exception:
             return ""
+
+    async def _compute_page_fingerprint_rich(self) -> PageFingerprint:
+        """Rich fingerprint for PageChangeSummary (url, title, node_count, interactive_count)."""
+        try:
+            url = self._controller._page.url
+            title = await self._controller._page.title()
+            snapshot = self._controller._ax_snapshot
+            node_count = len(snapshot.nodes) if snapshot else 0
+            interactive_count = sum(
+                1 for n in (snapshot.nodes or []) if n.get("interactive", False)
+            )
+            return PageFingerprint(
+                url=url, title=title,
+                node_count=node_count,
+                interactive_count=interactive_count,
+            )
+        except Exception:
+            return PageFingerprint(url="", title="", node_count=0, interactive_count=0)
 
     def _detect_page_change(self, before: str, after: str) -> bool:
         return before != after and before != "" and after != ""
