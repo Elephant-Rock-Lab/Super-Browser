@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] — 2026-05-14
+
+### Added — Agent UX & Reliability
+
+**Result Categories** (`results/types.py`)
+- `SuccessCategory` enum: NAVIGATION, MUTATION, INSPECTION, ARTIFACT, UNCHANGED
+- `FailureCategory` enum: 13 values — superset of ErrorCategory + STALE_REF, ELEMENT_OBSCURED, FRAME_DETACHED, AUTH_REQUIRED, RATE_LIMITED
+- `NextAction` dataclass: structured recovery guidance (action_id, description, compiled_args)
+- `ActionResult` extended with result_category, success_category, failure_category, next_actions
+- Full serialization support (to_dict/from_dict) with backward compatibility
+
+**Page Change Summaries** (`results/types.py`)
+- `PageChangeSummary` dataclass: change_type, summary, title, url, artifact_hint
+- `PageFingerprint` frozen dataclass: url, title, node_count, interactive_count
+- `compute_page_change()`: detects navigation/mutation/unchanged from before/after fingerprints
+- Agent loop computes summaries on every step
+
+**Stale Ref Recovery** (`interaction/recovery.py`)
+- `StaleRefDetector`: 8 error signatures (waiting for selector, Execution context destroyed, Target closed, Frame detached, Element not attached, Node detached, strict mode violation, Timeout)
+- `_execute_with_stale_recovery()`: wraps cascade with auto-retry (refresh snapshot → retry cascade)
+- Auto-retry on click, fill, scroll — zero overhead on happy path
+- Returns FailureCategory.STALE_REF + 3 NextAction recovery hints on failure
+
+**Secret Redaction Pipeline** (`security/action_redaction.py`)
+- `redact_args()`: two-pass — key-name matching (20+ sensitive keys) + SecretRedactor value-pattern scan
+- `redact_context()`: URL query-param scrubbing (standalone, no SecretRedactor dependency)
+- `configure_redaction()`: singleton gate for ActionResult.to_dict() redaction
+- to_dict() only redacts when configured — fully backward compatible
+
+**Agent Efficiency Benchmark** (`scripts/agent_efficiency_benchmark.py`)
+- Mock-based measurement of 4 representative workflows
+- JSON + Markdown output: call count, output bytes, stale-ref rate, category distribution
+- `--compare baseline.json` regression detection
+
+**Action Presets** (`interaction/presets.py`)
+- `BrowserJob`: declarative step sequence with validation (13 action types)
+- `QASmoke`: 5-step diagnostic sequence (open → wait → assert → network → screenshot)
+- `CompiledStep`: frozen dataclass — pure data compilation, zero browser dependency
+
+**CLI**
+- `result-demo --json / --fail / --stale`: demonstrate structured result categories
+
+### Tests
+- +81 new tests across 3 batches (BATCH-40, 41, 42)
+- 2,012 total tests passing
+
 ## [1.6.0] — 2026-05-13
 
 ### Added — Anti-Detection Hardening (12 Fingerprint Surfaces)
