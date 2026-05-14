@@ -232,6 +232,9 @@ class ActionResult:
         d["page_change_summary"] = (
             self.page_change_summary.to_dict() if self.page_change_summary else None
         )
+        from super_browser.security.action_redaction import redact_result_dict
+
+        d = redact_result_dict(d)
         return d
 
     @classmethod
