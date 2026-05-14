@@ -15,6 +15,7 @@ from super_browser.browser.cdp import CDPBridge
 from super_browser.browser.page import PageHandle
 from super_browser.interaction.cache import TierPreferenceCache
 from super_browser.interaction.decorator import agent_action
+from super_browser.interaction.recovery import StaleRefDetector
 from super_browser.interaction.snapshot import SnapshotProvider
 from super_browser.interaction.types import (
     AXSnapshot,
@@ -32,6 +33,7 @@ from super_browser.results import (
     ClickResult,
     DragResult,
     ErrorCategory,
+    FailureCategory,
     FillResult,
     HoverResult,
     KeypressResult,
@@ -113,7 +115,7 @@ class MultimodalController:
         async def t3():
             return await self._vision_click(target, description or target, button, click_count)
 
-        result, _ = await self._cascade("click", target, description, t1, t2, t3)
+        result, _ = await self._execute_with_stale_recovery("click", target, description, t1, t2, t3)
         return result
 
     @agent_action(security_level="sensitive")
@@ -155,7 +157,7 @@ class MultimodalController:
         async def t3():
             return await self._vision_fill(target, value, description or target, clear_first)
 
-        result, _ = await self._cascade("fill", target, description, t1, t2, t3)
+        result, _ = await self._execute_with_stale_recovery("fill", target, description, t1, t2, t3)
         return result
 
     @agent_action(security_level="sensitive")
@@ -337,7 +339,7 @@ class MultimodalController:
                 method=ActionMethod.COORDINATE,
             )
 
-        result, _ = await self._cascade("scroll", target or "page", None, t1, t2, None)
+        result, _ = await self._execute_with_stale_recovery("scroll", target or "page", None, t1, t2, None)
         return result
 
     @agent_action(security_level="safe")
@@ -382,6 +384,44 @@ class MultimodalController:
     # =====================================================================
     # Cascade engine
     # =====================================================================
+
+    async def _execute_with_stale_recovery(
+        self,
+        action: str,
+        target: str,
+        description: Optional[str],
+        tier1_fn: Callable,
+        tier2_fn: Callable,
+        tier3_fn: Optional[Callable] = None,
+    ) -> tuple[ActionResult, CascadeResult]:
+        """Execute cascade with automatic stale-ref retry."""
+        result, cascade = await self._cascade(action, target, description, tier1_fn, tier2_fn, tier3_fn)
+
+        if result.ok:
+            return result, cascade
+
+        # Check if error looks like a stale ref
+        error_msg = str(result.error.message) if result.error else ""
+        if not StaleRefDetector.is_stale(error_msg):
+            return result, cascade
+
+        # Auto-retry: refresh snapshot and try cascade again
+        try:
+            await self.capture_ax_snapshot()
+        except Exception:
+            pass  # snapshot refresh failed, still return retry result
+
+        retry_result, retry_cascade = await self._cascade(
+            action, target, description, tier1_fn, tier2_fn, tier3_fn,
+        )
+
+        if retry_result.ok:
+            return retry_result, retry_cascade
+
+        # Both attempts failed — mark as stale ref with recovery guidance
+        retry_result.failure_category = FailureCategory.STALE_REF
+        retry_result.next_actions = StaleRefDetector.get_next_actions(action, target)
+        return retry_result, retry_cascade
 
     async def _cascade(
         self,

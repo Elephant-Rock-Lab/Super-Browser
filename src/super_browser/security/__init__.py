@@ -1,5 +1,12 @@
 """GAP-10 Security Envelope — unified security for browser automation."""
 
+from super_browser.security.action_redaction import (
+    configure_redaction,
+    is_redaction_configured,
+    redact_args,
+    redact_context,
+    redact_result_dict,
+)
 from super_browser.security.approval import CommandApprover
 from super_browser.security.domain_filter import DomainFilter
 from super_browser.security.injection import PromptInjectionDetector
@@ -36,6 +43,11 @@ def __getattr__(name):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
+    "configure_redaction",
+    "is_redaction_configured",
+    "redact_args",
+    "redact_context",
+    "redact_result_dict",
     "CommandSafety",
     "CommandVerdict",
     "DomainVerdict",
