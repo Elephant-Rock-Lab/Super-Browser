@@ -2,7 +2,7 @@
 
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/example/super-browser)
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green)](https://github.com/example/super-browser)
-[![PyPI](https://img.shields.io/badge/PyPI-1.6.0-blue)](https://pypi.org/project/super-browser/)
+[![PyPI](https://img.shields.io/badge/PyPI-1.7.0-blue)](https://pypi.org/project/super-browser/)
 
 **Super Browser** is a comprehensive browser-control library for AI agents. It provides a three-tier cascade (LLM client → built-in skills → raw browser), self-healing selectors, stealth-mode navigation, output-budget management, and security guardrails — all behind a single `SuperBrowser` façade.
 
@@ -77,6 +77,51 @@ Additional subsystems:
 | **Vision** | Screenshot-based fallback for pages that resist DOM inspection |
 
 Full API documentation lives in [`docs/`](docs/).
+
+## What's New in v1.7
+
+### Agent UX & Reliability — Structured Results, Recovery, Redaction
+
+v1.7.0 makes Super Browser the most agent-friendly browser library by adding structured result categories, automatic stale-ref recovery, and a production-grade secret redaction pipeline.
+
+```python
+from super_browser.results import (
+    ActionResult, SuccessCategory, FailureCategory,
+    NextAction, PageChangeSummary, PageFingerprint,
+    compute_page_change,
+)
+
+# Structured categories — no more parsing prose
+result = await browser.click("@e5")
+if result.result_category == "success":
+    print(result.success_category)  # SuccessCategory.NAVIGATION
+    print(result.page_change_summary.change_type)  # "navigation"
+
+# Stale ref recovery — auto-retry with fresh snapshot
+# Controller detects 8 error signatures, retries once automatically
+# On failure: FailureCategory.STALE_REF + 3 NextAction hints
+
+# Secret redaction — credentials never leak
+from super_browser.security import configure_redaction
+from super_browser.security.types import SecurityConfig
+configure_redaction(SecurityConfig())
+result = await browser.fill("#password", "s3cret")
+print(result.to_dict())  # password is [REDACTED:password]
+```
+
+| Feature | Description |
+|:--------|:------------|
+| SuccessCategory | 5 values: navigation, mutation, inspection, artifact, unchanged |
+| FailureCategory | 13 values: superset of ErrorCategory + stale_ref, element_obscured, etc. |
+| NextAction | Recovery guidance: refresh_snapshot, retry_with_selector, fallback_to_coordinate |
+| PageChangeSummary | Before/after: change_type, summary, title, url, artifact_hint |
+| StaleRefDetector | 8 error signatures, auto-retry once with fresh snapshot |
+| redact_args() | Two-pass: key-name (20+ sensitive keys) + value-pattern (40+ regex) |
+| redact_context() | URL query-param scrubbing |
+| BrowserJob | Declarative step sequence (13 valid actions) |
+| QASmoke | 5-step diagnostic: open → wait → assert → network → screenshot |
+
+---
 
 ## What's New in v1.6
 
