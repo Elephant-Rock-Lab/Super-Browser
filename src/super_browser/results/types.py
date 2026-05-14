@@ -41,9 +41,49 @@ class CompletionReason(StrEnum):
     MAX_STEPS = "max_steps"
 
 
+class SuccessCategory(StrEnum):
+    """Machine-readable classification of a successful action's effect."""
+    NAVIGATION = "navigation"      # page navigated to new URL
+    MUTATION = "mutation"          # DOM changed without navigation
+    INSPECTION = "inspection"      # read-only query (snapshot, eval)
+    ARTIFACT = "artifact"          # screenshot/download produced
+    UNCHANGED = "unchanged"        # action succeeded, no page change
+
+
+class FailureCategory(StrEnum):
+    """Refined failure taxonomy — strict superset of ErrorCategory.
+
+    All 8 ErrorCategory values are present (identity mapping).
+    5 additional members provide finer-grained recovery signals.
+    """
+    # -- Shared with ErrorCategory (identity mapping) --
+    TIMEOUT = "timeout"
+    SELECTOR_NOT_FOUND = "selector_not_found"
+    NAVIGATION = "navigation"
+    SECURITY = "security"
+    BROWSER_CRASH = "browser_crash"
+    VALIDATION = "validation"
+    CONTEXT_OVERFLOW = "context_overflow"
+    UNKNOWN = "unknown"
+    # -- FailureCategory-exclusive members --
+    STALE_REF = "stale_ref"            # element ref expired, needs re-snapshot
+    ELEMENT_OBSCURED = "element_obscured"  # element exists but covered by overlay
+    FRAME_DETACHED = "frame_detached"      # iframe was removed during action
+    AUTH_REQUIRED = "auth_required"        # login/auth wall encountered
+    RATE_LIMITED = "rate_limited"          # server returned 429 or equivalent
+
+
 # ---------------------------------------------------------------------------
 # Core Envelope
 # ---------------------------------------------------------------------------
+
+@dataclass
+class NextAction:
+    """Pre-validated recovery hint attached to a failure result."""
+    action_id: str           # e.g. "refresh_snapshot", "retry_with_selector"
+    description: str         # Human-readable guidance
+    compiled_args: Optional[dict[str, Any]] = None  # Pre-validated kwargs
+
 
 @dataclass
 class ActionError:
@@ -60,6 +100,76 @@ class ActionError:
     def from_dict(cls, d: dict) -> ActionError:
         d["category"] = ErrorCategory(d["category"])
         return cls(**d)
+
+
+@dataclass(frozen=True)
+class PageFingerprint:
+    """Lightweight snapshot of page state for before/after comparison.
+
+    Uses the same signals as the agent loop's _compute_page_fingerprint
+    (URL, title, node_count, interactive_count) — no full DOM hash.
+    """
+    url: str
+    title: str
+    node_count: int
+    interactive_count: int
+
+
+@dataclass
+class PageChangeSummary:
+    """Structured description of what changed on the page after an action."""
+    change_type: str      # "navigation", "mutation", "unchanged"
+    summary: str          # Human-readable one-line description
+    title: Optional[str] = None
+    url: Optional[str] = None
+    artifact_hint: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> PageChangeSummary:
+        return cls(**d)
+
+
+def compute_page_change(
+    before: PageFingerprint,
+    after: PageFingerprint,
+    artifact_hint: Optional[str] = None,
+) -> PageChangeSummary:
+    """Compare two page fingerprints and return a PageChangeSummary.
+
+    Detection order:
+      1. URL changed → "navigation"
+      2. node_count or interactive_count changed → "mutation"
+      3. Otherwise → "unchanged"
+    """
+    if before.url != after.url:
+        return PageChangeSummary(
+            change_type="navigation",
+            summary=f"Navigated to {after.url}",
+            title=after.title,
+            url=after.url,
+            artifact_hint=artifact_hint,
+        )
+    if (
+        before.node_count != after.node_count
+        or before.interactive_count != after.interactive_count
+    ):
+        return PageChangeSummary(
+            change_type="mutation",
+            summary="DOM mutated",
+            title=after.title,
+            url=after.url,
+            artifact_hint=artifact_hint,
+        )
+    return PageChangeSummary(
+        change_type="unchanged",
+        summary="No observable change",
+        title=after.title,
+        url=after.url,
+        artifact_hint=artifact_hint,
+    )
 
 
 @dataclass
@@ -99,23 +209,50 @@ class ActionResult:
     meta: ResultMeta = field(default_factory=lambda: ResultMeta(
         trace_id=str(uuid.uuid4()), duration_ms=0.0,
     ))
+    result_category: Optional[str] = None         # "success" or "failure"
+    success_category: Optional[SuccessCategory] = None
+    failure_category: Optional[FailureCategory] = None
+    next_actions: Optional[list[NextAction]] = None
+    page_change_summary: Any = None  # placeholder for TASK-02
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), default=str)
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "ok": self.ok,
             "data": _serialize_data(self.data),
             "error": self.error.to_dict() if self.error else None,
             "meta": self.meta.to_dict(),
         }
+        d["result_category"] = self.result_category
+        d["success_category"] = self.success_category.value if self.success_category else None
+        d["failure_category"] = self.failure_category.value if self.failure_category else None
+        d["next_actions"] = [na.__dict__ for na in self.next_actions] if self.next_actions else None
+        d["page_change_summary"] = (
+            self.page_change_summary.to_dict() if self.page_change_summary else None
+        )
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> ActionResult:
         meta = ResultMeta.from_dict(d["meta"])
         error = ActionError.from_dict(d["error"]) if d.get("error") else None
-        return cls(ok=d["ok"], data=d.get("data"), error=error, meta=meta)
+        return cls(
+            ok=d["ok"],
+            data=d.get("data"),
+            error=error,
+            meta=meta,
+            result_category=d.get("result_category"),
+            success_category=SuccessCategory(d["success_category"]) if d.get("success_category") else None,
+            failure_category=FailureCategory(d["failure_category"]) if d.get("failure_category") else None,
+            next_actions=[NextAction(**na) for na in d["next_actions"]] if d.get("next_actions") else None,
+            page_change_summary=(
+                PageChangeSummary.from_dict(d["page_change_summary"])
+                if d.get("page_change_summary")
+                else None
+            ),
+        )
 
     # -- Convenience methods --
 
@@ -164,7 +301,7 @@ def action_result(
 ) -> ActionResult:
     """Convenience factory matching Hermes's jsonResult() pattern."""
     trace_id = _resolve_trace_id()
-    return ActionResult(
+    result = ActionResult(
         ok=ok, data=data, error=error,
         meta=ResultMeta(
             trace_id=trace_id, duration_ms=0.0,
@@ -172,6 +309,11 @@ def action_result(
             token_cost=token_cost,
         ),
     )
+    if ok:
+        result.result_category = "success"
+    else:
+        result.result_category = "failure"
+    return result
 
 
 def timed_action_result(
@@ -186,7 +328,7 @@ def timed_action_result(
     """Factory that computes duration from a monotonic start timestamp."""
     duration_ms = (time.monotonic() - start_ns) * 1000
     trace_id = _resolve_trace_id()
-    return ActionResult(
+    result = ActionResult(
         ok=ok, data=data, error=error,
         meta=ResultMeta(
             trace_id=trace_id, duration_ms=duration_ms,
@@ -194,6 +336,11 @@ def timed_action_result(
             token_cost=token_cost,
         ),
     )
+    if ok:
+        result.result_category = "success"
+    else:
+        result.result_category = "failure"
+    return result
 
 
 def _serialize_data(data: Any) -> Any:

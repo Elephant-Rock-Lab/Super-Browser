@@ -3,7 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import json as json_mod
 from pathlib import Path
+
+from super_browser.results import (
+    ActionError,
+    ActionResult,
+    ErrorCategory,
+    FailureCategory,
+    NextAction,
+    PageFingerprint,
+    SuccessCategory,
+    compute_page_change,
+)
 
 
 def memory_handler(args: argparse.Namespace) -> None:
@@ -108,6 +120,62 @@ def stealth_validate_handler(args: argparse.Namespace) -> None:
         print(f"  [{status}] {check.name}: {check.actual}")
 
 
+def _result_demo_handler(args: argparse.Namespace) -> None:
+    """Demonstrate structured result categories with optional JSON output."""
+    if args.stale:
+        result = ActionResult(
+            ok=False,
+            error=ActionError(
+                category=ErrorCategory.SELECTOR_NOT_FOUND,
+                message="Element @e5 not found — stale ref",
+                recoverable=True,
+                retry_hint="Re-run snapshot -i to refresh refs",
+            ),
+            failure_category=FailureCategory.STALE_REF,
+            next_actions=[
+                NextAction(action_id="refresh_snapshot", description="Re-run snapshot -i to refresh refs"),
+                NextAction(action_id="retry_click", description="Retry click with fresh refs", compiled_args={"selector": "@e5"}),
+            ],
+        )
+    elif args.fail:
+        result = ActionResult(
+            ok=False,
+            error=ActionError(
+                category=ErrorCategory.TIMEOUT,
+                message="Action timed out after 5s",
+                recoverable=True,
+                retry_hint="Increase timeout or simplify selector",
+            ),
+            failure_category=FailureCategory.TIMEOUT,
+        )
+    else:
+        fp_before = PageFingerprint(url="https://example.com", title="Example", node_count=42, interactive_count=5)
+        fp_after = PageFingerprint(url="https://example.com/page2", title="Page 2", node_count=38, interactive_count=4)
+        summary = compute_page_change(fp_before, fp_after)
+        result = ActionResult(
+            ok=True,
+            success_category=SuccessCategory.NAVIGATION,
+            page_change_summary=summary,
+        )
+
+    result.result_category = "success" if result.ok else "failure"
+
+    if args.json:
+        print(json_mod.dumps(result.to_dict(), indent=2, default=str))
+    else:
+        print(f"Result: {'OK' if result.ok else 'FAIL'}")
+        print(f"Category: {result.result_category}")
+        if result.success_category:
+            print(f"Success: {result.success_category.value}")
+        if result.failure_category:
+            print(f"Failure: {result.failure_category.value}")
+        if result.next_actions:
+            print(f"Next actions: {len(result.next_actions)}")
+        if result.page_change_summary:
+            pcs = result.page_change_summary
+            print(f"Page change: {pcs.change_type} — {pcs.summary}")
+
+
 def main() -> None:
     """Entry point for ``super-browser`` CLI."""
     parser = argparse.ArgumentParser(
@@ -129,11 +197,18 @@ def main() -> None:
     sv_parser.add_argument("--capture-baseline", action="store_true")
     sv_parser.add_argument("--ci", action="store_true")
 
+    json_parser = sub.add_parser("result-demo", help="Demonstrate structured result categories")
+    json_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    json_parser.add_argument("--fail", action="store_true", help="Generate a failure result")
+    json_parser.add_argument("--stale", action="store_true", help="Generate a stale-ref failure")
+
     args = parser.parse_args()
 
     if args.command == "memory":
         memory_handler(args)
     elif args.command == "stealth-validate":
         stealth_validate_handler(args)
+    elif args.command == "result-demo":
+        _result_demo_handler(args)
     else:
         parser.print_help()

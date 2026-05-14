@@ -26,15 +26,24 @@ from super_browser.results.types import (
     ActionResult,
     CompletionReason,
     ErrorCategory,
+    FailureCategory,
+    NextAction,
+    PageChangeSummary,
+    PageFingerprint,
     ResultMeta,
+    SuccessCategory,
     action_result,
+    compute_page_change,
     timed_action_result,
 )
 from super_browser.results.validation import PreExecutionValidator
 
 __all__ = [
     "ActionError", "ActionMethod", "ActionResult", "CompletionReason",
-    "ErrorCategory", "ResultMeta", "action_result", "timed_action_result",
+    "ErrorCategory", "FailureCategory", "NextAction",
+    "PageChangeSummary", "PageFingerprint",
+    "ResultMeta", "SuccessCategory",
+    "action_result", "compute_page_change", "timed_action_result",
     "ClickResult", "DelegatedResult", "DownloadResult", "DragResult",
     "ExtractResult", "FillResult", "HoverResult", "JSEvalResult",
     "KeypressResult", "NavigateResult", "NetworkInterceptResult",
