@@ -267,6 +267,26 @@ class BrowserSession:
     def state(self) -> BrowserState:
         return self._state
 
+    @property
+    def engine(self) -> Any:
+        """The :class:`PatchrightEngine` wrapping this session.
+
+        Lazily created on first access so that code that doesn't use
+        the engine layer pays no cost.
+        """
+        from super_browser.browser.backends.patchright_backend import PatchrightEngine
+        if not hasattr(self, '_engine') or self._engine is None:
+            self._engine = PatchrightEngine.__new__(PatchrightEngine)
+            self._engine._config = self._config
+            self._engine._cloak_config = self._cloak_config
+            self._engine._session = self
+        return self._engine
+
+    @property
+    def context(self) -> Any:
+        """BrowserContext (delegates to internal context)."""
+        return self._context
+
     async def __aenter__(self) -> BrowserSession:
         await self.start()
         return self

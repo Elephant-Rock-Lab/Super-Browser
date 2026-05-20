@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from super_browser.browser.cdp import CDPBridge
+
+if TYPE_CHECKING:
+    from super_browser.browser.backends.patchright_backend import PatchrightPage
 
 
 class PageHandle:
@@ -17,6 +20,7 @@ class PageHandle:
     def __init__(self, page: Any, cdp: CDPBridge) -> None:
         self._page = page
         self._cdp = cdp
+        self._engine_page: Optional[PatchrightPage] = None
 
     async def goto(
         self,
@@ -59,6 +63,24 @@ class PageHandle:
         return self._cdp
 
     @property
+    def engine_page(self) -> PatchrightPage:
+        """Protocol-compliant page wrapper.
+
+        Lazily creates a :class:`PatchrightPage` that wraps the raw
+        Playwright Page and CDPBridge, satisfying the EnginePage protocol.
+        """
+        if self._engine_page is None:
+            from super_browser.browser.backends.patchright_backend import PatchrightPage
+            # Use raw_page (which returns self._page) so that mocks
+            # with .raw_page properly configured still work.
+            self._engine_page = PatchrightPage(self.raw_page, self._cdp)
+        return self._engine_page
+
+    @property
     def raw_page(self) -> Any:
-        """Underlying Patchright Page for advanced usage."""
+        """Underlying Patchright Page for advanced usage.
+
+        .. deprecated:: BATCH-46
+            Use :meth:`engine_page` for protocol-compliant access.
+        """
         return self._page

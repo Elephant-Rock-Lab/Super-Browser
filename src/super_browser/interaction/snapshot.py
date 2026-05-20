@@ -19,11 +19,19 @@ _INTERACTIVE_ROLES = frozenset({
 
 class SnapshotProvider:
 
-    def __init__(self, cdp: Any) -> None:
+    def __init__(self, cdp: Any, stealth_bridge: Any = None) -> None:
         self._cdp = cdp
+        self._stealth_bridge = stealth_bridge
 
     async def capture_ax_only(self, url: str, title: str) -> AXSnapshot:
-        result = await self._cdp.send("Accessibility.getFullAXTree", {})
+        if self._stealth_bridge is not None:
+            raw_data = await self._stealth_bridge.get_ax_tree()
+            class _FakeResult:
+                ok = True
+                data = raw_data
+            result = _FakeResult()
+        else:
+            result = await self._cdp.send("Accessibility.getFullAXTree", {})
         nodes: dict[str, AXNode] = {}
 
         if result.ok and result.data:
@@ -71,7 +79,7 @@ class SnapshotProvider:
             'x: rect.x, y: rect.y, w: rect.width, h: rect.height}); } '
             'return JSON.stringify(result); })()'
         )
-        dom_result = await self._cdp.send("Runtime.evaluate", {"expression": expr})
+        dom_result = await (self._stealth_bridge.cdp_send("Runtime.evaluate", {"expression": expr}) if self._stealth_bridge else self._cdp.send("Runtime.evaluate", {"expression": expr}))
 
         if dom_result.ok and dom_result.data:
             val = dom_result.data.get("result", {}).get("value")

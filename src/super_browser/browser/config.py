@@ -37,6 +37,10 @@ class SessionConfig:
     stale_recovery: bool = True
     event_buffer_size: int = 500
     shutdown_grace_period: float = 7.0
+    # -- Engine backend fields (BATCH-46) --
+    backend: str = "auto"
+    browser_type: str = "chromium"
+    endpoint: str = ""
 
     def __post_init__(self) -> None:
         warnings.warn(
