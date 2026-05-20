@@ -89,8 +89,7 @@ class SuperBrowser:
             self._session = BrowserSession(session_config)
             await self._session.start()
             self._page = await self._session.new_page()
-        self._controller = MultimodalController(self._page, self._page.cdp)
-        # TODO(BATCH-47): Replace self._page.cdp with engine-stealth bridge
+        self._controller = MultimodalController(self._page, self._page.engine_page.cdp)
         self._running = True
         self._configure_verification()
         self._configure_vision()
@@ -316,7 +315,7 @@ class SuperBrowser:
 
         Shared by :meth:`open_tab` and :meth:`switch_tab`.
         """
-        ctx = self._engine.context if self._engine else self._session._context
+        ctx = self._engine.context
         if ctx is None:
             raise RuntimeError("Browser context not available — engine not started?")
         from super_browser.browser.page import PageHandle
@@ -325,7 +324,7 @@ class SuperBrowser:
         from super_browser.browser.config import SessionConfig as _SC
         cdp = CDPBridge(cdp_session, _SC())
         self._page = PageHandle(page_obj, cdp)
-        self._controller = MultimodalController(self._page, self._page.cdp)  # TODO(BATCH-47)
+        self._controller = MultimodalController(self._page, self._page.engine_page.cdp)
 
     # -- Multi-Tab --
 
@@ -338,7 +337,7 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._session:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
-        ctx = self._engine.context if self._engine else self._session._context
+        ctx = self._engine.context
         if ctx is None:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser context not available"))
         if self._tab_manager is None:
@@ -676,7 +675,7 @@ class SuperBrowser:
         from super_browser.verification.types import VerifierConfig as VC
         vconfig = config or VC()
         verifier = VisualVerifier(
-            cdp=self._page.cdp,  # TODO(BATCH-47)
+            cdp=self._page.engine_page.cdp,
             snapshot_provider=self._controller._snapshot_provider,
             config=vconfig,
         )
@@ -703,7 +702,7 @@ class SuperBrowser:
         from super_browser.stealth import StealthConfig, StealthManager
         stealth_config = StealthConfig()
         self._stealth_manager = StealthManager(
-            stealth_config, cdp=self._page.cdp, page=self._page.raw_page,  # TODO(BATCH-47)
+            stealth_config, cdp=self._page.engine_page.cdp, page=self._page.engine_page,
         )
         self._loop_stealth = self._stealth_manager
 
@@ -716,7 +715,7 @@ class SuperBrowser:
         skills_dir = Path(self._config.skills_dir) if self._config.skills_dir else None
         self._skill_registry = SkillRegistry(skills_dir=skills_dir)
         if self._page and hasattr(self._page, "cdp"):
-            self._skill_registry.set_cdp(self._page.cdp)  # TODO(BATCH-47)
+            self._skill_registry.set_cdp(self._page.engine_page.cdp)
 
     async def learn_from_trajectory(
         self, domain: str, task_description: str, actions_taken: list[str],
@@ -739,8 +738,8 @@ class SuperBrowser:
         if self._event_bus is None:
             self._event_bus = EventBus()
         cdp = None
-        if self._page and hasattr(self._page, "cdp"):
-            cdp = self._page.cdp  # TODO(BATCH-47)
+        if self._page and hasattr(self._page, "engine_page"):
+            cdp = self._page.engine_page.cdp
         self._recorder = SessionRecorder(
             self._event_bus, cdp, max_screenshots=max_screenshots,
         )
@@ -798,10 +797,8 @@ class SuperBrowser:
     @property
     def cloak_config(self) -> Any:
         """The CloakConfig if CloakBrowser is available, else None."""
-        if self._session is not None:
-            if self._engine is not None:
-                return self._engine.cloak_config
-            return self._session._cloak_config
+        if self._session is not None and self._engine is not None:
+            return self._engine.cloak_config
         return None
 
     # -- Memory --
