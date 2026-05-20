@@ -701,8 +701,12 @@ class SuperBrowser:
             return
         from super_browser.stealth import StealthConfig, StealthManager
         stealth_config = StealthConfig()
+        stealth_bridge = getattr(self._page.engine_page, "stealth_bridge", None)
         self._stealth_manager = StealthManager(
-            stealth_config, cdp=self._page.engine_page.cdp, page=self._page.engine_page,
+            stealth_config,
+            stealth_bridge=stealth_bridge,
+            cdp=self._page.engine_page.cdp if stealth_bridge is None else None,
+            page=self._page.engine_page,
         )
         self._loop_stealth = self._stealth_manager
 

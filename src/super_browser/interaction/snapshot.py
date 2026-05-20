@@ -26,10 +26,9 @@ class SnapshotProvider:
     async def capture_ax_only(self, url: str, title: str) -> AXSnapshot:
         if self._stealth_bridge is not None:
             raw_data = await self._stealth_bridge.get_ax_tree()
-            class _FakeResult:
-                ok = True
-                data = raw_data
-            result = _FakeResult()
+            # get_ax_tree() returns dict with 'nodes' directly.
+            nodes_data = raw_data if isinstance(raw_data, dict) else {}
+            result = type("_Result", (), {"ok": True, "data": nodes_data})()
         else:
             result = await self._cdp.send("Accessibility.getFullAXTree", {})
         nodes: dict[str, AXNode] = {}
@@ -79,7 +78,7 @@ class SnapshotProvider:
             'x: rect.x, y: rect.y, w: rect.width, h: rect.height}); } '
             'return JSON.stringify(result); })()'
         )
-        dom_result = await (self._stealth_bridge.cdp_send("Runtime.evaluate", {"expression": expr}) if self._stealth_bridge else self._cdp.send("Runtime.evaluate", {"expression": expr}))
+        dom_result = await self._cdp_eval("Runtime.evaluate", {"expression": expr})
 
         if dom_result.ok and dom_result.data:
             val = dom_result.data.get("result", {}).get("value")
@@ -106,6 +105,13 @@ class SnapshotProvider:
                     pass
 
         return ax_snap
+
+
+    async def _cdp_eval(self, method: str, params: dict) -> Any:
+        """Dispatch a CDP command via stealth_bridge.cdp_send or _cdp.send."""
+        if self._stealth_bridge is not None and hasattr(self._stealth_bridge, "cdp_send"):
+            return await self._stealth_bridge.cdp_send(method, params)
+        return await self._cdp.send(method, params)
 
 
 def _extract_name(raw: dict) -> str:

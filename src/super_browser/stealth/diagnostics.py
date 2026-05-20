@@ -23,13 +23,13 @@ from super_browser.stealth.types import (
 logger = logging.getLogger(__name__)
 
 
-async def run_diagnostics(cdp: Any, config: StealthConfig) -> StealthHealthReport:
+async def run_diagnostics(stealth_bridge_or_cdp: Any, config: StealthConfig) -> StealthHealthReport:
     start = time.monotonic()
     checks = [
-        await _check_webdriver(cdp),
+        await _check_webdriver(stealth_bridge_or_cdp),
         _check_cli_switches(config),
         _check_tls_ja4(),
-        await _check_runtime_enable(cdp),
+        await _check_runtime_enable(stealth_bridge_or_cdp),
         _check_headless_mode(config),
         _check_proxy(config),
     ]
@@ -41,15 +41,15 @@ async def run_diagnostics(cdp: Any, config: StealthConfig) -> StealthHealthRepor
     )
 
 
-async def _check_webdriver(cdp: Any) -> StealthDiagnostic:
-    if cdp is None:
+async def _check_webdriver(stealth_bridge_or_cdp: Any) -> StealthDiagnostic:
+    if stealth_bridge_or_cdp is None:
         return StealthDiagnostic(
             check=StealthHealthItem.WEBDRIVER_UNDEFINED,
             passed=False,
             detail="No CDP session available",
         )
     try:
-        result = await cdp.send("Runtime.evaluate", {
+        result = await _send(stealth_bridge_or_cdp, "Runtime.evaluate", {
             "expression": "navigator.webdriver",
             "returnByValue": True,
         })
@@ -101,8 +101,8 @@ def _check_tls_ja4() -> StealthDiagnostic:
         )
 
 
-async def _check_runtime_enable(cdp: Any) -> StealthDiagnostic:
-    if cdp is None:
+async def _check_runtime_enable(stealth_bridge_or_cdp: Any) -> StealthDiagnostic:
+    if stealth_bridge_or_cdp is None:
         return StealthDiagnostic(
             check=StealthHealthItem.RUNTIME_ENABLE_ABSENT,
             passed=True,
@@ -170,7 +170,7 @@ def score_from_report(report: StealthHealthReport) -> FingerprintScoreResult:
 
 
 async def run_full_diagnostics(
-    cdp: Any,
+    stealth_bridge_or_cdp: Any,
     config: StealthConfig,
 ) -> dict[str, Any]:
     """Run all stealth checks and return scored results.
@@ -181,9 +181,24 @@ async def run_full_diagnostics(
         Keys: ``report`` (:class:`StealthHealthReport`),
         ``score_result`` (:class:`FingerprintScoreResult`).
     """
-    report = await run_diagnostics(cdp, config)
+    report = await run_diagnostics(stealth_bridge_or_cdp, config)
     score_result = score_from_report(report)
     return {
         "report": report,
         "score_result": score_result,
     }
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+async def _send(bridge: Any, method: str, params: dict) -> Any:
+    """Dispatch a CDP command via stealth_bridge.cdp_send or cdp.send.
+
+    Duck-typing: works with both StealthBridge and CDPBridge.
+    """
+    if hasattr(bridge, "cdp_send"):
+        return await bridge.cdp_send(method, params)
+    return await bridge.send(method, params)
