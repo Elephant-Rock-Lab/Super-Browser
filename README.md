@@ -2,7 +2,7 @@
 
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/example/super-browser)
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green)](https://github.com/example/super-browser)
-[![PyPI](https://img.shields.io/badge/PyPI-1.7.0-blue)](https://pypi.org/project/super-browser/)
+[![PyPI](https://img.shields.io/badge/PyPI-1.8.0-blue)](https://pypi.org/project/super-browser/)
 
 **Super Browser** is a comprehensive browser-control library for AI agents. It provides a three-tier cascade (LLM client → built-in skills → raw browser), self-healing selectors, stealth-mode navigation, output-budget management, and security guardrails — all behind a single `SuperBrowser` façade.
 

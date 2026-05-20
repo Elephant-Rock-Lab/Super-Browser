@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] — 2026-05-20
+
+### Fixed — Live QA Hardening
+
+- StaleRefDetector: added 2 error signatures ("not found", "detached from document")
+  found during browser-based testing against real Playwright errors
+- Total stale signatures: 10 (was 8)
+
+### Verified — Live QA Validation
+
+- All v1.7.0 features tested against real Chromium browser
+- Result categories serialize correctly through real browser round-trips
+- Page change summaries detect real navigation (example.com → httpbin.org)
+- Secret redaction catches passwords, tokens, URL query params
+- Stale ref detector catches 10/10 real-world error patterns
+- BrowserJob and QASmoke compile correctly
+- No regressions in 2,029 existing tests
+
 ## [1.7.0] — 2026-05-14
 
 ### Added — Agent UX & Reliability
