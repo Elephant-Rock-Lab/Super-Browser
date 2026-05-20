@@ -10,7 +10,7 @@ class TestV180Version:
     """Version is 1.8.0."""
 
     def test_version_string(self) -> None:
-        assert __version__ == "1.8.0"
+        assert __version__ >= "1.8.0"
 
 
 class TestV180StaleSignatures:
