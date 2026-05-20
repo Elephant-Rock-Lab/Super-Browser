@@ -15,8 +15,10 @@ class StaleRefDetector:
         "Frame was detached",
         "Element is not attached",
         "Node is detached",
+        "detached from document",
         "strict mode violation",
         "Timeout",
+        "not found",
     )
 
     @classmethod
