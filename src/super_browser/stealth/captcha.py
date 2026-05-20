@@ -46,7 +46,14 @@ class CAPTCHAWatchdog(BaseWatchdog):
 
     async def start(self, page: Any = None) -> None:
         self._page = page
-        if page and hasattr(page, "cdp"):
+        if page and hasattr(page, "engine_page"):
+            engine_pg = page.engine_page
+            stealth_bridge = getattr(engine_pg, "stealth_bridge", None)
+            if stealth_bridge is not None:
+                self._cdp = stealth_bridge
+            elif hasattr(page, "cdp"):
+                self._cdp = page.cdp
+        elif page and hasattr(page, "cdp"):
             self._cdp = page.cdp
         await super().start()
 
@@ -96,7 +103,7 @@ class CAPTCHAWatchdog(BaseWatchdog):
             f"}} return null; }})()"
         )
         try:
-            result = await self._cdp.send("Runtime.evaluate", {"expression": expr, "returnByValue": True})
+            result = await self._send("Runtime.evaluate", {"expression": expr, "returnByValue": True})
             if result.ok and result.data:
                 val = result.data.get("result", {}).get("value")
                 if val:
@@ -275,7 +282,7 @@ class CAPTCHAWatchdog(BaseWatchdog):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
-                result = await self._cdp.send(
+                result = await self._send(
                     "Runtime.evaluate",
                     {"expression": js, "returnByValue": True},
                 )
@@ -299,3 +306,13 @@ class CAPTCHAWatchdog(BaseWatchdog):
     @property
     def encounter_count(self) -> int:
         return self._encounter_count
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    async def _send(self, method: str, params: dict) -> Any:
+        """Dispatch a CDP command via stealth_bridge.cdp_send or cdp.send."""
+        if hasattr(self._cdp, "cdp_send"):
+            return await self._cdp.cdp_send(method, params)
+        return await self._cdp.send(method, params)

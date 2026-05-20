@@ -51,8 +51,10 @@ class StealthManager:
         cdp: Any = None,
         event_bus: Any = None,
         page: Any = None,
+        stealth_bridge: Any = None,
     ) -> None:
         self._config = config or StealthConfig()
+        self._stealth_bridge = stealth_bridge
         self._cdp = cdp
         self._event_bus = event_bus
         self._page = page
@@ -70,14 +72,22 @@ class StealthManager:
     async def initialize(self, session: Any = None) -> None:
         if session:
             if hasattr(session, "_page") and session._page:
-                if hasattr(session._page, "cdp"):
-                    self._cdp = session._page.cdp
                 if hasattr(session._page, "engine_page"):
                     # PageHandle — use engine_page (protocol-compliant).
                     self._page = session._page.engine_page
+                    # Prefer StealthBridge from engine_page.
+                    if self._stealth_bridge is None:
+                        self._stealth_bridge = getattr(
+                            session._page.engine_page, "stealth_bridge", None,
+                        )
+                    # Fallback: CDPBridge from engine_page.
+                    if self._cdp is None and hasattr(session._page, "cdp"):
+                        self._cdp = session._page.cdp
                 elif hasattr(session._page, "raw_page"):
                     # Legacy fallback — raw Playwright Page.
                     self._page = session._page.raw_page
+                elif hasattr(session._page, "cdp"):
+                    self._cdp = session._page.cdp
             elif hasattr(session, "cdp"):
                 self._cdp = session.cdp
         if self._captcha_watchdog and session:
@@ -233,19 +243,21 @@ class StealthManager:
         return self._proxy_escalator.escalation_history(domain)
 
     async def run_diagnostics(self) -> StealthHealthReport:
-        return await run_diagnostics(self._cdp, self._config)
+        bridge = self._stealth_bridge or self._cdp
+        return await run_diagnostics(bridge, self._config)
 
     async def validate_stealth_site(self, url: str) -> StealthDiagnostic:
-        if not self._cdp:
+        bridge = self._stealth_bridge or self._cdp
+        if not bridge:
             return StealthDiagnostic(
                 check=StealthHealthItem.WEBDRIVER_UNDEFINED,
                 passed=False,
                 detail="No CDP session for site validation",
             )
         try:
-            await self._cdp.send("Page.navigate", {"url": url})
+            await self._send(bridge, "Page.navigate", {"url": url})
             await asyncio.sleep(2)
-            result = await self._cdp.send("Runtime.evaluate", {
+            result = await self._send(bridge, "Runtime.evaluate", {
                 "expression": "navigator.webdriver",
                 "returnByValue": True,
             })
@@ -377,8 +389,12 @@ class StealthManager:
 
         self._inject_delivery = InjectDelivery(js_payload)
 
-        if self._cdp or self._page:
-            await self._inject_delivery.install(self._cdp, self._page)
+        if self._stealth_bridge or self._cdp or self._page:
+            await self._inject_delivery.install(
+                stealth_bridge=self._stealth_bridge,
+                cdp_bridge=self._cdp,
+                page=self._page,
+            )
         else:
             logger.warning(
                 "No CDP/page available for inject delivery; "
@@ -401,6 +417,17 @@ class StealthManager:
     @property
     def action_policy(self) -> StealthActionPolicy:
         return self._action_policy
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _send(bridge: Any, method: str, params: dict) -> Any:
+        """Dispatch a CDP command via stealth_bridge.cdp_send or cdp.send."""
+        if hasattr(bridge, "cdp_send"):
+            return bridge.cdp_send(method, params)
+        return bridge.send(method, params)
 
 
 # ---------------------------------------------------------------------------

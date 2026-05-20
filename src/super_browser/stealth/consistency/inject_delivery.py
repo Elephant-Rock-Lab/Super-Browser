@@ -34,6 +34,7 @@ class InjectDelivery:
 
     def __init__(self, js_payload: str = "") -> None:
         self._js_payload = js_payload
+        self._stealth_bridge: Any = None
         self._cdp_bridge: Any = None
         self._page: Any = None
         self._installed = False
@@ -42,17 +43,29 @@ class InjectDelivery:
     # Public API
     # ------------------------------------------------------------------
 
-    async def install(self, cdp_bridge: Any, page: Any) -> None:
+    async def install(
+        self,
+        cdp_bridge: Any = None,
+        page: Any = None,
+        *,
+        stealth_bridge: Any = None,
+    ) -> None:
         """Set up Fetch interception and addInitScript fallback.
 
         Parameters
         ----------
+        stealth_bridge:
+            A :class:`StealthBridge` instance (preferred over *cdp_bridge*).
+            Keyword-only to preserve backward compatibility with positional calls.
         cdp_bridge:
-            A :class:`CDPBridge` instance for raw CDP access.
+            A :class:`CDPBridge` instance for raw CDP access (fallback).
         page:
             The Patchright ``Page`` object (used for addInitScript).
+
+        Precedence: stealth_bridge > cdp_bridge.
         """
-        self._cdp_bridge = cdp_bridge
+        self._stealth_bridge = stealth_bridge
+        self._cdp_bridge = stealth_bridge if stealth_bridge is not None else cdp_bridge
         self._page = page
         self._installed = True
 
@@ -90,7 +103,7 @@ class InjectDelivery:
             return
 
         try:
-            await self._cdp_bridge.send("Fetch.enable", {
+            await self._send("Fetch.enable", {
                 "patterns": [
                     {
                         "resourceType": "Document",
@@ -103,7 +116,8 @@ class InjectDelivery:
             return
 
         # Register the paused handler on the underlying CDP session.
-        raw_session = getattr(self._cdp_bridge, "_session", None)
+        # StealthBridge wraps CDPBridge — access via ._cdp._session.
+        raw_session = self._get_raw_session()
         if raw_session is None:
             logger.warning("No raw CDP session available for Fetch interception")
             return
@@ -118,7 +132,7 @@ class InjectDelivery:
 
             try:
                 # Get the response body.
-                body_result = await self._cdp_bridge.send(
+                body_result = await self._send(
                     "Fetch.getResponseBody", {"requestId": request_id},
                 )
                 if not body_result.ok or not body_result.data:
@@ -151,7 +165,7 @@ class InjectDelivery:
                 # Body-splice: inject <script> into <head>.
                 modified_body = delivery_ref._splice_script(body_text)
 
-                await self._cdp_bridge.send("Fetch.fulfillRequest", {
+                await self._send("Fetch.fulfillRequest", {
                     "requestId": request_id,
                     "responseCode": response_status_code,
                     "responseHeaders": cleaned_headers,
@@ -161,7 +175,7 @@ class InjectDelivery:
             except Exception as exc:
                 logger.warning("Fetch.requestPaused handler failed: %s", exc)
                 try:
-                    await self._cdp_bridge.send("Fetch.continueResponse", {
+                    await self._send("Fetch.continueResponse", {
                         "requestId": request_id,
                     })
                 except Exception:
@@ -180,7 +194,7 @@ class InjectDelivery:
     ) -> None:
         """Fulfill a request without modification."""
         try:
-            await self._cdp_bridge.send("Fetch.continueResponse", {
+            await self._send("Fetch.continueResponse", {
                 "requestId": request_id,
             })
         except Exception:
@@ -233,6 +247,28 @@ class InjectDelivery:
             return body.replace("</html>", f"{script_tag}</html>", 1)
 
         return f"<html><head>{script_tag}</head><body>{body}</body></html>"
+
+    # ------------------------------------------------------------------
+    # Internal: bridge helpers
+    # ------------------------------------------------------------------
+
+    async def _send(self, method: str, params: dict) -> Any:
+        """Dispatch a CDP command via stealth_bridge.cdp_send or cdp_bridge.send."""
+        if self._stealth_bridge is not None and hasattr(self._stealth_bridge, "cdp_send"):
+            return await self._stealth_bridge.cdp_send(method, params)
+        return await self._cdp_bridge.send(method, params)
+
+    def _get_raw_session(self) -> Any:
+        """Get the raw CDP session for event subscription.
+
+        StealthBridge wraps CDPBridge: access via ._cdp._session.
+        Fallback: cdp_bridge._session (backward compat).
+        """
+        if self._stealth_bridge is not None:
+            inner = getattr(self._stealth_bridge, "_cdp", None)
+            if inner is not None:
+                return getattr(inner, "_session", None)
+        return getattr(self._cdp_bridge, "_session", None)
 
     @staticmethod
     def _strip_csp_headers(headers: list[dict]) -> list[dict]:
