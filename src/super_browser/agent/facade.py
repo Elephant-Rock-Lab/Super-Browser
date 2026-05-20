@@ -14,6 +14,7 @@ from super_browser.agent.loop import AgentLoop
 from super_browser.agent.registry import ToolRegistry
 from super_browser.agent.types import DelegationResult
 from super_browser.browser.config import SessionConfig
+from super_browser.browser.engine import _detect_backend
 from super_browser.browser.session import BrowserSession
 from super_browser.browser.tabs import TabManager, TabSnapshot
 from super_browser.interaction.controller import MultimodalController
@@ -54,6 +55,7 @@ class SuperBrowser:
         self._registry = tool_registry or ToolRegistry()
         self._llm_client = llm_client
         self._session: Optional[BrowserSession] = None
+        self._engine: Any = None
         self._controller: Optional[MultimodalController] = None
         self._page: Any = None
         self._abort_signal = asyncio.Event()
@@ -75,10 +77,20 @@ class SuperBrowser:
     # -- Lifecycle --
 
     async def start(self) -> None:
-        self._session = BrowserSession(SessionConfig(headless=True))
-        await self._session.start()
-        self._page = await self._session.new_page()
+        backend_name = _detect_backend(self._config)
+        session_config = SessionConfig(headless=True)
+        if backend_name == "patchright":
+            from super_browser.browser.backends.patchright_backend import PatchrightEngine
+            self._engine = PatchrightEngine(session_config)
+            await self._engine.start()
+            self._session = self._engine.session
+            self._page = await self._engine.new_page()
+        else:
+            self._session = BrowserSession(session_config)
+            await self._session.start()
+            self._page = await self._session.new_page()
         self._controller = MultimodalController(self._page, self._page.cdp)
+        # TODO(BATCH-47): Replace self._page.cdp with engine-stealth bridge
         self._running = True
         self._configure_verification()
         self._configure_vision()
@@ -297,6 +309,24 @@ class SuperBrowser:
             data={"url": url, "title": title, "interactive_elements": interactive_count, "total_elements": len(snap.nodes)},
         )
 
+    # -- Tab helper (CHK-07) --
+
+    async def _attach_page(self, page_obj: Any) -> None:
+        """Wire a raw Playwright Page into the facade's _page and _controller.
+
+        Shared by :meth:`open_tab` and :meth:`switch_tab`.
+        """
+        ctx = self._engine.context if self._engine else self._session._context
+        if ctx is None:
+            raise RuntimeError("Browser context not available — engine not started?")
+        from super_browser.browser.page import PageHandle
+        cdp_session = await ctx.new_cdp_session(page_obj)
+        from super_browser.browser.cdp import CDPBridge
+        from super_browser.browser.config import SessionConfig as _SC
+        cdp = CDPBridge(cdp_session, _SC())
+        self._page = PageHandle(page_obj, cdp)
+        self._controller = MultimodalController(self._page, self._page.cdp)  # TODO(BATCH-47)
+
     # -- Multi-Tab --
 
     async def open_tab(self, url: Optional[str] = None) -> ActionResult:
@@ -308,19 +338,16 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._session:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        ctx = self._engine.context if self._engine else self._session._context
+        if ctx is None:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser context not available"))
         if self._tab_manager is None:
-            self._tab_manager = TabManager(self._session._context)
+            self._tab_manager = TabManager(ctx)
         try:
             tab = await self._tab_manager.open_tab(url)
             # Update page reference and controller to new tab
             page_obj = self._tab_manager.get_page(tab.tab_id)
-            from super_browser.browser.page import PageHandle
-            cdp_session = await self._session._context.new_cdp_session(page_obj)
-            from super_browser.browser.cdp import CDPBridge
-            from super_browser.browser.config import SessionConfig
-            cdp = CDPBridge(cdp_session, SessionConfig())
-            self._page = PageHandle(page_obj, cdp)
-            self._controller = MultimodalController(self._page, self._page.cdp)
+            await self._attach_page(page_obj)
             return timed_action_result(ok=True, start_ns=start, data=tab)
         except Exception as e:
             return timed_action_result(ok=False, start_ns=start, error=ActionError(ErrorCategory.NAVIGATION, str(e)))
@@ -337,13 +364,7 @@ class SuperBrowser:
         try:
             tab = await self._tab_manager.switch_tab(tab_id)
             page_obj = self._tab_manager.get_page(tab_id)
-            from super_browser.browser.page import PageHandle
-            cdp_session = await self._session._context.new_cdp_session(page_obj)
-            from super_browser.browser.cdp import CDPBridge
-            from super_browser.browser.config import SessionConfig
-            cdp = CDPBridge(cdp_session, SessionConfig())
-            self._page = PageHandle(page_obj, cdp)
-            self._controller = MultimodalController(self._page, self._page.cdp)
+            await self._attach_page(page_obj)
             return timed_action_result(ok=True, start_ns=start, data=tab)
         except KeyError as e:
             return timed_action_result(ok=False, start_ns=start, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, str(e)))
@@ -383,7 +404,7 @@ class SuperBrowser:
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
         try:
-            await self._page.raw_page.set_input_files(selector, file_path)
+            await self._page.engine_page.set_input_files(selector, file_path)
             import os
             fname = os.path.basename(file_path)
             return timed_action_result(
@@ -408,14 +429,14 @@ class SuperBrowser:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
         try:
             # Start listening for download
-            async with self._page.raw_page.expect_download() as download_info:
+            async with self._page.engine_page.expect_download() as download_info:
                 if url_or_selector.startswith("http"):
-                    await self._page.raw_page.evaluate(
+                    await self._page.engine_page.evaluate(
                         "(url) => { const a = document.createElement('a'); a.href = url; a.download = ''; a.click(); }",
                         url_or_selector,
                     )
                 else:
-                    await self._page.raw_page.click(url_or_selector)
+                    await self._page.engine_page.click(url_or_selector)
             download = await download_info.value
             suggested = download.suggested_filename
             if save_path:
@@ -455,7 +476,7 @@ class SuperBrowser:
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
         try:
-            frame = self._page.raw_page.frame_locator(selector)
+            frame = self._page.engine_page.frame_locator(selector)
             self._frame_stack.append(frame)
             return timed_action_result(ok=True, start_ns=start, data={"frame": selector, "depth": len(self._frame_stack)})
         except Exception as e:
@@ -473,7 +494,8 @@ class SuperBrowser:
         """Get the current frame (top of stack) or the raw page."""
         if self._frame_stack:
             return self._frame_stack[-1]
-        return self._page.raw_page if self._page else None
+        return self._page.engine_page.raw_page if self._page else None
+        # NOTE: Returns underlying Playwright Page for backward compat.
 
     # -- Shadow DOM --
 
@@ -554,7 +576,7 @@ class SuperBrowser:
                 else:
                     await route.continue_()
 
-            await self._page.raw_page.route(pattern, handle_route)
+            await self._page.engine_page.route(pattern, handle_route)
             self._network_interceptors.append({"pattern": pattern, "action": action, "requests": intercepted})
 
             return timed_action_result(
@@ -593,7 +615,7 @@ class SuperBrowser:
                     body=body,
                 )
 
-            await self._page.raw_page.route(pattern, handle_mock)
+            await self._page.engine_page.route(pattern, handle_mock)
             self._network_interceptors.append({"pattern": pattern, "action": "mock", "body": body})
 
             return timed_action_result(
@@ -612,7 +634,7 @@ class SuperBrowser:
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
         try:
-            await self._page.raw_page.unroute_all()
+            await self._page.engine_page.unroute_all()
             self._network_interceptors.clear()
             return timed_action_result(ok=True, start_ns=start, data={"cleared": True})
         except Exception as e:
@@ -654,7 +676,7 @@ class SuperBrowser:
         from super_browser.verification.types import VerifierConfig as VC
         vconfig = config or VC()
         verifier = VisualVerifier(
-            cdp=self._page.cdp,
+            cdp=self._page.cdp,  # TODO(BATCH-47)
             snapshot_provider=self._controller._snapshot_provider,
             config=vconfig,
         )
@@ -681,7 +703,7 @@ class SuperBrowser:
         from super_browser.stealth import StealthConfig, StealthManager
         stealth_config = StealthConfig()
         self._stealth_manager = StealthManager(
-            stealth_config, cdp=self._page.cdp, page=self._page.raw_page,
+            stealth_config, cdp=self._page.cdp, page=self._page.raw_page,  # TODO(BATCH-47)
         )
         self._loop_stealth = self._stealth_manager
 
@@ -694,7 +716,7 @@ class SuperBrowser:
         skills_dir = Path(self._config.skills_dir) if self._config.skills_dir else None
         self._skill_registry = SkillRegistry(skills_dir=skills_dir)
         if self._page and hasattr(self._page, "cdp"):
-            self._skill_registry.set_cdp(self._page.cdp)
+            self._skill_registry.set_cdp(self._page.cdp)  # TODO(BATCH-47)
 
     async def learn_from_trajectory(
         self, domain: str, task_description: str, actions_taken: list[str],
@@ -718,7 +740,7 @@ class SuperBrowser:
             self._event_bus = EventBus()
         cdp = None
         if self._page and hasattr(self._page, "cdp"):
-            cdp = self._page.cdp
+            cdp = self._page.cdp  # TODO(BATCH-47)
         self._recorder = SessionRecorder(
             self._event_bus, cdp, max_screenshots=max_screenshots,
         )
@@ -777,6 +799,8 @@ class SuperBrowser:
     def cloak_config(self) -> Any:
         """The CloakConfig if CloakBrowser is available, else None."""
         if self._session is not None:
+            if self._engine is not None:
+                return self._engine.cloak_config
             return self._session._cloak_config
         return None
 
