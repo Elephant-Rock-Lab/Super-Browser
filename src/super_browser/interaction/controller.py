@@ -93,7 +93,7 @@ class MultimodalController:
         """Click on an element identified by selector, coordinates, or description."""
 
         async def t1():
-            await self._page.raw_page.click(target, button=button, click_count=click_count)
+            await self._page.engine_page.click(target, button=button, click_count=click_count)
             return action_result(
                 ok=True,
                 data=ClickResult(target=target, method=ActionMethod.SELECTOR),
@@ -130,9 +130,9 @@ class MultimodalController:
 
         async def t1():
             if clear_first:
-                await self._page.raw_page.click(target)
+                await self._page.engine_page.click(target)
                 await self._cdp.compositor_key_press("a", modifiers=2)
-            await self._page.raw_page.fill(target, value)
+            await self._page.engine_page.fill(target, value)
             return action_result(
                 ok=True,
                 data=FillResult(selector=target, value_entered=value, method=ActionMethod.SELECTOR, character_count=len(value), clear_first=clear_first),
@@ -171,7 +171,7 @@ class MultimodalController:
     ) -> ActionResult:
 
         async def t1():
-            await self._page.raw_page.select_option(target, **{by: option})
+            await self._page.engine_page.select_option(target, **{by: option})
             return action_result(
                 ok=True,
                 data=SelectResult(selector=target, option=option, method=ActionMethod.SELECTOR, by=by),
@@ -211,7 +211,7 @@ class MultimodalController:
     ) -> ActionResult:
 
         async def t1():
-            await self._page.raw_page.hover(target)
+            await self._page.engine_page.hover(target)
             return action_result(
                 ok=True,
                 data=HoverResult(target=target, method=ActionMethod.SELECTOR),
@@ -259,7 +259,7 @@ class MultimodalController:
     ) -> ActionResult:
 
         async def t1():
-            await self._page.raw_page.drag_and_drop(source, destination)
+            await self._page.engine_page.drag_and_drop(source, destination)
             return action_result(
                 ok=True,
                 data=DragResult(source=source, destination=destination, method=ActionMethod.SELECTOR),
@@ -318,10 +318,7 @@ class MultimodalController:
         dx, dy = delta_map.get(direction, (0, 100))
 
         async def t1():
-            if target:
-                await self._page.raw_page.locator(target).scroll(direction, amount)
-            else:
-                await self._page.raw_page.mouse.wheel(dx * amount, dy * amount)
+            await self._page.engine_page.scroll(direction, amount, target=target)
             return action_result(
                 ok=True,
                 data=ScrollResult(direction=direction, amount=amount, method=ActionMethod.SELECTOR),

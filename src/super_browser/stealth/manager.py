@@ -72,8 +72,11 @@ class StealthManager:
             if hasattr(session, "_page") and session._page:
                 if hasattr(session._page, "cdp"):
                     self._cdp = session._page.cdp
-                if hasattr(session._page, "raw_page"):
-                    # Patchright PageHandle — use raw_page for route interception.
+                if hasattr(session._page, "engine_page"):
+                    # PageHandle — use engine_page (protocol-compliant).
+                    self._page = session._page.engine_page
+                elif hasattr(session._page, "raw_page"):
+                    # Legacy fallback — raw Playwright Page.
                     self._page = session._page.raw_page
             elif hasattr(session, "cdp"):
                 self._cdp = session.cdp
