@@ -2,22 +2,30 @@
 
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/example/super-browser)
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green)](https://github.com/example/super-browser)
-[![PyPI](https://img.shields.io/badge/PyPI-1.8.0-blue)](https://pypi.org/project/super-browser/)
+[![PyPI](https://img.shields.io/badge/PyPI-1.9.0-blue)](https://pypi.org/project/super-browser/)
 
 **Super Browser** is a comprehensive browser-control library for AI agents. It provides a three-tier cascade (LLM client → built-in skills → raw browser), self-healing selectors, stealth-mode navigation, output-budget management, and security guardrails — all behind a single `SuperBrowser` façade.
 
 ## Installation
 
 ```bash
-pip install super-browser[browser]
-python -m patchright install chromium  # Download the browser binary
+# Default — Patchright (full stealth)
+pip install super-browser[patchright]
+python -m patchright install chromium
+
+# Alternative backends
+pip install super-browser[playwright]      # Standard Playwright
+pip install super-browser[selenium]        # Enterprise CI
+
+# Or everything
+pip install super-browser[all]
 ```
 
 For specific LLM providers:
 
 ```bash
-pip install super-browser[browser,anthropic]   # Anthropic Claude
-pip install super-browser[browser,openai]       # OpenAI GPT
+pip install super-browser[patchright,anthropic]   # Anthropic Claude
+pip install super-browser[patchright,openai]       # OpenAI GPT
 ```
 
 ## Quickstart
@@ -77,6 +85,42 @@ Additional subsystems:
 | **Vision** | Screenshot-based fallback for pages that resist DOM inspection |
 
 Full API documentation lives in [`docs/`](docs/).
+
+## What's New in v1.9
+
+### Platform Abstraction + Distribution — One API, Any Browser
+
+v1.9.0 makes Super Browser browser-agnostic. Agents call `click`, `fill`, `navigate` through a protocol — the engine underneath is a deployment detail. Four backends are available.
+
+```python
+from super_browser import SuperBrowser, Config
+
+# Auto-detect best backend
+browser = SuperBrowser()
+
+# Or explicit
+browser = SuperBrowser(Config(backend="playwright", browser_type="firefox"))
+
+# Or connect to a remote CDP endpoint
+browser = SuperBrowser(Config(backend="cdp", endpoint="ws://chromium:9222"))
+```
+
+**Backend matrix:**
+
+| Backend | CDP | BiDi | Stealth | Use Case |
+|:--------|:----|:-----|:--------|:---------|
+| Patchright | ✓ | — | Full | Default, anti-detection |
+| Playwright | ✓ (Chromium) | ✓ (Firefox) | Chromium full | Standard automation |
+| Selenium | ✓ (Chrome) | ✓ (Firefox) | Chrome CDP | Enterprise CI |
+| CDP Direct | ✓ | — | Full | Docker, cloud |
+
+**Key changes:**
+- `BrowserEngine` / `EnginePage` / `StealthBridge` protocols in `browser/engine.py`
+- PatchrightBackend, PlaywrightBackend, SeleniumBackend, CDPDirectBackend
+- Controller refactored: 0 raw_page calls (all via EnginePage)
+- Stealth stack uses StealthBridge protocol (not direct CDPBridge)
+- StealthInjector implementations: CDPInjector (before), PageScriptInjector (after), BiDiInjector (future)
+- CI: GitHub Actions 3-OS matrix + tag-triggered PyPI publish
 
 ## What's New in v1.7
 
