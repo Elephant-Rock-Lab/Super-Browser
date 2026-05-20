@@ -111,6 +111,7 @@ class TestSQLiteSink:
         asyncio.run(_test())
 
 
+@pytest.mark.flaky
 class TestPrometheusSink:
     def test_graceful_noop(self):
         async def _test():

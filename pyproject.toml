@@ -7,10 +7,10 @@ name = "super-browser"
 version = "1.8.0"
 description = "Production-grade AI browser automation with built-in safety, stealth, and budget governance"
 readme = "README.md"
-license = "MIT"
+license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
 authors = [
-    { name = "Super Browser Team" },
+    { name = "Super Browser Contributors" },
 ]
 keywords = [
     "browser-automation",
@@ -27,11 +27,13 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Internet :: WWW/HTTP :: Browsers",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Testing",
@@ -42,11 +44,36 @@ classifiers = [
 [project.scripts]
 super-browser = "super_browser.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/super-browser/super-browser"
+Documentation = "https://super-browser.readthedocs.io"
+Changelog = "https://github.com/super-browser/super-browser/blob/main/CHANGELOG.md"
+Repository = "https://github.com/super-browser/super-browser"
+Issues = "https://github.com/super-browser/super-browser/issues"
+
 [project.optional-dependencies]
+patchright = [
+    "patchright>=1.0",
+    "psutil>=5.9",
+    "Pillow>=10.0",
+]
+playwright = [
+    "playwright>=1.40",
+]
+selenium = [
+    "selenium>=4.0",
+    "webdriver-manager>=4.0",
+]
+cdp = [
+    "websockets>=12.0",
+]
 browser = [
     "patchright>=1.0",
     "psutil>=5.9",
     "Pillow>=10.0",
+]
+all = [
+    "super-browser[patchright,playwright,selenium,cdp]",
 ]
 dev = [
     "pytest>=9.0",
@@ -55,6 +82,8 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.10",
     "pre-commit>=3.7",
+    "build>=1.0",
+    "twine>=5.0",
 ]
 anthropic = [
     "anthropic>=0.40",
@@ -85,6 +114,7 @@ markers = [
     "integration: tests requiring a real browser (deselect with '-m \"not integration\"')",
     "live: tests requiring a real browser AND real LLM API (excluded from CI)",
     "live_stealth: tests requiring live detection sites (excluded from CI)",
+    "flaky: tests that may fail intermittently due to timing or environment",
 ]
 
 [tool.ruff]
