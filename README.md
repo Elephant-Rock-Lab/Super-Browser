@@ -4,7 +4,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green)](https://github.com/example/super-browser)
 [![PyPI](https://img.shields.io/badge/PyPI-1.9.0-blue)](https://pypi.org/project/super-browser/)
 
-**Super Browser** is a comprehensive browser-control library for AI agents. It provides a three-tier cascade (LLM client → built-in skills → raw browser), self-healing selectors, stealth-mode navigation, output-budget management, and security guardrails — all behind a single `SuperBrowser` façade.
+**Super Browser** is an anti-detection agent browser SDK. It wraps browser automation (Patchright, Playwright, Selenium, or raw CDP) in an agent-first API with stealth, budget governance, security guardrails, and structured error recovery. MCP is a transport, the agent SDK is the user-facing layer, and stealth is the foundation.
 
 ## Installation
 

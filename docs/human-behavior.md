@@ -1,6 +1,6 @@
 # Human Behavior Simulation
 
-Super Browser v1.4 includes a **HumanBehaviorAdapter** that abstracts human-like interaction simulation across both stealth backends (CloakBrowser and Patchright).
+Super Browser v1.9 includes a **HumanBehaviorAdapter** that abstracts human-like interaction simulation across both stealth backends (CloakBrowser and Patchright).
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # Fingerprint Scoring
 
-Super Browser v1.4 includes a **FingerprintScanner** and **FingerprintScorer** for assessing how detectable your browser configuration is against anti-bot systems.
+Super Browser v1.9 includes a **FingerprintScanner** and **FingerprintScorer** for assessing how detectable your browser configuration is against anti-bot systems.
 
 ## Overview
 
