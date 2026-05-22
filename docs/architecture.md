@@ -1,6 +1,6 @@
 # Architecture
 
-> **Super Browser** v0.1.0-prealpha — System architecture, data flow, and extension points.
+> **Super Browser** v1.9.0 — System architecture, data flow, and extension points.
 
 ---
 
@@ -369,6 +369,12 @@ RecoveryCoordinator.execute_with_recovery()
 ---
 
 ## Extension Points for v2.0
+
+### Configuration
+
+`Config` (in `super_browser.config`) is the **composition root** — the single entry point for all configuration. Subsystem configs (`SessionConfig`, `BudgetConfig`, `StealthConfig`, etc.) are composed into `Config` and passed through explicit constructors only.
+
+`SuperBrowserConfig` (in `agent/config.py`) is a legacy alias that still works but is not the recommended path for new code. See `docs/api-stability.md` for the full contract.
 
 ### 1. Custom LLM Providers
 

@@ -17,8 +17,25 @@ jobs:
       - run: pip install ruff
       - run: ruff check src/ tests/
 
-  test:
+  mypy-check:
     needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package with dev deps
+        run: pip install -e ".[dev,browser]"
+      - name: Type-check protocols and backends
+        run: >
+          python -m mypy
+          src/super_browser/browser/engine.py
+          src/super_browser/browser/backends/
+          --ignore-missing-imports
+
+  test:
+    needs: [lint, mypy-check]
     strategy:
       fail-fast: false
       matrix:
