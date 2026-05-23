@@ -110,15 +110,19 @@ class SuperBrowser:
         self._configure_vision()
         self._configure_stealth()
         self._configure_skills()
-        # -- Recovery (legacy bridge) --
-        if self._legacy_core and self._legacy_core.enable_recovery:
+        # -- Recovery (Config or legacy bridge) --
+        _lc = getattr(self, "_legacy_core", None)
+        recovery_on = (_lc.enable_recovery if _lc else False) or getattr(cfg.agent.core, "enable_recovery", False)
+        if recovery_on:
             from super_browser.recovery import RecoveryCoordinator
+
             self._coordinator = RecoveryCoordinator(
                 session=self._session, controller=self._controller,
             )
             await self._coordinator.start()
-        # -- Budget (legacy bridge) --
-        if self._legacy_core and self._legacy_core.enable_budget:
+        # -- Budget (Config or legacy bridge) --
+        budget_on = (_lc.enable_budget if _lc else False) or getattr(cfg.agent.core, "enable_budget", False)
+        if budget_on:
             from super_browser.budget import (
                 BudgetAwareLLMClient,
                 CircuitBreaker,
@@ -127,19 +131,20 @@ class SuperBrowser:
                 ModelCascade,
                 TokenBudgetGovernor,
             )
+
             governor = TokenBudgetGovernor()
             cascade = ModelCascade(governor=governor)
             pool = CredentialPool()
             cb = CircuitBreaker()
             comp = ContextCompressor()
             self._budget_client = BudgetAwareLLMClient(governor, cascade, pool, cb, comp)
-        # -- Tracing --
-        trace_on = self._legacy_core.trace_enabled if self._legacy_core else cfg.tracing.enabled
+        # -- Tracing (Config or legacy bridge) --
+        trace_on = (_lc.trace_enabled if _lc else False) or cfg.tracing.enabled
         if trace_on:
             from super_browser.tracing import FlowLogger
             from super_browser.tracing.sinks import ConsoleSink
             sinks = [ConsoleSink()]
-            trace_dir = self._legacy_core.trace_output_dir if self._legacy_core else ""
+            trace_dir = _lc.trace_output_dir if _lc else ""
             if trace_dir:
                 from pathlib import Path
 
@@ -149,7 +154,7 @@ class SuperBrowser:
             self._flow_logger = FlowLogger(sinks=sinks)
             await self._flow_logger.start()
         # -- Security (from composition root) --
-        sec_on = self._legacy_core.enable_security if self._legacy_core else False
+        sec_on = (_lc.enable_security if _lc else False) or getattr(cfg.agent.core, "enable_security", False)
         if sec_on:
             from super_browser.security import SecurityManager
             sec_config = cfg.security if isinstance(cfg, Config) else SecurityConfig()

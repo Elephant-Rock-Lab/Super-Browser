@@ -88,14 +88,18 @@ Feature flags for graceful degradation.
 ## Backend Selection
 
 ```python
+from super_browser import SuperBrowser
+from super_browser.config import Config
+from super_browser.browser.config import SessionConfig
+
 # Auto-detect (recommended)
 browser = SuperBrowser()
 
-# Explicit backend
-browser = SuperBrowser(Config(backend="playwright"))
+# Explicit backend via composition root
+browser = SuperBrowser(Config(browser=SessionConfig(backend="playwright")))
 
 # Remote CDP endpoint
-browser = SuperBrowser(Config(backend="cdp", endpoint="ws://chromium:9222"))
+browser = SuperBrowser(Config(browser=SessionConfig(backend="cdp", endpoint="ws://chromium:9222")))
 ```
 
 Auto-detection precedence:

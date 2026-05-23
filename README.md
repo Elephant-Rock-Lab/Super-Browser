@@ -93,16 +93,18 @@ Full API documentation lives in [`docs/`](docs/).
 v1.9.0 makes Super Browser browser-agnostic. Agents call `click`, `fill`, `navigate` through a protocol — the engine underneath is a deployment detail. Four backends are available.
 
 ```python
-from super_browser import SuperBrowser, Config
+from super_browser import SuperBrowser
+from super_browser.config import Config
+from super_browser.browser.config import SessionConfig
 
-# Auto-detect best backend
+# Auto-detect best backend (Patchright → Playwright → Selenium → CDP)
 browser = SuperBrowser()
 
-# Or explicit
-browser = SuperBrowser(Config(backend="playwright", browser_type="firefox"))
+# Or explicit backend via the composition root
+browser = SuperBrowser(Config(browser=SessionConfig(backend="playwright")))
 
 # Or connect to a remote CDP endpoint
-browser = SuperBrowser(Config(backend="cdp", endpoint="ws://chromium:9222"))
+browser = SuperBrowser(Config(browser=SessionConfig(backend="cdp", endpoint="ws://chromium:9222")))
 ```
 
 **Backend matrix:**
@@ -142,7 +144,7 @@ if result.result_category == "success":
     print(result.page_change_summary.change_type)  # "navigation"
 
 # Stale ref recovery — auto-retry with fresh snapshot
-# Controller detects 8 error signatures, retries once automatically
+# Controller detects 10 error signatures, retries once automatically
 # On failure: FailureCategory.STALE_REF + 3 NextAction hints
 
 # Secret redaction — credentials never leak
@@ -159,7 +161,7 @@ print(result.to_dict())  # password is [REDACTED:password]
 | FailureCategory | 13 values: superset of ErrorCategory + stale_ref, element_obscured, etc. |
 | NextAction | Recovery guidance: refresh_snapshot, retry_with_selector, fallback_to_coordinate |
 | PageChangeSummary | Before/after: change_type, summary, title, url, artifact_hint |
-| StaleRefDetector | 8 error signatures, auto-retry once with fresh snapshot |
+| StaleRefDetector | 10 error signatures, auto-retry once with fresh snapshot |
 | redact_args() | Two-pass: key-name (20+ sensitive keys) + value-pattern (40+ regex) |
 | redact_context() | URL query-param scrubbing |
 | BrowserJob | Declarative step sequence (13 valid actions) |

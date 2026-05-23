@@ -1,6 +1,6 @@
 # Error Catalog
 
-> **Super Browser** v1.9.0 — Complete failure taxonomy, causes, and recovery guidance.
+> **Super Browser** v1.9.1 — Complete failure taxonomy, causes, and recovery guidance.
 
 Every `ActionResult` carries structured error information. This catalog maps each error category to its typical causes and recommended recovery strategy.
 
@@ -116,6 +116,6 @@ For multi-step operations (`act()`, `delegate()`), termination is classified by 
 |:-------|:------|:--------|
 | `SUCCESS` | `"success"` | All tasks completed successfully |
 | `BUDGET_EXHAUSTED` | `"budget_exhausted"` | Token/cost budget depleted |
-| `LOOP_DETECTED` | `"loop_detected"` | Agent stuck in repetitive actions |
+| `ERROR` | `"error"` | Unrecoverable error during execution |
+| `CANCELLED` | `"cancelled"` | Operation was cancelled |
 | `MAX_STEPS` | `"max_steps"` | Step limit reached without completion |
-| `ABORTED` | `"aborted"` | User called `abort()` |
