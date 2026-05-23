@@ -713,14 +713,19 @@ class SuperBrowser:
 
     def _configure_vision(self) -> None:
         _lc = getattr(self, "_legacy_core", None)
-        vis_on = _lc.enable_vision if _lc else False
+        _cfg = self._config
+        vis_on = (
+            (_lc.enable_vision if _lc else False)
+            or getattr(getattr(_cfg, "agent", None), "core", None) is not None
+            and getattr(_cfg.agent.core, "enable_vision", False)
+        )
         if not vis_on:
             return
         from pathlib import Path
 
         from super_browser.vision import VisionCache, VisionController, VisionProviderFactory
         factory = VisionProviderFactory.from_env()
-        cache_dir_str = _lc.vision_cache_dir if _lc else ""
+        cache_dir_str = getattr(_lc, "vision_cache_dir", "") if _lc else ""
         cache_dir = Path(cache_dir_str) if cache_dir_str else None
         cache = VisionCache(cache_dir=cache_dir)
         self._vision_controller = VisionController(factory=factory, cache=cache)
@@ -728,8 +733,12 @@ class SuperBrowser:
 
     def _configure_stealth(self) -> None:
         _lc = getattr(self, "_legacy_core", None)
-        _cfg = getattr(self, "_config", None)
-        stl_on = _lc.enable_stealth if _lc else getattr(_cfg, "enable_stealth", False)
+        _cfg = self._config
+        stl_on = (
+            (_lc.enable_stealth if _lc else False)
+            or getattr(getattr(_cfg, "agent", None), "core", None) is not None
+            and getattr(_cfg.agent.core, "enable_stealth", False)
+        )
         if not stl_on:
             return
         from super_browser.stealth import StealthManager
@@ -745,13 +754,18 @@ class SuperBrowser:
 
     def _configure_skills(self) -> None:
         _lc = getattr(self, "_legacy_core", None)
-        sk_on = _lc.enable_skills if _lc else False
+        _cfg = self._config
+        sk_on = (
+            (_lc.enable_skills if _lc else False)
+            or getattr(getattr(_cfg, "agent", None), "core", None) is not None
+            and getattr(_cfg.agent.core, "enable_skills", False)
+        )
         if not sk_on:
             return
         from pathlib import Path
 
         from super_browser.skills import SkillRegistry
-        skills_dir_str = _lc.skills_dir if _lc else ""
+        skills_dir_str = getattr(_lc, "skills_dir", "") if _lc else ""
         skills_dir = Path(skills_dir_str) if skills_dir_str else None
         self._skill_registry = SkillRegistry(skills_dir=skills_dir)
         if self._page and hasattr(self._page, "cdp"):

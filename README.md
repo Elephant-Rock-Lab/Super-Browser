@@ -36,7 +36,7 @@ from super_browser import SuperBrowser, Config, create_llm
 
 async def main():
     # 1. Build an LLM client (provider auto-detected from env)
-    llm = create_llm()                          # uses ANTHROPIC_API_KEY / OPENAI_API_KEY
+    llm = create_llm()                          # uses SB_LLM_API_KEY
 
     # 2. Configure the browser
     cfg = Config.from_dict({

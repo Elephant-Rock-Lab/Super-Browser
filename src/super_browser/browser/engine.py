@@ -274,14 +274,20 @@ def _detect_backend(config: Any = None) -> str:
     4. Auto-detect by probing imports: patchright → playwright → selenium.
     5. If nothing found, raise RuntimeError with install instructions.
     """
-    # 1. Explicit override
+    # 1. Explicit override — check Config.browser.backend first
     if config is not None:
-        backend = getattr(config, "backend", "auto")
+        browser_cfg = getattr(config, "browser", None)
+        if browser_cfg is not None and hasattr(type(browser_cfg), "backend"):
+            backend = browser_cfg.backend
+            mode = getattr(browser_cfg, "mode", None)
+        else:
+            backend = getattr(config, "backend", "auto")
+            mode = getattr(config, "mode", None)
+
         if backend and backend != "auto":
             return backend
 
         # 2-3. Mode-based detection
-        mode = getattr(config, "mode", None)
         if mode is not None:
             mode_str = str(mode)
             if "PATCHRIGHT" in mode_str:

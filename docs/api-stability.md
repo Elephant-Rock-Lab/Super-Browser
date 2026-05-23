@@ -1,6 +1,6 @@
 # API Stability Contract
 
-> **Super Browser** v1.9.1 — Public API stability guarantees.
+> **Super Browser** v1.9.2 — Public API stability guarantees.
 
 This document defines which APIs are stable, which are protocols (stable interface, evolving implementations), and which are internal.
 
@@ -52,6 +52,10 @@ These will not break within a major version. Deprecations are announced one majo
 | `replay(path)` | Replay recorded session |
 | `enable_memory()` | Enable memory store |
 | `learn_from_trajectory()` | Train from past sessions |
+| `save_session(path)` | Persist cookies and session state to file |
+| `load_session(path)` | Restore cookies and session state from file |
+| `start()` | Start browser session |
+| `stop()` | Stop browser session |
 
 **SuperBrowser properties**:
 

@@ -27,6 +27,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 13 docs-code alignment tests (`test_v192_features.py`) — every documented
   snippet verified executable, every enum verified against source.
 
+## [1.9.3] — 2026-05-23
+
+### Fixed
+- **`_detect_backend()` reads Config composition root**: `Config(browser=SessionConfig(backend="playwright"))`
+  now correctly resolves to `"playwright"` instead of always auto-detecting Patchright.
+- **`_configure_vision()` honors Config**: Checks `cfg.agent.core.enable_vision` in addition to
+  legacy `_legacy_core` bridge.
+- **`_configure_stealth()` honors Config**: Checks `cfg.agent.core.enable_stealth` instead of
+  broken `getattr(cfg, "enable_stealth", False)`.
+- **`_configure_skills()` honors Config**: Checks `cfg.agent.core.enable_skills` in addition to
+  legacy `_legacy_core` bridge.
+- **README env var**: `create_llm()` documented as using `SB_LLM_API_KEY` (was `ANTHROPIC_API_KEY / OPENAI_API_KEY`).
+- **`docs/agent-reliability.md`**: Stale-ref signature count corrected to 10 (was 8).
+- **`docs/api-stability.md`**: Added `save_session`, `load_session`, `start`, `stop` to stable facade table.
+- **Version refs**: Updated doc headers from v1.9.1 to v1.9.2.
+
+### Added
+- 15 runtime/config alignment tests (`test_v193_features.py`) — `_detect_backend` per-backend,
+  Config.agent.core subsystem flags, docs content assertions.
+
 ## [1.9.1] — 2026-05-23
 
 ### Added
