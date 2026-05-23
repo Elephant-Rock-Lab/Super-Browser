@@ -41,6 +41,8 @@ class SessionConfig:
     backend: str = "auto"
     browser_type: str = "chromium"
     endpoint: str = ""
+    # -- Session persistence (BATCH-52) --
+    session_file: Optional[str] = None  # auto-save on stop, auto-load on start
 
     def __post_init__(self) -> None:
         warnings.warn(

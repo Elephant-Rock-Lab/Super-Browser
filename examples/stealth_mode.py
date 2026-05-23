@@ -18,16 +18,12 @@ Run:
 
 import asyncio
 import logging
-from pathlib import Path
 
-from super_browser.agent.facade import SuperBrowser
-from super_browser.agent.llm.protocol import LLMClient
 from super_browser.stealth.manager import StealthManager
 from super_browser.stealth.types import (
     CAPTCHAProvider,
     ProxyTier,
     StealthConfig,
-    HTTPMorphRequestConfig,
 )
 
 logging.basicConfig(
@@ -221,11 +217,11 @@ async def main() -> None:
 
         # ── 10. Using Stealth with SuperBrowser ─────────────────────
         print("\n10. Integrating stealth with SuperBrowser ...")
-        print("   Stealth is automatically configured via SuperBrowserConfig:")
+        print("   Stealth is configured via Config:")
         print()
-        print("   from super_browser.agent.config import SuperBrowserConfig")
-        print("   config = SuperBrowserConfig(enable_stealth=True)")
-        print("   async with SuperBrowser(config=config, llm_client=llm) as sb:")
+        print("   from super_browser import Config")
+        print("   cfg = Config(stealth=Config.Stealth(proxy_tier='residential'))")
+        print("   async with SuperBrowser(config=cfg, llm_client=llm) as sb:")
         print("       await sb.navigate('https://bot.sannysoft.com')")
         print("       result = await sb.extract('detection results')")
 

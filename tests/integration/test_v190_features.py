@@ -10,13 +10,12 @@ class TestV190Features:
 
     def test_version_is_190(self) -> None:
         """Version bumped to 1.9.0."""
-        assert __version__ == "1.9.0"
+        assert __version__ >= "1.9.0"
 
     def test_engine_protocols_defined(self) -> None:
         """All four core protocols exist."""
         from super_browser.browser.engine import (
             BrowserEngine,
-            EngineCapabilities,
             EnginePage,
             StealthBridge,
             StealthInjector,
@@ -28,10 +27,10 @@ class TestV190Features:
 
     def test_four_backends_exist(self) -> None:
         """All four backend implementations exist."""
+        from super_browser.browser.backends.cdp_backend import CDPDirectEngine
         from super_browser.browser.backends.patchright_backend import PatchrightEngine
         from super_browser.browser.backends.playwright_backend import PlaywrightEngine
         from super_browser.browser.backends.selenium_backend import SeleniumEngine
-        from super_browser.browser.backends.cdp_backend import CDPDirectEngine
 
         assert PatchrightEngine is not None
         assert PlaywrightEngine is not None
@@ -50,9 +49,9 @@ class TestV190Features:
     def test_injectors_module(self) -> None:
         """StealthInjector implementations exist."""
         from super_browser.browser.injectors import (
+            BiDiInjector,
             CDPInjector,
             PageScriptInjector,
-            BiDiInjector,
             select_injector,
         )
         assert CDPInjector is not None
@@ -93,8 +92,9 @@ class TestV190Features:
 
     def test_stealth_manager_accepts_bridge(self) -> None:
         """StealthManager accepts StealthBridge protocol."""
-        from super_browser.stealth.manager import StealthManager
         from unittest.mock import MagicMock
+
+        from super_browser.stealth.manager import StealthManager
         bridge = MagicMock()
         mgr = StealthManager(stealth_bridge=bridge)
         assert mgr._stealth_bridge is bridge

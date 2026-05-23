@@ -17,6 +17,7 @@ from super_browser.browser.config import SessionConfig
 from super_browser.browser.engine import _detect_backend
 from super_browser.browser.session import BrowserSession
 from super_browser.browser.tabs import TabManager, TabSnapshot
+from super_browser.config import Config
 from super_browser.interaction.controller import MultimodalController
 from super_browser.results import (
     ActionError,
@@ -34,6 +35,8 @@ from super_browser.results import (
     action_result,
     timed_action_result,
 )
+from super_browser.security.types import SecurityConfig
+from super_browser.stealth.types import StealthConfig
 
 if TYPE_CHECKING:
     from super_browser.agent.llm.protocol import LLMClient
@@ -44,14 +47,24 @@ logger = logging.getLogger(__name__)
 
 class SuperBrowser:
 
+    _legacy_core: Optional[SuperBrowserConfig]  # set in __init__, None for Config users
+
     def __init__(
         self,
-        config: Optional[SuperBrowserConfig] = None,
+        config: Optional[Config | SuperBrowserConfig] = None,
         *,
         tool_registry: Optional[ToolRegistry] = None,
         llm_client: Optional[LLMClient] = None,
     ) -> None:
-        self._config = config or SuperBrowserConfig()
+        if config is None:
+            self._config = Config()
+            self._legacy_core = None
+        elif isinstance(config, SuperBrowserConfig):
+            self._config = Config.from_legacy(config)
+            self._legacy_core = config
+        else:
+            self._config = config
+            self._legacy_core = None
         self._registry = tool_registry or ToolRegistry()
         self._llm_client = llm_client
         self._session: Optional[BrowserSession] = None
@@ -77,8 +90,10 @@ class SuperBrowser:
     # -- Lifecycle --
 
     async def start(self) -> None:
-        backend_name = _detect_backend(self._config)
-        session_config = SessionConfig(headless=True)
+        cfg = self._config
+        # -- Determine backend & session config from composition root --
+        backend_name = _detect_backend(cfg)
+        session_config = cfg.browser if isinstance(cfg, Config) else SessionConfig(headless=True)
         if backend_name == "patchright":
             from super_browser.browser.backends.patchright_backend import PatchrightEngine
             self._engine = PatchrightEngine(session_config)
@@ -95,13 +110,15 @@ class SuperBrowser:
         self._configure_vision()
         self._configure_stealth()
         self._configure_skills()
-        if self._config.enable_recovery:
+        # -- Recovery (legacy bridge) --
+        if self._legacy_core and self._legacy_core.enable_recovery:
             from super_browser.recovery import RecoveryCoordinator
             self._coordinator = RecoveryCoordinator(
                 session=self._session, controller=self._controller,
             )
             await self._coordinator.start()
-        if self._config.enable_budget:
+        # -- Budget (legacy bridge) --
+        if self._legacy_core and self._legacy_core.enable_budget:
             from super_browser.budget import (
                 BudgetAwareLLMClient,
                 CircuitBreaker,
@@ -116,21 +133,26 @@ class SuperBrowser:
             cb = CircuitBreaker()
             comp = ContextCompressor()
             self._budget_client = BudgetAwareLLMClient(governor, cascade, pool, cb, comp)
-        if self._config.trace_enabled:
+        # -- Tracing --
+        trace_on = self._legacy_core.trace_enabled if self._legacy_core else cfg.tracing.enabled
+        if trace_on:
             from super_browser.tracing import FlowLogger
             from super_browser.tracing.sinks import ConsoleSink
             sinks = [ConsoleSink()]
-            if self._config.trace_output_dir:
+            trace_dir = self._legacy_core.trace_output_dir if self._legacy_core else ""
+            if trace_dir:
                 from pathlib import Path
 
                 from super_browser.tracing.sinks import FileSink
-                path = Path(self._config.trace_output_dir) / "trace.jsonl"
+                path = Path(trace_dir) / "trace.jsonl"
                 sinks.append(FileSink(path))
             self._flow_logger = FlowLogger(sinks=sinks)
             await self._flow_logger.start()
-        if self._config.enable_security:
-            from super_browser.security import SecurityConfig, SecurityManager
-            sec_config = SecurityConfig()
+        # -- Security (from composition root) --
+        sec_on = self._legacy_core.enable_security if self._legacy_core else False
+        if sec_on:
+            from super_browser.security import SecurityManager
+            sec_config = cfg.security if isinstance(cfg, Config) else SecurityConfig()
             self._security_manager = SecurityManager(sec_config)
         logger.info("SuperBrowser started")
 
@@ -685,22 +707,28 @@ class SuperBrowser:
         pass
 
     def _configure_vision(self) -> None:
-        if not self._config.enable_vision:
+        _lc = getattr(self, "_legacy_core", None)
+        vis_on = _lc.enable_vision if _lc else False
+        if not vis_on:
             return
         from pathlib import Path
 
         from super_browser.vision import VisionCache, VisionController, VisionProviderFactory
         factory = VisionProviderFactory.from_env()
-        cache_dir = Path(self._config.vision_cache_dir) if self._config.vision_cache_dir else None
+        cache_dir_str = _lc.vision_cache_dir if _lc else ""
+        cache_dir = Path(cache_dir_str) if cache_dir_str else None
         cache = VisionCache(cache_dir=cache_dir)
         self._vision_controller = VisionController(factory=factory, cache=cache)
         self._controller._vision_controller = self._vision_controller
 
     def _configure_stealth(self) -> None:
-        if not self._config.enable_stealth:
+        _lc = getattr(self, "_legacy_core", None)
+        _cfg = getattr(self, "_config", None)
+        stl_on = _lc.enable_stealth if _lc else getattr(_cfg, "enable_stealth", False)
+        if not stl_on:
             return
-        from super_browser.stealth import StealthConfig, StealthManager
-        stealth_config = StealthConfig()
+        from super_browser.stealth import StealthManager
+        stealth_config = self._config.stealth if isinstance(self._config, Config) else StealthConfig()
         stealth_bridge = getattr(self._page.engine_page, "stealth_bridge", None)
         self._stealth_manager = StealthManager(
             stealth_config,
@@ -711,12 +739,15 @@ class SuperBrowser:
         self._loop_stealth = self._stealth_manager
 
     def _configure_skills(self) -> None:
-        if not self._config.enable_skills:
+        _lc = getattr(self, "_legacy_core", None)
+        sk_on = _lc.enable_skills if _lc else False
+        if not sk_on:
             return
         from pathlib import Path
 
         from super_browser.skills import SkillRegistry
-        skills_dir = Path(self._config.skills_dir) if self._config.skills_dir else None
+        skills_dir_str = _lc.skills_dir if _lc else ""
+        skills_dir = Path(skills_dir_str) if skills_dir_str else None
         self._skill_registry = SkillRegistry(skills_dir=skills_dir)
         if self._page and hasattr(self._page, "cdp"):
             self._skill_registry.set_cdp(self._page.engine_page.cdp)
@@ -731,6 +762,102 @@ class SuperBrowser:
             domain, task_description, actions_taken, selectors_used,
             preferred_tier=preferred_tier,
         )
+
+    # -- Session Persistence --
+
+    async def save_session(self, path: str) -> ActionResult:
+        """Save cookies and session state to a JSON file.
+
+        Serializes all browser cookies via StealthBridge along with
+        metadata (URL, timestamp, version). Works across all backends.
+
+        :param path: File path to write the session JSON.
+        :returns: ActionResult with data containing the session metadata.
+        """
+        import json
+        start = time.monotonic()
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started."))
+        stealth_bridge = getattr(self._page.engine_page, "stealth_bridge", None)
+        if stealth_bridge is None:
+            return action_result(ok=False, error=ActionError(ErrorCategory.VALIDATION, "No stealth bridge available for cookie access."))
+        try:
+            cookies = await stealth_bridge.get_all_cookies()
+            session_data = {
+                "version": "1.0",
+                "timestamp": time.time(),
+                "url": str(self._page.url) if hasattr(self._page, "url") else "",
+                "cookies": cookies,
+            }
+            from pathlib import Path as _Path
+            target = _Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(session_data, indent=2), encoding="utf-8")
+            return timed_action_result(
+                ok=True,
+                start_ns=start,
+                data={"path": str(target), "cookie_count": len(cookies)},
+                method=ActionMethod.SELECTOR,
+            )
+        except Exception as exc:
+            return timed_action_result(
+                ok=False,
+                start_ns=start,
+                error=ActionError(ErrorCategory.BROWSER_CRASH, f"save_session failed: {exc}"),
+            )
+
+    async def load_session(self, path: str) -> ActionResult:
+        """Load cookies and session state from a JSON file.
+
+        Reads a session JSON previously saved by :meth:`save_session`,
+        validates the version, and restores cookies via StealthBridge.
+
+        :param path: File path to read the session JSON from.
+        :returns: ActionResult with data containing restored cookie count.
+        """
+        import json
+        start = time.monotonic()
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started."))
+        stealth_bridge = getattr(self._page.engine_page, "stealth_bridge", None)
+        if stealth_bridge is None:
+            return action_result(ok=False, error=ActionError(ErrorCategory.VALIDATION, "No stealth bridge available for cookie access."))
+        try:
+            from pathlib import Path as _Path
+            source = _Path(path)
+            if not source.exists():
+                return action_result(ok=False, error=ActionError(ErrorCategory.VALIDATION, f"Session file not found: {path}"))
+            session_data = json.loads(source.read_text(encoding="utf-8"))
+            version = session_data.get("version", "")
+            if version != "1.0":
+                return action_result(ok=False, error=ActionError(ErrorCategory.VALIDATION, f"Unsupported session format version: {version}"))
+            cookies = session_data.get("cookies", [])
+            if not cookies:
+                return timed_action_result(
+                    ok=True,
+                    start_ns=start,
+                    data={"path": str(source), "cookie_count": 0, "message": "No cookies to restore."},
+                    method=ActionMethod.SELECTOR,
+                )
+            await stealth_bridge.set_cookies(cookies)
+            return timed_action_result(
+                ok=True,
+                start_ns=start,
+                data={"path": str(source), "cookie_count": len(cookies)},
+                method=ActionMethod.SELECTOR,
+            )
+        except json.JSONDecodeError as exc:
+            return timed_action_result(
+                ok=False,
+                start_ns=start,
+                error=ActionError(ErrorCategory.VALIDATION, f"Invalid JSON in session file: {exc}"),
+            )
+        except Exception as exc:
+            return timed_action_result(
+                ok=False,
+                start_ns=start,
+                error=ActionError(ErrorCategory.BROWSER_CRASH, f"load_session failed: {exc}"),
+            )
 
     # -- Recording --
 
