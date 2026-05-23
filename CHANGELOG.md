@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.2] — 2026-05-23
+
+### Fixed
+- **Config examples executable**: All README and docs snippets now use valid
+  `Config(browser=SessionConfig(backend=...))` construction instead of
+  non-existent `Config(backend=...)` kwargs.
+- **Migration guide aliases**: Replaced fake `Config.Browser` / `Config.Agent` /
+  `Config.Budget` with actual types: `SessionConfig`, `AgentConfig`, `BudgetConfig`.
+- **Stale signature count**: README now correctly states 10 signatures (was 8).
+- **CompletionReason table**: `docs/error-catalog.md` now lists the 5 actual enum
+  values (`SUCCESS`, `BUDGET_EXHAUSTED`, `ERROR`, `CANCELLED`, `MAX_STEPS`) instead
+  of non-existent `LOOP_DETECTED` and `ABORTED`.
+- **Version refs**: Updated `docs/api-stability.md`, `docs/error-catalog.md`,
+  `docs/platform-abstraction.md` from v1.9.0 to v1.9.1.
+- **Config composition root wired**: `start()` now checks `cfg.agent.core.enable_recovery`
+  and `cfg.agent.core.enable_budget` in addition to legacy `_legacy_core` bridge.
+  Recovery, budget, tracing, and security all work through both paths.
+
+### Added
+- 13 docs-code alignment tests (`test_v192_features.py`) — every documented
+  snippet verified executable, every enum verified against source.
+
 ## [1.9.1] — 2026-05-23
 
 ### Added

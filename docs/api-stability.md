@@ -1,6 +1,6 @@
 # API Stability Contract
 
-> **Super Browser** v1.9.0 — Public API stability guarantees.
+> **Super Browser** v1.9.1 — Public API stability guarantees.
 
 This document defines which APIs are stable, which are protocols (stable interface, evolving implementations), and which are internal.
 
