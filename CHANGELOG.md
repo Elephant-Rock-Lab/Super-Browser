@@ -47,6 +47,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 15 runtime/config alignment tests (`test_v193_features.py`) — `_detect_backend` per-backend,
   Config.agent.core subsystem flags, docs content assertions.
 
+## [1.9.4] — 2026-05-23
+
+### Fixed
+- **`examples/backend_selection.py`**: Fixed `Config.Browser(backend=...)` → `SessionConfig(backend=...)`.
+  `Config.Browser` does not exist — was broken since v1.9.0.
+- **`docs/api-reference.md`**: Added 15 missing facade methods — `open_tab`, `switch_tab`, `close_tab`,
+  `list_tabs`, `upload_file`, `download`, `enter_frame`, `exit_frame`, `query_shadow`,
+  `intercept_requests`, `block_requests`, `mock_response`, `clear_interceptions`,
+  `save_session`, `load_session`. All 32 public methods now documented.
+- **`docs/api-reference.md`**: Version header updated from v1.9.0 to v1.9.3.
+- **`docs/architecture.md`**: Version header updated from v1.9.0 to v1.9.3.
+
+### Added
+- 5 API reference completion tests (`test_v194_features.py`) — all facade methods present,
+  example uses correct imports, doc version headers match.
+
 ## [1.9.1] — 2026-05-23
 
 ### Added
