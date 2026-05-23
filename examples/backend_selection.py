@@ -13,6 +13,7 @@ import logging
 
 from super_browser import Config
 from super_browser.agent.facade import SuperBrowser
+from super_browser.browser.config import SessionConfig
 
 logging.basicConfig(level=logging.INFO, format="%(name)s  %(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ async def demo_backend(name: str, backend: str, **kwargs) -> None:
     print(f"Backend: {name}")
     print(f"{'='*60}")
 
-    cfg = Config(browser=Config.Browser(backend=backend, **kwargs))
+    cfg = Config(browser=SessionConfig(backend=backend, **kwargs))
     try:
         async with SuperBrowser(config=cfg) as sb:
             result = await sb.navigate("https://httpbin.org/user-agent")
@@ -43,7 +44,7 @@ async def main() -> None:
     print("Super Browser — Backend Selection")
     print("=" * 60)
     print()
-    print("Backends are selected via Config.Browser(backend=...).")
+    print("Backends are selected via Config(browser=SessionConfig(backend=...)).")
     print("Options: 'auto', 'patchright', 'playwright', 'selenium', 'cdp'")
     print()
 

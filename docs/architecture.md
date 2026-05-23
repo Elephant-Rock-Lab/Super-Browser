@@ -1,6 +1,6 @@
 # Architecture
 
-> **Super Browser** v1.9.0 — System architecture, data flow, and extension points.
+> **Super Browser** v1.9.3 — System architecture, data flow, and extension points.
 
 ---
 

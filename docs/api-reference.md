@@ -1,6 +1,6 @@
 # API Reference
 
-> **Super Browser** v1.9.0 — Complete public API documentation.
+> **Super Browser** v1.9.3 — Complete public API documentation.
 
 This reference covers every public class, method, and function in Super Browser. Classes are grouped by subsystem.
 
@@ -240,6 +240,194 @@ Teach the skill registry from a recorded interaction trajectory.
 #### `is_running` *(property)* → `bool`
 
 Whether the browser session is currently active.
+
+### Tab Management
+
+#### `open_tab(url=None) → ActionResult`
+
+Open a new browser tab, optionally navigating to a URL.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `url` | `str \| None` | `None` | URL to navigate to. Opens a blank tab if omitted. |
+
+```python
+result = await sb.open_tab("https://example.com")
+```
+
+#### `switch_tab(tab_id) → ActionResult`
+
+Switch to a different tab by its integer ID.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `tab_id` | `int` | *required* | Tab ID to switch to. |
+
+```python
+await sb.switch_tab(1)
+```
+
+#### `close_tab(tab_id) → ActionResult`
+
+Close a tab by its ID.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `tab_id` | `int` | *required* | Tab ID to close. |
+
+```python
+await sb.close_tab(2)
+```
+
+#### `list_tabs() → ActionResult`
+
+List all open tabs.
+
+```python
+tabs = await sb.list_tabs()
+for t in tabs.data:
+    print(t["title"])
+```
+
+### File Operations
+
+#### `upload_file(selector, file_path) → ActionResult`
+
+Upload a file to an `<input type="file">` element.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `selector` | `str` | *required* | CSS selector for the file input. |
+| `file_path` | `str` | *required* | Path to the file to upload. |
+
+```python
+await sb.upload_file("#resume", "/path/to/resume.pdf")
+```
+
+#### `download(url_or_selector, *, save_path=None) → ActionResult`
+
+Download a file by clicking a link or navigating to a URL.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `url_or_selector` | `str` | *required* | URL or CSS selector to trigger download. |
+| `save_path` | `str \| None` | `None` | Where to save the file. Uses temp dir if omitted. |
+
+```python
+result = await sb.download("a.download-link", save_path="./report.pdf")
+```
+
+### Frame Scoping
+
+#### `enter_frame(selector) → ActionResult`
+
+Enter an iframe, scoping subsequent interactions to it.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `selector` | `str` | *required* | CSS selector for the iframe. |
+
+```python
+await sb.enter_frame("iframe#payment")
+await sb.fill("#card", "4242...")
+await sb.exit_frame()
+```
+
+#### `exit_frame() → ActionResult`
+
+Exit the current iframe, returning to the parent frame.
+
+### Shadow DOM
+
+#### `query_shadow(host_selector, inner_selector) → ActionResult`
+
+Query an element inside a Shadow DOM.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `host_selector` | `str` | *required* | CSS selector for the shadow host. |
+| `inner_selector` | `str` | *required* | CSS selector inside the shadow root. |
+
+```python
+result = await sb.query_shadow("my-widget", "#value")
+print(result.data.text)
+```
+
+### Network Interception
+
+#### `intercept_requests(pattern="*", *, action="log") → ActionResult`
+
+Enable network request interception.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `pattern` | `str` | `"*"` | URL pattern to match. |
+| `action` | `str` | `"log"` | Interception action (`"log"`, `"block"`, `"modify"`). |
+
+```python
+await sb.intercept_requests("*/api/*", action="log")
+```
+
+#### `block_requests(pattern="*") → ActionResult`
+
+Block all requests matching a URL pattern.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `pattern` | `str` | `"*"` | URL pattern to block. |
+
+```python
+await sb.block_requests("*.tracking.*")
+```
+
+#### `mock_response(pattern, body, *, content_type="application/json", status=200) → ActionResult`
+
+Mock a network response for matching requests.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `pattern` | `str` | *required* | URL pattern to match. |
+| `body` | `str` | *required* | Response body. |
+| `content_type` | `str` | `"application/json"` | Content-Type header. |
+| `status` | `int` | `200` | HTTP status code. |
+
+```python
+await sb.mock_response("*/api/config", '{"theme":"dark"}')
+```
+
+#### `clear_interceptions() → ActionResult`
+
+Remove all network request interceptions.
+
+```python
+await sb.clear_interceptions()
+```
+
+### Session Persistence
+
+#### `save_session(path) → ActionResult`
+
+Save cookies and session state to a JSON file.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `path` | `str` | *required* | File path to save session data. |
+
+```python
+await sb.save_session("session.json")
+```
+
+#### `load_session(path) → ActionResult`
+
+Load cookies and session state from a JSON file.
+
+| Parameter | Type | Default | Description |
+|:----------|:-----|:--------|:------------|
+| `path` | `str` | *required* | File path to load session data from. |
+
+```python
+await sb.load_session("session.json")
+```
 
 ---
 
