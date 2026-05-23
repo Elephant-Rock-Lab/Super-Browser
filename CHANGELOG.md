@@ -47,6 +47,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 15 runtime/config alignment tests (`test_v193_features.py`) — `_detect_backend` per-backend,
   Config.agent.core subsystem flags, docs content assertions.
 
+## [1.9.5] — 2026-05-23
+
+### Fixed
+- **`examples/stealth_mode.py`**: Fixed `Config.Stealth(proxy_tier=...)` → `StealthConfig(proxy_tier=...)`.
+  `Config.Stealth` does not exist — was printing broken advice.
+- **`docs/api-stability.md`**: Version header updated from v1.9.2 to v1.9.3.
+- **`docs/error-catalog.md`**: Version header updated from v1.9.2 to v1.9.3.
+
+### Added
+- 6 doc normalization tests (`test_v195_features.py`) — all doc headers current,
+  no fake Config aliases in examples.
+
 ## [1.9.4] — 2026-05-23
 
 ### Fixed
