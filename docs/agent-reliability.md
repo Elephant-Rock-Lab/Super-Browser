@@ -74,7 +74,7 @@ The `change_type` is one of:
 
 The #1 agent failure mode is stale element references — the agent targets `@e5` but the page re-rendered and the ref is gone. Super Browser now handles this automatically:
 
-1. **Detection**: 8 error signatures are recognized as stale refs
+1. **Detection**: 10 error signatures are recognized as stale refs
 2. **Auto-retry**: The controller refreshes the accessibility snapshot and retries the cascade
 3. **Structured failure**: If retry also fails, the result includes `FailureCategory.STALE_REF` and 3 `NextAction` hints
 
