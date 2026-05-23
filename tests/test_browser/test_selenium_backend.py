@@ -5,9 +5,9 @@ TEST-48-01-01 through TEST-48-01-10 as specified in Blueprint v1.1.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from super_browser.browser.engine import (
     BrowserEngine,
     EngineCapabilities,

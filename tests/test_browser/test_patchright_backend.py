@@ -3,10 +3,7 @@
 TEST-46-02-01 through TEST-46-02-10 as specified in Blueprint v1.1.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import AsyncMock, MagicMock
 
 from super_browser.browser.backends.patchright_backend import (
     PatchrightEngine,
@@ -23,7 +20,6 @@ from super_browser.browser.engine import (
     _detect_backend,
 )
 from super_browser.browser.page import PageHandle
-
 
 # =========================================================================
 # TEST-46-02-01: PatchrightEngine exists and is constructable

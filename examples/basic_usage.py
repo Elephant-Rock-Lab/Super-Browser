@@ -12,7 +12,6 @@ import asyncio
 import logging
 
 from super_browser.agent.facade import SuperBrowser
-from super_browser.agent.llm.protocol import LLMClient
 
 # Configure logging to see what's happening
 logging.basicConfig(
@@ -57,6 +56,8 @@ async def main() -> None:
 
     # 1. Create SuperBrowser with the mock LLM client.
     #    The context manager handles start/stop automatically.
+    #    Config() is the composition root — accepts browser, agent, budget, etc.
+    #    You can also pass Config explicitly: SuperBrowser(config=Config(...))
     async with SuperBrowser(llm_client=MockLLMClient()) as sb:
         print("=" * 60)
         print("Super Browser — Basic Usage Example")

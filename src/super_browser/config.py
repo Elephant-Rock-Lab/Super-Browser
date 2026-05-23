@@ -124,6 +124,31 @@ class Config:
     consistency: ConsistencyConfig = field(default_factory=ConsistencyConfig)
     network: NetworkConfig = field(default_factory=NetworkConfig)
 
+    @classmethod
+    def from_legacy(cls, sb_config: SuperBrowserConfig) -> Config:
+        """Create a :class:`Config` from a legacy :class:`SuperBrowserConfig`.
+
+        Maps the flat ``SuperBrowserConfig`` fields to the corresponding
+        nested sub-configs so the facade can derive everything from the
+        composition root.
+        """
+        return cls(
+            browser=_suppress_deprecation(
+                SessionConfig,
+                headless=True,
+            ),
+            agent=AgentConfig(
+                core=sb_config,
+            ),
+            tracing=TracingConfig(
+                enabled=sb_config.trace_enabled,
+                sink_type="file" if sb_config.trace_output_dir else "console",
+            ),
+            memory=MemoryConfig(
+                memory_enabled=False,
+            ),
+        )
+
     # ------------------------------------------------------------------
     # from_env
     # ------------------------------------------------------------------

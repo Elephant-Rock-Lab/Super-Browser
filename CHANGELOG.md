@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] — 2026-05-23
+
+### Added
+- **Config normalization**: `SuperBrowser()` now uses `Config` (composition root) by default.
+  Legacy `SuperBrowserConfig` is auto-wrapped via `Config.from_legacy()`.
+  Zero breaking changes — both config types accepted transparently.
+- **Session persistence**: `save_session(path)` / `load_session(path)` on the
+  facade for cookie save/restore across browser restarts. Backend-agnostic via
+  `StealthBridge.get_all_cookies()` / `set_cookies()`.
+- **SessionConfig.session_file**: optional field for auto-save/load on start/stop.
+- **Example gallery**: 4 new examples (backend_selection, session_persistence,
+  error_handling, multi_tab_workflow) + 2 updated for Config.
+- **API stability doc**: `docs/api-stability.md` — three-tier stability model
+  (stable/protocol/internal), deprecation policy, config composition root.
+- **Error catalog doc**: `docs/error-catalog.md` — all 26 categories, 10 stale
+  signatures, NextAction structure, recovery flow diagram.
+- **Migration guide**: `docs/migration/v1.8-to-v1.9.md` — raw_page→engine_page,
+  CDPBridge→StealthBridge, Config composition root, backend selection.
+- **mypy CI gate**: Separate `mypy-check` job (Ubuntu/3.12) type-checks
+  protocols + backends.
+
+### Fixed
+- Stale version references in `docs/architecture.md` (v0.1.0→v1.9.0),
+  `docs/api-reference.md` (v1.4.0→v1.9.0), `docs/fingerprint-scoring.md`
+  (v1.4→v1.9), `docs/human-behavior.md` (v1.4→v1.9).
+- README positioning: "anti-detection agent browser SDK".
+- pyproject description aligned with positioning.
+
+### Changed
+- `SuperBrowser.__init__` now accepts `Config | SuperBrowserConfig`.
+  Passing `None` (default) creates a `Config()` instance.
+- `_configure_stealth`, `_configure_vision`, `_configure_skills` read from
+  composition root instead of instantiating subsystem configs inline.
+- Config composition root note added to `docs/architecture.md`.
+
 ## [1.9.0] — 2026-05-21
 
 ### Added — Platform Abstraction + Distribution

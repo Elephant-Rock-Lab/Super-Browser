@@ -20,6 +20,7 @@ from super_browser.agent.types import (
     DelegationResult,
     DelegationStatus,
 )
+from super_browser.config import Config
 from super_browser.interaction.decorator import agent_action
 from super_browser.results import (
     ActionResult,
@@ -39,18 +40,19 @@ class TestInit:
     """TEST-14-01-01: SuperBrowser() creates without error."""
 
     def test_creates_without_error(self) -> None:
-        """SuperBrowser() instantiates with default config."""
-        with pytest.warns(DeprecationWarning):
-            sb = SuperBrowser()
+        """SuperBrowser() instantiates with default config (Config composition root)."""
+        sb = SuperBrowser()
         assert sb is not None
         assert not sb.is_running
+        assert isinstance(sb._config, Config)
 
     def test_creates_with_custom_config(self) -> None:
-        """SuperBrowser accepts a SuperBrowserConfig."""
+        """SuperBrowser accepts a SuperBrowserConfig (auto-wrapped in Config)."""
         with pytest.warns(DeprecationWarning):
             config = SuperBrowserConfig(max_steps=10)
         sb = SuperBrowser(config=config)
-        assert sb._config.max_steps == 10
+        assert isinstance(sb._config, Config)
+        assert sb._config.agent.core.max_steps == 10
 
     def test_creates_with_custom_registry(self) -> None:
         """SuperBrowser accepts a custom ToolRegistry."""
