@@ -446,11 +446,11 @@ class SeleniumEngine:
 
         elif effective_type == "firefox":
             try:
-                from selenium.webdriver.firefox.options import Options
-                from selenium.webdriver.firefox.service import Service
+                from selenium.webdriver.firefox.options import Options  # type: ignore[assignment]
+                from selenium.webdriver.firefox.service import Service  # type: ignore[assignment]
 
                 options = Options()
-                driver = webdriver.Firefox(options=options)
+                driver = webdriver.Firefox(options=options)  # type: ignore[arg-type]
             except Exception as exc:
                 raise RuntimeError(
                     f"Failed to start Firefox WebDriver: {exc}"
