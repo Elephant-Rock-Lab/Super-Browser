@@ -1,4 +1,4 @@
-![Super-Browser — Anti-detection agent browser SDK, stealth, budget governance, security guardrails, and structured error recovery behind one async facade](https://raw.githubusercontent.com/Elephant-Rock-Lab/Super-Browser/refs/heads/main/Super-Browser.png)
+![Super-Browser — Anti-detection agent browser SDK, stealth, budget governance, security guardrails, and structured error recovery behind one async facade](https://github.com/Elephant-Rock-Lab/Super-Browser/blob/1ce1633ff586c28cfa7c2b0c50db82f2f1cb9fac/Banner.png)
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Elephant-Rock-Lab/super-browser/test.yml?branch=main)](https://github.com/Elephant-Rock-Lab/super-browser/actions)
 [![PyPI](https://img.shields.io/pypi/v/super-browser?color=blue)](https://pypi.org/project/super-browser/)
