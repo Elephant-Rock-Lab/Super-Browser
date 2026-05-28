@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "super-browser"
-version = "1.9.5"
+version = "1.10.0"
 description = "Anti-detection agent browser SDK — stealth, budget governance, security guardrails, and structured error recovery behind one async facade"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -45,11 +45,11 @@ classifiers = [
 super-browser = "super_browser.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/super-browser/super-browser"
-Documentation = "https://super-browser.readthedocs.io"
-Changelog = "https://github.com/super-browser/super-browser/blob/main/CHANGELOG.md"
-Repository = "https://github.com/super-browser/super-browser"
-Issues = "https://github.com/super-browser/super-browser/issues"
+Homepage = "https://github.com/Elephant-Rock-Lab/super-browser"
+Documentation = "https://github.com/Elephant-Rock-Lab/super-browser#readme"
+Changelog = "https://github.com/Elephant-Rock-Lab/super-browser/blob/main/CHANGELOG.md"
+Repository = "https://github.com/Elephant-Rock-Lab/super-browser"
+Issues = "https://github.com/Elephant-Rock-Lab/super-browser/issues"
 
 [project.optional-dependencies]
 patchright = [

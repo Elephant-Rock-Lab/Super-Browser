@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from packaging.version import Version as _V
 from super_browser import __version__
 
 EXAMPLES_DIR = Path("C:/Next AI/SUPER-BROWSER/examples")
@@ -22,7 +23,7 @@ class TestV195DocNormalization:
     """Doc version normalization and example correctness."""
 
     def test_version_is_195(self) -> None:
-        assert __version__ >= "1.9.5"
+        assert _V(__version__) >= _V("1.9.5")
 
     def test_api_stability_version_header(self) -> None:
         header = (DOCS_DIR / "api-stability.md").read_text(encoding="utf-8").split("\n")[:5]

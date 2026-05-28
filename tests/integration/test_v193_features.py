@@ -10,6 +10,7 @@ Verifies:
 
 from __future__ import annotations
 
+from packaging.version import Version as _V
 from super_browser import __version__
 from super_browser.browser.config import SessionConfig
 from super_browser.browser.engine import _detect_backend
@@ -20,7 +21,7 @@ class TestV193RuntimeAlignment:
     """Config composition root actually works at runtime."""
 
     def test_version_is_193(self) -> None:
-        assert __version__ >= "1.9.3"
+        assert _V(__version__) >= _V("1.9.3")
 
     # -- ITEM-1: _detect_backend reads Config.browser.backend --
 

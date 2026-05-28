@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from packaging.version import Version as _V
 from super_browser import __version__
 from super_browser.interaction.recovery import StaleRefDetector
 
@@ -10,7 +11,7 @@ class TestV180Version:
     """Version is 1.8.0."""
 
     def test_version_string(self) -> None:
-        assert __version__ >= "1.8.0"
+        assert _V(__version__) >= _V("1.8.0")
 
 
 class TestV180StaleSignatures:

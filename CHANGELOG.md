@@ -3,7 +3,38 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and this project adheres to [Semantic Versioning](https://semerv.org/spec/v2.0.0.html).
+
+## [1.10.0] — 2026-05-28
+
+### Fixed
+- **`_configure_verification()` no longer a no-op**: Wired to read
+  `Config.agent.core.enable_verification` — when True, auto-creates a
+  `VisualVerifier` and attaches it to the controller. New field added to
+  `SuperBrowserConfig`.
+- **Stealth detection tests hardened**: CreepJS test now uses multi-strategy
+  extraction with `pytest.skip()` fallback instead of hard failure when the
+  live site layout changes. Browserscan test separates bot verdict (known gap,
+  skip) from automation library detection (hard fail).
+- **Stealth test timeout**: Added explicit `timeout=20_000` to browser launch
+  and `set_default_timeout(30_000)` to pages in stealth detection conftest.
+- **README badges**: Replaced fake `example.com` URLs with real
+  `Elephant-Rock-Lab/super-browser` GitHub links. Added PyPI badge.
+- **pyproject.toml URLs**: All project URLs now point to
+  `github.com/Elephant-Rock-Lab/super-browser`.
+
+### Added
+- `enable_verification` field on `SuperBrowserConfig` (default: `False`).
+- **Known Limitations** section in `docs/platform-abstraction.md` documenting
+  NotImplementedError gaps in CDP backend (`set_input_files`, `frame_locator`,
+  `expect_download`) and Selenium backend (`route`/`unroute`).
+- **BiDi Injector note** in `docs/platform-abstraction.md` clarifying it is a
+  future stub with no implementation timeline.
+- 10 integration tests (`test_v1100_features.py`) covering all v1.10.0 items.
+
+### Changed
+- First public release on GitHub: `github.com/Elephant-Rock-Lab/super-browser`.
+- All 17 version tags (v1.0.0 through v1.9.5) pushed to remote.
 
 ## [1.9.2] — 2026-05-23
 

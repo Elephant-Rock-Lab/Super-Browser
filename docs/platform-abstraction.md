@@ -134,6 +134,8 @@ StealthInjector implementations are selected automatically based on EngineCapabi
 
 ## Writing a Custom Backend
 
+> **Note: BiDi Injector** — The `BiDiInjector` class exists as a stub for future WebDriver BiDi protocol support (Firefox/WebKit). It raises `NotImplementedError` on all methods. When BiDi support is added, it will use `script.addPreloadScript` for stealth delivery. No timeline is set for this work.
+
 Implement the three core protocols:
 
 ```python
@@ -154,3 +156,26 @@ class MyPage:
     async def evaluate(self, expression): ...
     # ... etc
 ```
+
+## Known Limitations
+
+### CDP Backend
+
+The raw CDP backend (`--backend cdp`) has limited page-interaction support:
+
+| Method | Status |
+|:-------|:-------|
+| `set_input_files` | Raises `NotImplementedError` — use Patchright/Playwright for file uploads |
+| `frame_locator` | Raises `NotImplementedError` — frame scoped selectors not available via raw CDP |
+| `expect_download` | Raises `NotImplementedError` — download monitoring requires higher-level browser API |
+
+### Selenium Backend
+
+The Selenium backend does not support network interception:
+
+| Method | Status |
+|:-------|:-------|
+| `route()` | Raises `NotImplementedError` — Selenium has no equivalent to Playwright's route interception |
+| `unroute()` | Raises `NotImplementedError` — see above |
+
+For full feature coverage, use the Patchright backend (`pip install super-browser[patchright]`).

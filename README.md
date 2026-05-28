@@ -2,9 +2,9 @@
   <img src=".github/Super-Browser.png" alt="Super-Browser — Anti-detection agent browser SDK, stealth, budget governance, security guardrails, and structured error recovery behind one async facade" width="100%">
 </p>
 
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/example/super-browser)
-[![Coverage](https://img.shields.io/badge/coverage-85%25-green)](https://github.com/example/super-browser)
-[![PyPI](https://img.shields.io/badge/PyPI-1.9.0-blue)](https://pypi.org/project/super-browser/)
+[![CI](https://img.shields.io/github/actions/workflow/status/Elephant-Rock-Lab/super-browser/test.yml?branch=main)](https://github.com/Elephant-Rock-Lab/super-browser/actions)
+[![PyPI](https://img.shields.io/pypi/v/super-browser?color=blue)](https://pypi.org/project/super-browser/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-green)](https://github.com/Elephant-Rock-Lab/super-browser/blob/main/LICENSE)
 
 **Super Browser** is an anti-detection agent browser SDK. It wraps browser automation (Patchright, Playwright, Selenium, or raw CDP) in an agent-first API with stealth, budget governance, security guardrails, and structured error recovery. MCP is a transport, the agent SDK is the user-facing layer, and stealth is the foundation.
 
@@ -387,7 +387,7 @@ See [docs/cloak-integration.md](docs/cloak-integration.md) for the complete guid
 ## Development
 
 ```bash
-git clone https://github.com/example/super-browser.git
+git clone https://github.com/Elephant-Rock-Lab/super-browser.git
 cd super-browser
 pip install -e ".[browser,anthropic,openai,dev]"
 pytest

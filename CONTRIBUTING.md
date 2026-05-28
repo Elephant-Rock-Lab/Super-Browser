@@ -13,7 +13,7 @@ Thank you for your interest in contributing! This guide covers everything you ne
 ### Clone and Install
 
 ```bash
-git clone https://github.com/example/super-browser.git
+git clone https://github.com/Elephant-Rock-Lab/super-browser.git
 cd super-browser
 
 # Create and activate a virtual environment

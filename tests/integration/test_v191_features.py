@@ -11,6 +11,7 @@ Verifies:
 from __future__ import annotations
 
 import pytest
+from packaging.version import Version as _V
 from super_browser import __version__
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
@@ -22,7 +23,7 @@ class TestV191Features:
     """Feature gate tests for v1.9.1."""
 
     def test_version_is_191(self) -> None:
-        assert __version__ >= "1.9.1"
+        assert _V(__version__) >= _V("1.9.1")
 
     # -- Config normalization --
 

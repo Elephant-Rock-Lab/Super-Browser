@@ -28,6 +28,7 @@ async def browser_page():
         browser = await p.chromium.launch(
             headless=True,
             args=["--disable-blink-features=AutomationControlled"],
+            timeout=20_000,
         )
         # Get the raw UA and strip the "HeadlessChrome" token so the
         # browser looks like a regular Chrome instance to detectors.
@@ -38,6 +39,8 @@ async def browser_page():
         patched_ua = raw_ua.replace("HeadlessChrome/", "Chrome/")
         context = await browser.new_context(user_agent=patched_ua)
         page = await context.new_page()
+        page.set_default_timeout(30_000)
+        page.set_default_navigation_timeout(30_000)
         await page.goto("about:blank")
         yield page
         await browser.close()
