@@ -9,6 +9,7 @@ a real browser.
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from super_browser.behavioral.types import (
     BehaviorProfile,
     TrajectoryEvent,

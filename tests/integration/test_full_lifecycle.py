@@ -12,6 +12,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.registry import ToolRegistry

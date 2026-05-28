@@ -13,6 +13,7 @@ import io
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from super_browser import SuperBrowser
 from super_browser.cli.commands import (
     COMMANDS,

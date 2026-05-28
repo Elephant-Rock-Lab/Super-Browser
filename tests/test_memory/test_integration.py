@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+
 from super_browser.agent.loop import AgentLoop
 from super_browser.agent.registry import ToolRegistry
 from super_browser.memory.integration import (

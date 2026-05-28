@@ -7,6 +7,7 @@ Hard boundary HB-13-01: Fernet encryption required, no plaintext storage.
 import logging
 
 import pytest
+
 from super_browser.security.credential_vault import CredentialVault
 
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from packaging.version import Version as _V
+
 from super_browser import __version__
 
 EXAMPLES_DIR = Path("C:/Next AI/SUPER-BROWSER/examples")

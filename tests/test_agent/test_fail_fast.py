@@ -6,6 +6,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from super_browser.agent.facade import ConfigurationError, SuperBrowser
 
 

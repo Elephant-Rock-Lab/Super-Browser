@@ -3,6 +3,7 @@
 import asyncio
 
 import pytest
+
 from super_browser.security.types import PolicyVerdict
 from super_browser.stealth.manager import CaptchaTimeoutError, StealthManager
 from super_browser.stealth.types import (

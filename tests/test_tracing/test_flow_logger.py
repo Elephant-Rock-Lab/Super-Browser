@@ -4,6 +4,7 @@ import asyncio
 import json
 
 import pytest
+
 from super_browser.tracing.flow_logger import FlowLogger, _current_context
 from super_browser.tracing.types import SpanKind, SpanStatus
 

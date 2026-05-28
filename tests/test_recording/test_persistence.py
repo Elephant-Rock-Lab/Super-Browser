@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from super_browser.events.bus import EventBus
 from super_browser.events.types import BEFORE_ACTION, BEFORE_NAVIGATE, ON_ERROR
 from super_browser.recording.persistence import load, save

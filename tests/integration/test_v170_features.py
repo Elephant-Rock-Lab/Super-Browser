@@ -6,6 +6,7 @@ Validates cross-cutting functionality across BATCH-40, 41, 42.
 from __future__ import annotations
 
 from packaging.version import Version as _V
+
 from super_browser import __version__
 from super_browser.interaction.presets import BrowserJob, CompiledStep, QASmoke
 from super_browser.interaction.recovery import StaleRefDetector

@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 
 import pytest
+
 from super_browser.memory.store import MemoryStore, _sanitize_dict
 from super_browser.memory.types import ActionSequence, DomainMemory
 

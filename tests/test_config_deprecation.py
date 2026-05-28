@@ -5,6 +5,7 @@ from __future__ import annotations
 import warnings
 
 import pytest
+
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.browser.config import SessionConfig
 from super_browser.config import AgentConfig, Config

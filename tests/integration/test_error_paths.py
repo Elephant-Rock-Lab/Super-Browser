@@ -16,6 +16,7 @@ import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.loop import AgentLoop
 from super_browser.agent.registry import ToolRegistry

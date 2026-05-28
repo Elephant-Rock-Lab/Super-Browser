@@ -8,6 +8,7 @@ Test IDs:
 import asyncio
 
 import pytest
+
 from super_browser.session.proxy import ProxyPool
 
 

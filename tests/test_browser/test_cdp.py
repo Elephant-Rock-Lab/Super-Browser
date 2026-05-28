@@ -4,6 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
+
 from super_browser.browser import SessionConfig
 from super_browser.browser.cdp import CDPBridge, CDPResult
 

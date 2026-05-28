@@ -3,6 +3,7 @@
 import time
 
 import pytest
+
 from super_browser.stealth.types import (
     CAPTCHADetection,
     CAPTCHAProvider,

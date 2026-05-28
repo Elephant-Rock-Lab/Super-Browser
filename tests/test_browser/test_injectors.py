@@ -8,6 +8,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
+
 from super_browser.browser.engine import EngineCapabilities, InjectionTiming, StealthInjector
 from super_browser.browser.injectors import (
     BiDiInjector,

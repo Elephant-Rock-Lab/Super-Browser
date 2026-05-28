@@ -8,6 +8,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from super_browser.browser.engine import (
     BrowserEngine,
     EngineCapabilities,
@@ -189,6 +190,7 @@ class TestSeleniumImportFailure:
     def test_start_fails_without_selenium(self) -> None:
         """start() raises ImportError when selenium is not importable."""
         import pytest
+
         from super_browser.browser.backends.selenium_backend import SeleniumEngine
 
         engine = SeleniumEngine()

@@ -1,6 +1,7 @@
 """Tests for interaction/presets.py — TEST-42-02-01 through TEST-42-02-08."""
 
 import pytest
+
 from super_browser.interaction.presets import BrowserJob, CompiledStep, QASmoke
 
 

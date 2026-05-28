@@ -4,6 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from super_browser.agent.facade import ConfigurationError, SuperBrowser
 from super_browser.interaction.decorator import agent_action
 from super_browser.results import ClickResult, FillResult, NavigateResult, action_result

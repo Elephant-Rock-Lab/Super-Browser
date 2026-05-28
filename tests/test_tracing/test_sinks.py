@@ -4,6 +4,7 @@ import asyncio
 import json
 
 import pytest
+
 from super_browser.tracing.session_db import SessionDB
 from super_browser.tracing.sinks import (
     ConsoleSink,

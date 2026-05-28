@@ -4,6 +4,7 @@ import hashlib
 import io
 
 from PIL import Image
+
 from super_browser.verification.hasher import (
     HasherCache,
     compute_dhash,

@@ -1,6 +1,7 @@
 """Tests for security types — enums, dataclasses, SecurityConfig."""
 
 import pytest
+
 from super_browser.security.types import (
     CommandSafety,
     CommandVerdict,

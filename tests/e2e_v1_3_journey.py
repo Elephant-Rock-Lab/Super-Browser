@@ -20,6 +20,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from super_browser.events.bus import EventBus
 from super_browser.events.types import (
     AFTER_ACTION,

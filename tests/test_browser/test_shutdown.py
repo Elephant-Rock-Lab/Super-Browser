@@ -3,6 +3,7 @@
 import asyncio
 
 import pytest
+
 from super_browser.browser import ShutdownSupervisor
 
 

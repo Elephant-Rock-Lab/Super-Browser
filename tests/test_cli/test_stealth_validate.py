@@ -8,6 +8,7 @@ import sys
 from unittest.mock import patch
 
 import pytest
+
 from super_browser.cli import main
 from super_browser.stealth.consistency.matrix import FingerprintMatrix
 from super_browser.stealth.profiles.schema import DeviceProfile

@@ -6,6 +6,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from super_browser.browser.cdp import CDPBridge, CDPResult
 from super_browser.browser.fetch import (
     BrowserFetch,
