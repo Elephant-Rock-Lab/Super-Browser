@@ -28,6 +28,8 @@ venv/
 # IDE
 .vscode/
 .idea/
+.claude-plugin/
+statuses/
 
 # Logs
 *.log
@@ -37,6 +39,12 @@ docs/aiv/
 
 # Session data
 sessions/
+views.json
+/config.json
+=10.0
+Analysis-Framework/
+*.png
+!Super-Browser.png
 
 # Lock files
 uv.lock
