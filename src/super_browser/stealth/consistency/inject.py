@@ -63,6 +63,19 @@ def generate_inject(matrix: FingerprintMatrix) -> str:
 
     timezone = json.dumps(matrix.timezone)
 
+    # Connection API values (already in matrix, now injected)
+    conn_type = json.dumps(matrix.connection_effective_type)
+    conn_downlink = matrix.connection_downlink
+    conn_rtt = matrix.connection_rtt
+    conn_save = json.dumps(matrix.connection_save_data)
+
+    # Touch / SAB / color gamut
+    touch_support = json.dumps(matrix.touch_support)
+    orientation_type = json.dumps(matrix.screen_orientation_type)
+    orientation_angle = matrix.screen_orientation_angle
+    color_gamut = json.dumps(matrix.color_gamut)
+    has_sab = json.dumps(matrix.has_shared_array_buffer)
+
     fonts_js = json.dumps(list(matrix.fonts))
 
     # Sec-CH-UA values for userAgentData mock
@@ -298,6 +311,76 @@ def generate_inject(matrix: FingerprintMatrix) -> str:
       configurable: true
     }});
   }}
+
+  // ── Connection API override ─────────────────────────────────────
+  if (navigator.connection) {{
+    Object.defineProperty(navigator, 'connection', {{
+      value: Object.create(NetworkInformation.prototype),
+      writable: true,
+      configurable: true
+    }});
+    var _sbConn = navigator.connection;
+    Object.defineProperties(_sbConn, {{
+      effectiveType: {{ get: function() {{ return {conn_type}; }}, configurable: true }},
+      downlink: {{ get: function() {{ return {conn_downlink}; }}, configurable: true }},
+      rtt: {{ get: function() {{ return {conn_rtt}; }}, configurable: true }},
+      saveData: {{ get: function() {{ return {conn_save}; }}, configurable: true }},
+      type: {{ get: function() {{ return 'wifi'; }}, configurable: true }}
+    }});
+  }}
+
+  // ── SharedArrayBuffer override ─────────────────────────────────
+  if ({has_sab} === false) {{
+    delete window.SharedArrayBuffer;
+  }}
+
+  // ── Touch events override ──────────────────────────────────────
+  if ({touch_support} === false) {{
+    // Remove touch event constructors
+    if (window.TouchEvent) delete window.TouchEvent;
+    if (window.Touch) delete window.Touch;
+    if (window.TouchList) delete window.TouchList;
+    // Remove ontouch handlers on window and document
+    delete window.ontouchstart;
+    delete window.ontouchend;
+    delete window.ontouchmove;
+    delete window.ontouchcancel;
+    if (document) {{
+      delete document.ontouchstart;
+      delete document.ontouchend;
+      delete document.ontouchmove;
+      delete document.ontouchcancel;
+    }}
+  }}
+
+  // ── Screen orientation override ────────────────────────────────
+  if (screen.orientation) {{
+    try {{
+      Object.defineProperty(screen.orientation, 'type', {{
+        get: function() {{ return {orientation_type}; }},
+        configurable: true
+      }});
+      Object.defineProperty(screen.orientation, 'angle', {{
+        get: function() {{ return {orientation_angle}; }},
+        configurable: true
+      }});
+    }} catch(e) {{}}
+  }}
+
+  // ── Color gamut / HDR override ─────────────────────────────────
+  var _sbOrigMatchMedia = window.matchMedia;
+  window.matchMedia = function(query) {{
+    var result = _sbOrigMatchMedia.call(window, query);
+    if (query === '(color-gamut: srgb)' || query === '(color-gamut: p3)' || query === '(color-gamut: rec2020)') {{
+      var _sbGamut = {color_gamut};
+      var _sbMatches = query.indexOf(_sbGamut) !== -1;
+      Object.defineProperty(result, 'matches', {{ value: _sbMatches, configurable: true }});
+    }}
+    if (query === '(dynamic-range: standard)' || query === '(dynamic-range: high)') {{
+      Object.defineProperty(result, 'matches', {{ value: {color_gamut} === 'rec2020', configurable: true }});
+    }}
+    return result;
+  }};
 
   // ── Idempotency marker ───────────────────────────────────────────
 

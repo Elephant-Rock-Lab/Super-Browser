@@ -174,7 +174,7 @@ async def test_creepjs_high_trust_score(browser_page):
 
     # If we can't extract a score, the page layout changed — skip rather
     # than fail, since this is a live third-party site.
-    pytest.skip("CreepJS: could not extract trust score — page layout may have changed")
+    pytest.skip("CreepJS: could not extract trust score — see docs/stealth-coverage.md for gap analysis")
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ async def test_browserscan_no_automation_detection(browser_page):
         # may detect Patchright in some configurations.  Log but don't
         # hard-fail — this is a live third-party detection site.
         pytest.skip(
-            "browserscan.net: bot verdict detected — known gap in stealth coverage"
+            "browserscan.net: bot verdict detected — see docs/stealth-coverage.md CDP target detection row"
         )
 
     # Check for specific automation library names — these are hard fails.

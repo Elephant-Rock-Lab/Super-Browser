@@ -97,5 +97,10 @@ class FingerprintMatrix:
     navigator_cookie_enabled: bool
     navigator_max_touch_points: int
 
+    # Touch / interaction surface
+    touch_support: bool = False
+    color_gamut: str = "srgb"  # "srgb" | "p3" | "rec2020"
+    has_shared_array_buffer: bool = True
+
     # Ejector (fingerprint noise injection)
     ejector_seed: str = ""
