@@ -26,6 +26,7 @@ class SuperBrowserConfig:
     enable_stealth: bool = False
     enable_skills: bool = False
     skills_dir: str = ""
+    enable_verification: bool = False
 
     def __post_init__(self) -> None:
         warnings.warn(

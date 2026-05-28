@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from packaging.version import Version as _V
 from super_browser import __version__
 from super_browser.agent.facade import SuperBrowser
 
@@ -19,7 +20,7 @@ class TestV194APIReference:
     """API reference completion and doc normalization."""
 
     def test_version_is_194(self) -> None:
-        assert __version__ >= "1.9.4"
+        assert _V(__version__) >= _V("1.9.4")
 
     def test_backend_selection_uses_session_config(self) -> None:
         content = Path("C:/Next AI/SUPER-BROWSER/examples/backend_selection.py").read_text(encoding="utf-8")

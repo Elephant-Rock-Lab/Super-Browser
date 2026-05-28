@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from packaging.version import Version as _V
 from super_browser import __version__
 from super_browser.browser.engine import (
     EngineCapabilities,
@@ -18,7 +19,7 @@ class TestV190EngineBackends:
 
     def test_version_is_180_or_later(self) -> None:
         """Version is at least 1.8.0."""
-        assert __version__ >= "1.8.0"
+        assert _V(__version__) >= _V("1.8.0")
 
     def test_facade_constructs_with_auto_backend(self) -> None:
         """SuperBrowser can be created with auto backend config."""

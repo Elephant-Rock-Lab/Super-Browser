@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from packaging.version import Version as _V
 from super_browser import __version__
 
 
@@ -10,7 +11,7 @@ class TestV190Features:
 
     def test_version_is_190(self) -> None:
         """Version bumped to 1.9.0."""
-        assert __version__ >= "1.9.0"
+        assert _V(__version__) >= _V("1.9.0")
 
     def test_engine_protocols_defined(self) -> None:
         """All four core protocols exist."""

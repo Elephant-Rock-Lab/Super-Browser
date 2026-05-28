@@ -11,6 +11,7 @@ Verifies:
 from __future__ import annotations
 
 import pytest
+from packaging.version import Version as _V
 from super_browser import __version__
 from super_browser.browser.config import SessionConfig
 from super_browser.config import Config
@@ -21,7 +22,7 @@ class TestV192DocsCodeAlignment:
     """Every documented snippet must be executable."""
 
     def test_version_is_192(self) -> None:
-        assert __version__ >= "1.9.2"
+        assert _V(__version__) >= _V("1.9.2")
 
     # -- ITEM-1: Config examples are executable --
 

@@ -709,7 +709,26 @@ class SuperBrowser:
         self._controller.enable_verification(verifier)
 
     def _configure_verification(self) -> None:
-        pass
+        _lc = getattr(self, "_legacy_core", None)
+        _cfg = self._config
+        verif_on = (
+            (_lc.enable_verification if _lc else False)
+            or getattr(getattr(_cfg, "agent", None), "core", None) is not None
+            and getattr(_cfg.agent.core, "enable_verification", False)
+        )
+        if not verif_on:
+            return
+        try:
+            from super_browser.verification import VisualVerifier
+            from super_browser.verification.types import VerifierConfig as VC
+            verifier = VisualVerifier(
+                cdp=self._page.engine_page.cdp,
+                snapshot_provider=self._controller._snapshot_provider,
+                config=VC(),
+            )
+            self._controller.enable_verification(verifier)
+        except Exception:
+            pass  # verification optional — fail silently
 
     def _configure_vision(self) -> None:
         _lc = getattr(self, "_legacy_core", None)
