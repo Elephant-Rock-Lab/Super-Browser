@@ -39,6 +39,7 @@ class FlowLogger:
         self._events: dict[str, list[TraceEvent]] = {}
 
     async def start(self) -> None:
+        # Sinks initialise in __init__; no async setup needed currently.
         pass
 
     async def stop(self) -> None:

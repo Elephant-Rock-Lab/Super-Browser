@@ -68,13 +68,8 @@ cdp = [
     "websockets>=12.0",
     "aiohttp>=3.9",
 ]
-browser = [
-    "patchright>=1.0",
-    "psutil>=5.9",
-    "Pillow>=10.0",
-]
 all = [
-    "super-browser[patchright,playwright,selenium,cdp,security,anthropic,openai,mcp,cloud]",
+    "super-browser[patchright,playwright,selenium,cdp,security,anthropic,openai,cloud]",
 ]
 dev = [
     "pytest>=9.0",
@@ -94,9 +89,6 @@ openai = [
 ]
 security = [
     "cryptography>=42.0",
-]
-mcp = [
-    "mcp>=1.0",
 ]
 cloud = [
     "httpx>=0.27",

@@ -30,7 +30,7 @@ WORKDIR /app
 
 # Install Python deps
 COPY dist/super_browser-*-py3-none-any.whl /tmp/
-RUN pip install --no-cache-dir /tmp/super_browser-*-py3-none-any.whl[browser] \
+RUN pip install --no-cache-dir /tmp/super_browser-*-py3-none-any.whl[patchright] \
     && rm /tmp/*.whl
 
 # Install Chromium for Patchright

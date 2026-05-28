@@ -35,6 +35,19 @@ and this project adheres to [Semantic Versioning](https://semerv.org/spec/v2.0.0
 ### Changed
 - First public release on GitHub: `github.com/Elephant-Rock-Lab/super-browser`.
 - All 17 version tags (v1.0.0 through v1.9.5) pushed to remote.
+- `ConsoleSink.flush()` now calls `sys.stderr.flush()` (was bare `pass`).
+- Dockerfile and README now use `[patchright]` extra instead of removed `[browser]` alias.
+
+### Removed
+- `[browser]` optional extra — was identical to `[patchright]`; no callers remain.
+- `[mcp]` optional extra and `src/super_browser/mcp_server.py` — 290-line entry
+  point that was never tested or validated. Will return in v2.0.
+- `specs/` directory — 13 pre-v1.0 gap analysis files no longer relevant.
+- `docs/aiv/` and `Analysis-Framework/` untracked from git — internal process
+  docs remain local but are no longer shipped to cloners.
+- `test_config_deprecation.py` — tested removed deprecation warnings.
+- False `DeprecationWarning` labels on `SuperBrowserConfig`, `SessionConfig`,
+  and `.raw_page` — these are core types, not legacy.
 
 ## [1.9.2] — 2026-05-23
 

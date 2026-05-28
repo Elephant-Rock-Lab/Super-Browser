@@ -51,7 +51,7 @@ class ConsoleSink(TraceSink):
             sys.stderr.write(line)
 
     async def flush(self) -> None:
-        pass
+        sys.stderr.flush()
 
     async def close(self) -> None:
         pass
@@ -159,6 +159,7 @@ class PrometheusSink(TraceSink):
             self._metrics["errors"].labels(category=category).inc()
 
     async def flush(self) -> None:
+        # Prometheus is pull-based; no explicit push on flush.
         pass
 
     async def close(self) -> None:
