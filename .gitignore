@@ -48,3 +48,4 @@ Thumbs.db
 # Spill directory
 ~/.super-browser/spill/
 */__pycache__/
+NUL

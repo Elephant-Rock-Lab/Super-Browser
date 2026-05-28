@@ -1,0 +1,8 @@
+{
+  "allowedBashPatterns": [
+    {
+      "pattern": "^(ls|cat|head|tail|grep|find|tree)\\s",
+      "comment": "Read-only commands"
+    }
+  ]
+}

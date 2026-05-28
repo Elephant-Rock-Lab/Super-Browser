@@ -1,0 +1,5 @@
+{
+  "allowedMcpPatterns": [
+    { "pattern": "webSearchPrime", "comment": "Web search — read-only operation" }
+  ]
+}

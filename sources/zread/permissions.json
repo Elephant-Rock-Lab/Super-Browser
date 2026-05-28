@@ -1,0 +1,7 @@
+{
+  "allowedMcpPatterns": [
+    { "pattern": "search_doc", "comment": "Search repository documentation" },
+    { "pattern": "get_repo_structure", "comment": "Get repository directory structure" },
+    { "pattern": "read_file", "comment": "Read file contents from repository" }
+  ]
+}
