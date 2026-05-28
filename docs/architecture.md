@@ -151,7 +151,7 @@ The architecture is designed around these principles:
 
 ### 2. Stealth
 
-**Purpose:** Make browser automation undetectable by anti-bot systems.
+**Purpose:** Make browser automation resistant to common anti-bot detection vectors.
 
 **Key Classes:**
 - `StealthManager` — Orchestrator for the multi-layer stealth stack.
