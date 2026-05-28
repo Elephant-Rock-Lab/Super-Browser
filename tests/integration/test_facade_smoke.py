@@ -189,20 +189,26 @@ class TestIsRunningSmoke:
 class TestLifecycleSmoke:
 
     def test_start_stop_no_crash(self) -> None:
-        """start/stop with mocked BrowserSession."""
+        """start/stop with mocked engine."""
         sb = SuperBrowser()
 
-        with patch("super_browser.agent.facade.BrowserSession") as MockSession:
-            mock_session = AsyncMock()
-            mock_page = MagicMock()
-            mock_page.url = "about:blank"
-            mock_page.title = AsyncMock(return_value="Blank")
-            mock_page.cdp = MagicMock()
-            mock_page.raw_page = MagicMock()
-            mock_session.new_page = AsyncMock(return_value=mock_page)
-            MockSession.return_value = mock_session
+        with patch("super_browser.agent.facade._detect_backend", return_value="patchright"):
+            with patch("super_browser.browser.backends.patchright_backend.PatchrightEngine") as MockEngine:
+                mock_engine = AsyncMock()
+                mock_page = MagicMock()
+                mock_page.url = "about:blank"
+                mock_page.title = AsyncMock(return_value="Blank")
+                mock_page.engine_page = MagicMock()
+                mock_page.engine_page.cdp = MagicMock()
+                mock_page.raw_page = MagicMock()
+                mock_session = AsyncMock()
+                mock_session._context = MagicMock()
+                mock_engine.session = mock_session
+                mock_engine.new_page = AsyncMock(return_value=mock_page)
+                mock_engine.start = AsyncMock()
+                mock_engine.stop = AsyncMock()
+                MockEngine.return_value = mock_engine
 
-            with patch("super_browser.agent.facade.SessionConfig"):
                 async def _test() -> None:
                     await sb.start()
                     assert sb.is_running
