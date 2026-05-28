@@ -36,6 +36,7 @@ statuses/
 
 # AIV working documents (per-Batch docs)
 docs/aiv/
+!docs/aiv/AIV_FRAMEWORK_v5.3.md
 
 # Session data
 sessions/
