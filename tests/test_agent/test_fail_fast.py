@@ -57,7 +57,7 @@ class TestNoNoOpLLMInSource:
              "import subprocess; r = subprocess.run(['grep', '-r', '_NoOpLLM', 'src/'], "
              "capture_output=True, text=True); print(r.returncode)"],
             capture_output=True, text=True,
-            cwd="C:/Next AI/SUPER-BROWSER",
+            cwd=".",
         )
         # grep returns 1 when no matches found (which is what we want)
         output = result.stdout.strip()

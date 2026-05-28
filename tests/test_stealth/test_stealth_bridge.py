@@ -294,7 +294,7 @@ class TestFullSuite:
             ["python", "-m", "pytest", "--collect-only", "-q"],
             capture_output=True,
             text=True,
-            cwd="C:/Next AI/SUPER-BROWSER",
+            cwd=".",
         )
         # Parse the last line: "2141 tests collected"
         last_line = result.stdout.strip().split("\n")[-1]
@@ -318,6 +318,6 @@ class TestLintClean:
             ["python", "-m", "ruff", "check", "src/"],
             capture_output=True,
             text=True,
-            cwd="C:/Next AI/SUPER-BROWSER",
+            cwd=".",
         )
         assert result.returncode == 0, f"Ruff found issues:\n{result.stdout}\n{result.stderr}"
