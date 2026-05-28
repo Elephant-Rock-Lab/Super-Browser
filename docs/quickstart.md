@@ -20,7 +20,7 @@ This tutorial walks you through:
 ## 1. Install
 
 ```bash
-pip install super-browser[browser]
+pip install super-browser[patchright]
 ```
 
 Verify the installation:
@@ -393,6 +393,6 @@ The `create_llm()` factory couldn't find a provider. Set `SB_LLM_PROVIDER` or pa
 Ensure you have a Chromium-based browser installed:
 
 ```bash
-pip install super-browser[browser]
+pip install super-browser[patchright]
 python -m patchright install chromium
 ```
