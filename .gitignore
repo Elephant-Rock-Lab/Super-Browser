@@ -49,3 +49,6 @@ Thumbs.db
 ~/.super-browser/spill/
 */__pycache__/
 NUL
+sessions/
+sources/
+events.jsonl
