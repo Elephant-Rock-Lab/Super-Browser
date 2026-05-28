@@ -43,6 +43,7 @@ def _make_page(url="https://example.com"):
     raw.locator = MagicMock(return_value=raw)
     raw.scroll = AsyncMock()
     page.raw_page = raw
+    page.engine_page = raw
     return page
 
 
@@ -201,7 +202,7 @@ class TestScroll:
     def test_tier2_scroll(self):
         async def _test():
             page = _make_page()
-            page.raw_page.mouse.wheel = AsyncMock(side_effect=RuntimeError("fail"))
+            page.engine_page.scroll = AsyncMock(side_effect=RuntimeError("fail"))
             ctrl = _make_controller(page=page)
             result = await ctrl.scroll(direction="up", amount=2)
             assert result.ok

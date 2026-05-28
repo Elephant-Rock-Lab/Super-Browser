@@ -1,0 +1,12 @@
+{
+  "allowedMcpPatterns": [
+    { "pattern": "ui_to_artifact", "comment": "Convert UI screenshots to code/descriptions" },
+    { "pattern": "extract_text_from_screenshot", "comment": "OCR text extraction from screenshots" },
+    { "pattern": "diagnose_error_screenshot", "comment": "Diagnose errors from screenshots" },
+    { "pattern": "understand_technical_diagram", "comment": "Interpret technical diagrams" },
+    { "pattern": "analyze_data_visualization", "comment": "Read charts and dashboards" },
+    { "pattern": "ui_diff_check", "comment": "Compare two UI screenshots" },
+    { "pattern": "image_analysis", "comment": "General image analysis" },
+    { "pattern": "video_analysis", "comment": "Video analysis and understanding" }
+  ]
+}

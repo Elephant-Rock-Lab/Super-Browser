@@ -1,0 +1,18 @@
+{
+  "id": "websearch_b3c7f2a5",
+  "name": "Z.AI Web Search",
+  "slug": "web-search-prime",
+  "enabled": true,
+  "provider": "zai",
+  "type": "mcp",
+  "icon": "🔍",
+  "tagline": "Web search and real-time information retrieval powered by Z.AI",
+  "mcp": {
+    "url": "https://api.z.ai/api/mcp/web_search_prime/mcp",
+    "authType": "bearer"
+  },
+  "createdAt": 1746508800000,
+  "updatedAt": 1778033562032,
+  "isAuthenticated": true,
+  "connectionStatus": "connected"
+}

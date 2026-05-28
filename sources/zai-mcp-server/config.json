@@ -1,0 +1,27 @@
+{
+  "id": "zai_mcp_f7e2d9a1",
+  "name": "Z.AI Vision",
+  "slug": "zai-mcp-server",
+  "enabled": true,
+  "provider": "zai",
+  "type": "mcp",
+  "icon": "👁️",
+  "tagline": "GLM-4.6V vision capabilities — image analysis, OCR, video understanding, and UI-to-code",
+  "mcp": {
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@z_ai/mcp-server@latest"
+    ],
+    "env": {
+      "Z_AI_API_KEY": "your_api_key",
+      "Z_AI_MODE": "ZAI"
+    },
+    "authType": "none"
+  },
+  "createdAt": 1746508800000,
+  "updatedAt": 1778033362924,
+  "isAuthenticated": true,
+  "connectionStatus": "connected"
+}

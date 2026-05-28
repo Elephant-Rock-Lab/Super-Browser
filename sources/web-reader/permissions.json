@@ -1,0 +1,5 @@
+{
+  "allowedMcpPatterns": [
+    { "pattern": "webReader", "comment": "Web content reading — read-only operation" }
+  ]
+}

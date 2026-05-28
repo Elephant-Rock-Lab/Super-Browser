@@ -1,0 +1,18 @@
+{
+  "id": "webreader_e4d8c1b3",
+  "name": "Z.AI Web Reader",
+  "slug": "web-reader",
+  "enabled": true,
+  "provider": "zai",
+  "type": "mcp",
+  "icon": "🌐",
+  "tagline": "Web content extraction — fetch full page content, structured data, and links from any URL",
+  "mcp": {
+    "url": "https://api.z.ai/api/mcp/web_reader/mcp",
+    "authType": "bearer"
+  },
+  "createdAt": 1746508800000,
+  "updatedAt": 1778033694822,
+  "isAuthenticated": true,
+  "connectionStatus": "connected"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "next-ai-ref_f7a2b9c1",
+  "name": "Next AI Reference",
+  "slug": "next-ai-ref",
+  "enabled": true,
+  "provider": "filesystem",
+  "type": "local",
+  "icon": "\ud83d\udcc1",
+  "tagline": "Reference library at C:\\Next AI\\ref - browse and read files",
+  "local": {
+    "path": "C:\\Next AI\\ref"
+  },
+  "createdAt": 1746508800000,
+  "updatedAt": 1746508800000
+}

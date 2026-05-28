@@ -25,7 +25,7 @@ if _THIS_SRC in sys.path:
 sys.path.insert(0, _THIS_SRC)
 
 # Import project types (no browser dependency)
-from super_browser import __version__
+from super_browser import __version__  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Mock data structures
