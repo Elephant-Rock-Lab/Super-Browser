@@ -11,8 +11,6 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.registry import ToolRegistry
@@ -49,8 +47,7 @@ class TestInit:
 
     def test_creates_with_custom_config(self) -> None:
         """SuperBrowser accepts a SuperBrowserConfig (auto-wrapped in Config)."""
-        with pytest.warns(DeprecationWarning):
-            config = SuperBrowserConfig(max_steps=10)
+        config = SuperBrowserConfig(max_steps=10)
         sb = SuperBrowser(config=config)
         assert isinstance(sb._config, Config)
         assert sb._config.agent.core.max_steps == 10
@@ -452,8 +449,7 @@ class TestStealthHeaders:
             mock_session.new_page = AsyncMock(return_value=mock_page)
             MockSession.return_value = mock_session
 
-            with pytest.warns(DeprecationWarning):
-                config = SuperBrowserConfig(enable_stealth=True)
+            config = SuperBrowserConfig(enable_stealth=True)
 
             sb = SuperBrowser(config=config)
 
@@ -508,8 +504,7 @@ class TestBudgetTracking:
             mock_session.new_page = AsyncMock(return_value=mock_page)
             MockSession.return_value = mock_session
 
-            with pytest.warns(DeprecationWarning):
-                config = SuperBrowserConfig(enable_budget=True)
+            config = SuperBrowserConfig(enable_budget=True)
 
             sb = SuperBrowser(config=config)
 

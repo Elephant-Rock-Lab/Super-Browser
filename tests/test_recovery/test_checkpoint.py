@@ -4,8 +4,6 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from super_browser.browser.cdp import CDPResult
 from super_browser.recovery.checkpoint import CheckpointManager
 
@@ -167,7 +165,6 @@ class TestListCheckpoints:
         mgr = _make_manager(tmp_path)
         assert mgr.list_checkpoints() == []
 
-    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     def test_returns_saved_checkpoints(self, tmp_path):
         """TEST-09-03-03b: list_checkpoints() returns saved checkpoints."""
         async def _test():

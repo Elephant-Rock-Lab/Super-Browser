@@ -10,7 +10,6 @@ Verifies:
 
 from __future__ import annotations
 
-import pytest
 from packaging.version import Version as _V
 
 from super_browser import __version__
@@ -82,7 +81,6 @@ class TestV192DocsCodeAlignment:
     def test_config_recovery_can_enable(self) -> None:
         from super_browser.agent.config import SuperBrowserConfig
         from super_browser.config import AgentConfig
-        with pytest.warns(DeprecationWarning):
-            core = SuperBrowserConfig(enable_recovery=True)
+        core = SuperBrowserConfig(enable_recovery=True)
         cfg = Config(agent=AgentConfig(core=core))
         assert cfg.agent.core.enable_recovery is True

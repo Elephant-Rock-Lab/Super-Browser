@@ -369,7 +369,7 @@ class SeleniumPage:
 
     @property
     def raw_page(self) -> Any:
-        """Underlying WebDriver instance (deprecated — use EnginePage methods)."""
+        """Underlying WebDriver instance. For advanced use."""
         return self._driver
 
     @property

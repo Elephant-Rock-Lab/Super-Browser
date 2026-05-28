@@ -1,8 +1,11 @@
-"""Browser session configuration."""
+"""Browser session configuration.
+
+Composed into :class:`Config` as ``browser``.
+Fields control the browser engine, viewport, timeouts, and backend selection.
+"""
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Optional
@@ -43,10 +46,3 @@ class SessionConfig:
     endpoint: str = ""
     # -- Session persistence (BATCH-52) --
     session_file: Optional[str] = None  # auto-save on stop, auto-load on start
-
-    def __post_init__(self) -> None:
-        warnings.warn(
-            "SessionConfig is deprecated. Use super_browser.Config instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )

@@ -7,7 +7,6 @@ with construction helpers for env vars, YAML files, and plain dicts.
 from __future__ import annotations
 
 import os
-import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -95,7 +94,7 @@ class AgentConfig:
     llm_provider: str = "anthropic"
     llm_model: str = "claude-sonnet-4-20250514"
     llm_api_key: str = ""
-    core: SuperBrowserConfig = field(default_factory=lambda: _suppress_deprecation(SuperBrowserConfig))
+    core: SuperBrowserConfig = field(default_factory=lambda: SuperBrowserConfig)
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +112,7 @@ class Config:
         * :meth:`from_dict` — creates from a plain dict
     """
 
-    browser: SessionConfig = field(default_factory=lambda: _suppress_deprecation(SessionConfig))
+    browser: SessionConfig = field(default_factory=lambda: SessionConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
     stealth: StealthConfig = field(default_factory=StealthConfig)
     budget: BudgetConfig = field(default_factory=BudgetConfig)
@@ -133,8 +132,7 @@ class Config:
         composition root.
         """
         return cls(
-            browser=_suppress_deprecation(
-                SessionConfig,
+            browser=SessionConfig(
                 headless=True,
             ),
             agent=AgentConfig(
@@ -225,7 +223,7 @@ class Config:
         _env_bool(network_kw, "SB_LLM_VIA_BROWSER", "llm_via_browser")
 
         return cls(
-            browser=_suppress_deprecation(SessionConfig, **browser_kw),
+            browser=SessionConfig(**browser_kw),
             agent=AgentConfig(**agent_kw),
             stealth=StealthConfig(**stealth_kw),
             budget=BudgetConfig(**budget_kw),
@@ -350,11 +348,7 @@ class Config:
 # ======================================================================
 
 
-def _suppress_deprecation(cls_type: type, **kwargs: object) -> object:
-    """Construct *cls_type* while suppressing its DeprecationWarning."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        return cls_type(**kwargs)
+
 
 
 def _env_str(target: dict, env_key: str, field_name: str) -> None:
@@ -384,10 +378,10 @@ def _env_int(target: dict, env_key: str, field_name: str) -> None:
 def _build_sub(cls_type: type, data: dict) -> object:
     """Construct *cls_type* from *data*, ignoring unknown keys."""
     if not isinstance(data, dict):
-        return _suppress_deprecation(cls_type)
+        return cls_type()
     valid_fields = {f.name for f in cls_type.__dataclass_fields__.values()}
     filtered = {k: v for k, v in data.items() if k in valid_fields}
-    return _suppress_deprecation(cls_type, **filtered)
+    return cls_type(**filtered)
 
 
 def _build_agent(data: dict) -> AgentConfig:
@@ -401,8 +395,6 @@ def _build_agent(data: dict) -> AgentConfig:
 
     core_data = data.get("core", {})
     if isinstance(core_data, dict) and core_data:
-        agent_kw["core"] = _suppress_deprecation(SuperBrowserConfig, **{k: v for k, v in core_data.items() if k in {f.name for f in SuperBrowserConfig.__dataclass_fields__.values()}})
+        agent_kw["core"] = SuperBrowserConfig(**{k: v for k, v in core_data.items() if k in {f.name for f in SuperBrowserConfig.__dataclass_fields__.values()}})
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        return AgentConfig(**agent_kw)
+    return AgentConfig(**agent_kw)
