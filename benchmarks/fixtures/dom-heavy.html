@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>DOM-Heavy Page</title></head>
+<body>
+  <h1>DOM-Heavy Benchmark Fixture</h1>
+  <div id="container"></div>
+  <script>
+    var c = document.getElementById('container');
+    for (var i = 0; i < 500; i++) {
+      var d = document.createElement('div');
+      d.className = 'item item-' + i;
+      d.id = 'item-' + i;
+      d.innerHTML = '<span class="label">Item ' + i + '</span>'
+        + '<p class="desc">Description for item ' + i + '</p>'
+        + '<a href="#" class="link">Link ' + i + '</a>';
+      c.appendChild(d);
+    }
+  </script>
+</body>
+</html>

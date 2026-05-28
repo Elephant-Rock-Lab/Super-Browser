@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "benchmark_name": "real-browser-baseline",
+  "backend": "patchright",
+  "live": false,
+  "runs": 3,
+  "metadata": {
+    "timestamp": "2026-05-28T22:35:44+0300",
+    "python_version": "3.11.9",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "cpu_count": 16,
+    "super_browser_version": "1.10.0"
+  },
+  "results": [
+    {
+      "name": "browser_launch_time",
+      "unit": "ms",
+      "samples": [
+        843.0,
+        875.0,
+        813.0
+      ],
+      "mean": 843.667,
+      "median": 843.0,
+      "min": 813.0,
+      "max": 875.0
+    },
+    {
+      "name": "new_page_time",
+      "unit": "ms",
+      "samples": [
+        156.0,
+        62.0,
+        94.0
+      ],
+      "mean": 104.0,
+      "median": 94.0,
+      "min": 62.0,
+      "max": 156.0
+    },
+    {
+      "name": "local_navigation_time",
+      "unit": "ms",
+      "samples": [
+        125.0,
+        15.0,
+        16.0
+      ],
+      "mean": 52.0,
+      "median": 16.0,
+      "min": 15.0,
+      "max": 125.0
+    },
+    {
+      "name": "click_latency",
+      "unit": "ms",
+      "samples": [
+        109.0,
+        109.0,
+        47.0
+      ],
+      "mean": 88.333,
+      "median": 109.0,
+      "min": 47.0,
+      "max": 109.0
+    },
+    {
+      "name": "fill_latency",
+      "unit": "ms",
+      "samples": [
+        47.0,
+        16.0,
+        16.0
+      ],
+      "mean": 26.333,
+      "median": 16.0,
+      "min": 16.0,
+      "max": 47.0
+    },
+    {
+      "name": "screenshot_latency",
+      "unit": "ms",
+      "samples": [
+        157.0,
+        78.0,
+        47.0
+      ],
+      "mean": 94.0,
+      "median": 78.0,
+      "min": 47.0,
+      "max": 157.0
+    },
+    {
+      "name": "cdp_roundtrip_latency",
+      "unit": "ms",
+      "samples": [
+        0.0,
+        16.0,
+        0.0
+      ],
+      "mean": 5.333,
+      "median": 0.0,
+      "min": 0.0,
+      "max": 16.0
+    },
+    {
+      "name": "stealth_injection_overhead",
+      "unit": "ms",
+      "samples": [
+        0.0,
+        -16.0,
+        16.0
+      ],
+      "mean": 0.0,
+      "median": 0.0,
+      "min": -16.0,
+      "max": 16.0,
+      "paired_plain_samples": [
+        125.0,
+        125.0,
+        125.0
+      ],
+      "paired_stealth_samples": [
+        125.0,
+        109.0,
+        141.0
+      ]
+    },
+    {
+      "name": "session_save_time",
+      "unit": "ms",
+      "samples": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mean": 0.0,
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    {
+      "name": "session_load_time",
+      "unit": "ms",
+      "samples": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mean": 0.0,
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    {
+      "name": "memory_delta_after_launch",
+      "unit": "MB",
+      "samples": [
+        487.172,
+        484.02,
+        496.387
+      ],
+      "mean": 489.193,
+      "median": 487.172,
+      "min": 484.02,
+      "max": 496.387
+    },
+    {
+      "name": "memory_delta_after_5_tabs",
+      "unit": "MB",
+      "samples": [
+        793.145,
+        794.336,
+        801.359
+      ],
+      "mean": 796.28,
+      "median": 794.336,
+      "min": 793.145,
+      "max": 801.359
+    }
+  ]
+}
