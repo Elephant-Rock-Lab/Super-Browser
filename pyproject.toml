@@ -74,7 +74,7 @@ browser = [
     "Pillow>=10.0",
 ]
 all = [
-    "super-browser[patchright,playwright,selenium,cdp]",
+    "super-browser[patchright,playwright,selenium,cdp,security,anthropic,openai,mcp,cloud]",
 ]
 dev = [
     "pytest>=9.0",
