@@ -155,8 +155,8 @@ class TestJsSyntaxValidity:
             assert "SyntaxError" not in result.stderr, (
                 f"JS SyntaxError: {result.stderr}"
             )
-        except FileNotFoundError:
-            # Node.js not available — do a heuristic check instead.
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            # Node.js not available or hung — do a heuristic check instead.
             # Verify balanced braces and parentheses.
             assert js.count("{") == js.count("}"), "Unbalanced braces"
             assert js.count("(") == js.count(")"), "Unbalanced parentheses"

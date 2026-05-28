@@ -53,6 +53,7 @@ class CheckpointManager:
     async def initialize(self) -> None:
         """Ensure checkpoint directory exists."""
         self._checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self._save_counter = 0
         logger.debug("CheckpointManager initialized at %s", self._checkpoint_dir)
 
     # ------------------------------------------------------------------
@@ -64,10 +65,12 @@ class CheckpointManager:
 
         Serializes: page URL, scroll position, form input values, cookies.
         """
+        self._save_counter += 1
         state: dict[str, Any] = {
             "checkpoint_id": uuid.uuid4().hex[:12],
             "label": label,
             "timestamp": time.time(),
+            "sequence": self._save_counter,
         }
 
         # --- URL ---
@@ -262,24 +265,29 @@ class CheckpointManager:
             return []
 
         checkpoints: list[Checkpoint] = []
-        files = sorted(
-            self._checkpoint_dir.glob("*.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
+        files = list(self._checkpoint_dir.glob("*.json"))
 
-        for fp in files[:limit]:
+        raw: list[tuple[float, dict]] = []
+        for fp in files:
             try:
                 data = json.loads(fp.read_text(encoding="utf-8"))
-                checkpoints.append(Checkpoint(
-                    checkpoint_id=data.get("checkpoint_id", fp.stem),
-                    message=data.get("label", ""),
-                    created_at=data.get("timestamp", 0),
-                    file_count=1,
-                    commit_hash="",
-                ))
+                # Use sequence for deterministic ordering, fall back to timestamp
+                ts = data.get("sequence", data.get("timestamp", fp.stat().st_mtime))
+                raw.append((ts, data))
             except Exception:
                 logger.warning("Corrupt checkpoint file: %s", fp)
+
+        # Sort by embedded timestamp (sub-second precision) descending.
+        raw.sort(key=lambda t: t[0], reverse=True)
+
+        for _, data in raw[:limit]:
+            checkpoints.append(Checkpoint(
+                checkpoint_id=data.get("checkpoint_id", "unknown"),
+                message=data.get("label", ""),
+                created_at=data.get("timestamp", 0),
+                file_count=1,
+                commit_hash="",
+            ))
 
         return checkpoints
 
