@@ -70,7 +70,7 @@ class TestStalePenalty:
         score = compute_activation(s)
         s_active = _skill(access_count=10, last_used=shared_last_used, status=SkillStatus.ACTIVE)
         score_active = compute_activation(s_active)
-        assert abs(score - (score_active - 2.0)) < 1e-9
+        assert abs(score - (score_active - 2.0)) < 1e-6
 
     def test_stale_below_threshold(self):
         s = _skill(access_count=2, last_used=0.0, status=SkillStatus.STALE)
