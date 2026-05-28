@@ -63,6 +63,7 @@ class TracingConfig:
 
     enabled: bool = False
     sink_type: str = "console"  # "console" | "file" | "otlp"
+    output_dir: str = ""  # Directory for FileSink trace output
 
 
 @dataclass(frozen=True)
@@ -112,7 +113,7 @@ class Config:
         * :meth:`from_dict` — creates from a plain dict
     """
 
-    browser: SessionConfig = field(default_factory=lambda: SessionConfig)
+    browser: SessionConfig = field(default_factory=SessionConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
     stealth: StealthConfig = field(default_factory=StealthConfig)
     budget: BudgetConfig = field(default_factory=BudgetConfig)
@@ -141,6 +142,7 @@ class Config:
             tracing=TracingConfig(
                 enabled=sb_config.trace_enabled,
                 sink_type="file" if sb_config.trace_output_dir else "console",
+                output_dir=sb_config.trace_output_dir or "",
             ),
             memory=MemoryConfig(
                 memory_enabled=False,
@@ -195,6 +197,7 @@ class Config:
         tracing_kw: dict = {}
         _env_bool(tracing_kw, "SB_TRACING_ENABLED", "enabled")
         _env_str(tracing_kw, "SB_TRACING_SINK", "sink_type")
+        _env_str(tracing_kw, "SB_TRACING_OUTPUT_DIR", "output_dir")
 
         # -- Memory -------------------------------------------------
         memory_kw: dict = {}

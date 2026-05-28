@@ -145,6 +145,8 @@ class SuperBrowser:
             from super_browser.tracing.sinks import ConsoleSink
             sinks = [ConsoleSink()]
             trace_dir = _lc.trace_output_dir if _lc else ""
+            if not trace_dir:
+                trace_dir = cfg.tracing.output_dir
             if trace_dir:
                 from pathlib import Path
 
