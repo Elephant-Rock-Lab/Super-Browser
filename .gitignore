@@ -33,7 +33,7 @@ venv/
 *.log
 
 # AIV working documents (per-Batch docs)
-docs/aiv/*/
+docs/aiv/
 
 # Session data
 sessions/
