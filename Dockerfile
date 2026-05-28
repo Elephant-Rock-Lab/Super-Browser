@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="Super Browser"
 LABEL org.opencontainers.image.description="Production-grade AI browser automation"
-LABEL org.opencontainers.image.source="https://github.com/user/super-browser"
+LABEL org.opencontainers.image.source="https://github.com/Elephant-Rock-Lab/Super-Browser"
 
 # System deps for Chromium
 RUN apt-get update && apt-get install -y --no-install-recommends \
