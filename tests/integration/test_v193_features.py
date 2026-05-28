@@ -77,21 +77,21 @@ class TestV193RuntimeAlignment:
     def test_api_stability_lists_save_session(self) -> None:
         from pathlib import Path
 
-        content = Path("C:/Next AI/SUPER-BROWSER/docs/api-stability.md").read_text(encoding="utf-8")
+        content = Path("./docs/api-stability.md").read_text(encoding="utf-8")
         assert "save_session" in content
         assert "load_session" in content
 
     def test_agent_reliability_10_signatures(self) -> None:
         from pathlib import Path
 
-        content = Path("C:/Next AI/SUPER-BROWSER/docs/agent-reliability.md").read_text(encoding="utf-8")
+        content = Path("./docs/agent-reliability.md").read_text(encoding="utf-8")
         assert "10 error signatures" in content
         assert "8 error signatures" not in content
 
     def test_readme_sb_llm_env(self) -> None:
         from pathlib import Path
 
-        content = Path("C:/Next AI/SUPER-BROWSER/README.md").read_text(encoding="utf-8")
+        content = Path("./README.md").read_text(encoding="utf-8")
         assert "SB_LLM_API_KEY" in content
 
     # -- ITEM-5: create_llm uses SB_LLM_* --

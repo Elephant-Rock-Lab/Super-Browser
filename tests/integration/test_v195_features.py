@@ -16,8 +16,8 @@ from packaging.version import Version as _V
 
 from super_browser import __version__
 
-EXAMPLES_DIR = Path("C:/Next AI/SUPER-BROWSER/examples")
-DOCS_DIR = Path("C:/Next AI/SUPER-BROWSER/docs")
+EXAMPLES_DIR = Path("./examples")
+DOCS_DIR = Path("./docs")
 
 
 class TestV195DocNormalization:

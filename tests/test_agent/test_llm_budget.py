@@ -294,7 +294,7 @@ class TestPyprojectOpenAIExtra:
 
     def test_openai_extra_exists_in_pyproject(self) -> None:
         """TEST-04-02-03: pyproject.toml contains an [openai] extra."""
-        pyproject = Path("C:/Next AI/SUPER-BROWSER/pyproject.toml")
+        pyproject = Path("./pyproject.toml")
         content = pyproject.read_text(encoding="utf-8")
         assert "openai = [" in content or '"openai"' in content, (
             "pyproject.toml is missing the [openai] optional-dependencies entry"

@@ -79,7 +79,7 @@ class TestV190Features:
         import subprocess
         result = subprocess.run(
             ["grep", "-c", "raw_page", "src/super_browser/interaction/controller.py"],
-            capture_output=True, text=True, cwd="C:/Next AI/SUPER-BROWSER",
+            capture_output=True, text=True, cwd=".",
         )
         assert result.returncode != 0 or result.stdout.strip() == "0"
 
@@ -88,7 +88,7 @@ class TestV190Features:
         import subprocess
         result = subprocess.run(
             ["grep", "-c", "TODO.BATCH-47", "src/super_browser/agent/facade.py"],
-            capture_output=True, text=True, cwd="C:/Next AI/SUPER-BROWSER",
+            capture_output=True, text=True, cwd=".",
         )
         assert result.returncode != 0 or result.stdout.strip() == "0"
 
@@ -114,7 +114,7 @@ class TestV190Features:
     def test_pyproject_optional_deps(self) -> None:
         """pyproject.toml has all backend dep groups."""
         import tomllib
-        with open("C:/Next AI/SUPER-BROWSER/pyproject.toml", "rb") as f:
+        with open("./pyproject.toml", "rb") as f:
             data = tomllib.load(f)
         deps = data["project"]["optional-dependencies"]
         for group in ("patchright", "playwright", "selenium", "cdp", "all"):
@@ -123,10 +123,10 @@ class TestV190Features:
     def test_ci_workflow_exists(self) -> None:
         """GitHub Actions CI workflow exists."""
         import os
-        assert os.path.exists("C:/Next AI/SUPER-BROWSER/.github/workflows/test.yml")
-        assert os.path.exists("C:/Next AI/SUPER-BROWSER/.github/workflows/publish.yml")
+        assert os.path.exists(".github/workflows/test.yml")
+        assert os.path.exists(".github/workflows/publish.yml")
 
     def test_platform_abstraction_doc_exists(self) -> None:
         """Platform abstraction documentation exists."""
         import os
-        assert os.path.exists("C:/Next AI/SUPER-BROWSER/docs/platform-abstraction.md")
+        assert os.path.exists("./docs/platform-abstraction.md")

@@ -12,7 +12,7 @@ class TestBATCH47Integration:
         """Controller has zero raw_page calls."""
         result = subprocess.run(
             ["grep", "-c", "raw_page", "src/super_browser/interaction/controller.py"],
-            capture_output=True, text=True, cwd="C:/Next AI/SUPER-BROWSER",
+            capture_output=True, text=True, cwd=".",
         )
         # grep returns exit code 1 when no matches (count is 0)
         assert result.returncode != 0 or result.stdout.strip() == "0"
@@ -21,7 +21,7 @@ class TestBATCH47Integration:
         """Facade has zero TODO(BATCH-47) markers."""
         result = subprocess.run(
             ["grep", "-c", "TODO.BATCH-47", "src/super_browser/agent/facade.py"],
-            capture_output=True, text=True, cwd="C:/Next AI/SUPER-BROWSER",
+            capture_output=True, text=True, cwd=".",
         )
         assert result.returncode != 0 or result.stdout.strip() == "0"
 
@@ -29,7 +29,7 @@ class TestBATCH47Integration:
         """Facade has zero _session._private access."""
         result = subprocess.run(
             ["grep", "-c", "_session\\._", "src/super_browser/agent/facade.py"],
-            capture_output=True, text=True, cwd="C:/Next AI/SUPER-BROWSER",
+            capture_output=True, text=True, cwd=".",
         )
         assert result.returncode != 0 or result.stdout.strip() == "0"
 
@@ -56,4 +56,4 @@ class TestBATCH47Integration:
     def test_architecture_docs_exist(self) -> None:
         """Architecture docs exist."""
         import os
-        assert os.path.exists("C:/Next AI/SUPER-BROWSER/docs/architecture.md")
+        assert os.path.exists("./docs/architecture.md")

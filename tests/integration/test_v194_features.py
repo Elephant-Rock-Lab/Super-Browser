@@ -24,12 +24,12 @@ class TestV194APIReference:
         assert _V(__version__) >= _V("1.9.4")
 
     def test_backend_selection_uses_session_config(self) -> None:
-        content = Path("C:/Next AI/SUPER-BROWSER/examples/backend_selection.py").read_text(encoding="utf-8")
+        content = Path("./examples/backend_selection.py").read_text(encoding="utf-8")
         assert "SessionConfig" in content
         assert "Config.Browser" not in content
 
     def test_api_reference_has_all_facade_methods(self) -> None:
-        content = Path("C:/Next AI/SUPER-BROWSER/docs/api-reference.md").read_text(encoding="utf-8")
+        content = Path("./docs/api-reference.md").read_text(encoding="utf-8")
         actual = sorted(
             m for m in dir(SuperBrowser)
             if not m.startswith("_") and callable(getattr(SuperBrowser, m))
@@ -38,11 +38,11 @@ class TestV194APIReference:
             assert method in content, f"Facade method '{method}' missing from api-reference.md"
 
     def test_api_reference_version_header(self) -> None:
-        first_lines = Path("C:/Next AI/SUPER-BROWSER/docs/api-reference.md").read_text(encoding="utf-8").split("\n")[:5]
+        first_lines = Path("./docs/api-reference.md").read_text(encoding="utf-8").split("\n")[:5]
         joined = "\n".join(first_lines)
         assert "v1.9.3" in joined
 
     def test_architecture_version_header(self) -> None:
-        first_lines = Path("C:/Next AI/SUPER-BROWSER/docs/architecture.md").read_text(encoding="utf-8").split("\n")[:5]
+        first_lines = Path("./docs/architecture.md").read_text(encoding="utf-8").split("\n")[:5]
         joined = "\n".join(first_lines)
         assert "v1.9.3" in joined
