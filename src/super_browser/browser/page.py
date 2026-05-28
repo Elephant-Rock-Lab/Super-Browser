@@ -78,9 +78,5 @@ class PageHandle:
 
     @property
     def raw_page(self) -> Any:
-        """Underlying Patchright Page for advanced usage.
-
-        .. deprecated:: BATCH-46
-            Use :meth:`engine_page` for protocol-compliant access.
-        """
+        """Underlying Patchright Page for advanced usage."""
         return self._page

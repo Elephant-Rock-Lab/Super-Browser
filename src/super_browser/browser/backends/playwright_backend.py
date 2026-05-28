@@ -239,7 +239,7 @@ class PlaywrightPage:
 
     @property
     def raw_page(self) -> Any:
-        """Underlying Playwright Page (deprecated — use EnginePage methods)."""
+        """Underlying Playwright Page. For advanced use."""
         return self._page
 
     @property

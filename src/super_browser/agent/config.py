@@ -1,8 +1,11 @@
-"""GAP-07 agent configuration."""
+"""Agent core configuration.
+
+Composed into :class:`Config` as ``agent.core``.
+Fields control the agent loop, LLM defaults, and feature flags.
+"""
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import dataclass
 
 
@@ -27,10 +30,3 @@ class SuperBrowserConfig:
     enable_skills: bool = False
     skills_dir: str = ""
     enable_verification: bool = False
-
-    def __post_init__(self) -> None:
-        warnings.warn(
-            "SuperBrowserConfig is deprecated. Use super_browser.Config instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )

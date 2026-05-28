@@ -122,7 +122,6 @@ class TestPrometheusSink:
             await sink.close()
         asyncio.run(_test())
 
-    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     def test_no_error_without_prometheus(self):
         async def _test():
             sink = PrometheusSink()

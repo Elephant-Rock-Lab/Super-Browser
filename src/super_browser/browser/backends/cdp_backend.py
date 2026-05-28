@@ -514,7 +514,6 @@ class CDPDirectEngine:
 
     async def start(self, config: Any = None) -> None:
         """Connect to the CDP endpoint and set up the bridge."""
-        import warnings
 
         endpoint = self._endpoint
         if config is not None:
@@ -555,9 +554,7 @@ class CDPDirectEngine:
         await ws_session.connect()
 
         # Create CDPBridge with adapter
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            bridge_config = SessionConfig()
+        bridge_config = SessionConfig()
         cdp = CDPBridge(ws_session, bridge_config)
 
         self._ws_session = ws_session

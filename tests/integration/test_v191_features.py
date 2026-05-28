@@ -10,7 +10,6 @@ Verifies:
 
 from __future__ import annotations
 
-import pytest
 from packaging.version import Version as _V
 
 from super_browser import __version__
@@ -33,8 +32,7 @@ class TestV191Features:
         assert isinstance(sb._config, Config)
 
     def test_legacy_config_auto_wrapped(self) -> None:
-        with pytest.warns(DeprecationWarning):
-            legacy = SuperBrowserConfig(max_steps=42)
+        legacy = SuperBrowserConfig(max_steps=42)
         sb = SuperBrowser(config=legacy)
         assert isinstance(sb._config, Config)
         assert sb._config.agent.core.max_steps == 42
@@ -47,15 +45,13 @@ class TestV191Features:
         assert sb._legacy_core is None
 
     def test_from_legacy_maps_tracing(self) -> None:
-        with pytest.warns(DeprecationWarning):
-            legacy = SuperBrowserConfig(trace_enabled=True, trace_output_dir="/tmp")
+        legacy = SuperBrowserConfig(trace_enabled=True, trace_output_dir="/tmp")
         cfg = Config.from_legacy(legacy)
         assert cfg.tracing.enabled is True
         assert cfg.tracing.sink_type == "file"
 
     def test_from_legacy_tracing_console(self) -> None:
-        with pytest.warns(DeprecationWarning):
-            legacy = SuperBrowserConfig(trace_enabled=True, trace_output_dir="")
+        legacy = SuperBrowserConfig(trace_enabled=True, trace_output_dir="")
         cfg = Config.from_legacy(legacy)
         assert cfg.tracing.sink_type == "console"
 
@@ -72,14 +68,12 @@ class TestV191Features:
     # -- SessionConfig.session_file --
 
     def test_session_config_has_session_file(self) -> None:
-        with pytest.warns(DeprecationWarning):
-            sc = SessionConfig()
+        sc = SessionConfig()
         assert hasattr(sc, "session_file")
         assert sc.session_file is None
 
     def test_session_config_session_file_set(self) -> None:
-        with pytest.warns(DeprecationWarning):
-            sc = SessionConfig(session_file="saved.json")
+        sc = SessionConfig(session_file="saved.json")
         assert sc.session_file == "saved.json"
 
     # -- Facade method count --
@@ -92,8 +86,7 @@ class TestV191Features:
     # -- Config from_legacy returns Config --
 
     def test_from_legacy_returns_config(self) -> None:
-        with pytest.warns(DeprecationWarning):
-            legacy = SuperBrowserConfig()
+        legacy = SuperBrowserConfig()
         cfg = Config.from_legacy(legacy)
         assert isinstance(cfg, Config)
         assert isinstance(cfg.browser, SessionConfig)

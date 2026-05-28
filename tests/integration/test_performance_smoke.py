@@ -14,8 +14,6 @@ import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.loop import AgentLoop
@@ -71,8 +69,7 @@ class TestColdStart:
 
     def test_init_with_config_under_5s(self) -> None:
         """SuperBrowser(config=...) instantiation takes <5s."""
-        with pytest.warns(DeprecationWarning):
-            config = SuperBrowserConfig(
+        config = SuperBrowserConfig(
                 max_steps=50,
                 trace_enabled=True,
                 enable_recovery=False,
