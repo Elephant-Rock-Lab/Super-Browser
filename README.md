@@ -1,4 +1,6 @@
-# Super Browser
+<p align="center">
+  <img src=".github/Super-Browser.png" alt="Super-Browser — Anti-detection agent browser SDK, stealth, budget governance, security guardrails, and structured error recovery behind one async facade" width="100%">
+</p>
 
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/example/super-browser)
 [![Coverage](https://img.shields.io/badge/coverage-85%25-green)](https://github.com/example/super-browser)
