@@ -66,6 +66,7 @@ selenium = [
 ]
 cdp = [
     "websockets>=12.0",
+    "aiohttp>=3.9",
 ]
 browser = [
     "patchright>=1.0",
