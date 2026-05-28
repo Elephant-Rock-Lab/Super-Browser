@@ -11,6 +11,7 @@ Verifies:
 from __future__ import annotations
 
 from packaging.version import Version as _V
+
 from super_browser import __version__
 from super_browser.browser.config import SessionConfig
 from super_browser.browser.engine import _detect_backend

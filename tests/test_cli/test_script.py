@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from super_browser import SuperBrowser
 from super_browser.cli.script import (
     _execute_step,

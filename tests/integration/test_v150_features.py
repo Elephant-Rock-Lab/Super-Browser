@@ -8,6 +8,7 @@ Exercise: consistency engine → inject → behavioral v2 → Chromium fetch
 from __future__ import annotations
 
 import pytest
+
 from super_browser.behavioral import (
     synthesize_keystrokes,
     synthesize_mouse_trajectory,

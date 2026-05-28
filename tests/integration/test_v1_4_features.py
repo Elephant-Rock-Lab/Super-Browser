@@ -17,6 +17,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from super_browser.browser.cloak_backend import (
     CloakBrowserAdapter,
     is_cloak_available,

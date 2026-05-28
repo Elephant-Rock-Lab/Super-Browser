@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from super_browser.agent.llm.budget_aware import (
     BudgetAwareLLMClient,
     _estimate_cost_usd,

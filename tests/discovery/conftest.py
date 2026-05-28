@@ -12,6 +12,7 @@ import os
 from typing import Any
 
 import pytest
+
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.llm.factory import create_llm

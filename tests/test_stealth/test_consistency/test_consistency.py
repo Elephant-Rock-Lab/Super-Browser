@@ -18,6 +18,7 @@ from dataclasses import asdict
 from typing import Any
 
 import pytest
+
 from super_browser.stealth.consistency import (
     DeviceProfile,
     FingerprintMatrix,

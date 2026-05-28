@@ -7,6 +7,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from super_browser.browser.backends.cdp_backend import (
     CDPDirectEngine,
     CDPDirectPage,

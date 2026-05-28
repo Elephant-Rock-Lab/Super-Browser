@@ -5,6 +5,7 @@ import json
 import time
 
 import pytest
+
 from super_browser.skills.registry import SkillRegistry
 from super_browser.skills.types import (
     ActivationConfig,

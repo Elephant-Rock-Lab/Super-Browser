@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 from packaging.version import Version as _V
+
 from super_browser import __version__
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser

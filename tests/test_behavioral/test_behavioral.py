@@ -8,6 +8,7 @@ from __future__ import annotations
 import math
 
 import pytest
+
 from super_browser.behavioral import (
     synthesize_keystrokes,
     synthesize_mouse_trajectory,

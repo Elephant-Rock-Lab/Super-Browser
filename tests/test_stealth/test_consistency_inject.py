@@ -18,6 +18,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from super_browser.stealth.consistency import (
     FingerprintMatrix,
     derive_matrix,

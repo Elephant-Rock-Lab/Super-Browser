@@ -5,6 +5,7 @@ import io
 from unittest.mock import AsyncMock, MagicMock
 
 from PIL import Image
+
 from super_browser.verification.types import (
     PerceptualHash,
     VerificationActionType,

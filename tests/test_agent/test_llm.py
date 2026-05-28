@@ -6,6 +6,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from super_browser.agent.llm.protocol import LLMClient
 
 # ---------------------------------------------------------------------------

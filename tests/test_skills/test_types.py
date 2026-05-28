@@ -3,6 +3,7 @@
 import json
 
 import pytest
+
 from super_browser.skills.types import (
     ActivationConfig,
     DomainSkill,

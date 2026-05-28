@@ -7,6 +7,7 @@ import asyncio
 import time
 
 import pytest
+
 from super_browser.recovery.event_bus import WatchdogEventBus
 from super_browser.stealth.captcha import CAPTCHAWatchdog
 from super_browser.stealth.types import (

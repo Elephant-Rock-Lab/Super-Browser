@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from super_browser.agent.facade import SuperBrowser
 from super_browser.recording.persistence import save
 from super_browser.recording.replayer import RecordingReplayer

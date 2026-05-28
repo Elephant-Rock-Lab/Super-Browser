@@ -11,6 +11,7 @@ from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from super_browser.agent.facade import SuperBrowser
 
 logger = logging.getLogger(__name__)

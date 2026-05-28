@@ -6,6 +6,7 @@ Test IDs: TEST-28-01-01 through TEST-28-01-05
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from super_browser.stealth.human import HumanBehaviorAdapter
 from super_browser.stealth.human_config import HumanConfig
 
