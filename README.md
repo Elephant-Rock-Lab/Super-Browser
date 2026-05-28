@@ -128,7 +128,7 @@ browser = SuperBrowser(Config(browser=SessionConfig(backend="cdp", endpoint="ws:
 
 ### Agent UX & Reliability — Structured Results, Recovery, Redaction
 
-v1.7.0 makes Super Browser the most agent-friendly browser library by adding structured result categories, automatic stale-ref recovery, and a production-grade secret redaction pipeline.
+Structured result categories, automatic stale-ref recovery, and a production-grade secret redaction pipeline.
 
 ```python
 from super_browser.results import (

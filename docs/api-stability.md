@@ -1,6 +1,6 @@
 # API Stability Contract
 
-> **Super Browser** v1.9.3 — Public API stability guarantees.
+> **Super Browser** v1.10.0 — Public API stability guarantees.
 
 This document defines which APIs are stable, which are protocols (stable interface, evolving implementations), and which are internal.
 
@@ -48,14 +48,14 @@ These will not break within a major version. Deprecations are announced one majo
 | `delegate(tasks)` | Run subagent tasks concurrently |
 | `register_tool(func)` | Register custom tool |
 | `abort()` | Cancel running operation |
+| `configure_verification()` | Attach visual verifier to controller |
 | `enable_recording()` | Start session recording |
 | `replay(path)` | Replay recorded session |
 | `enable_memory()` | Enable memory store |
 | `learn_from_trajectory()` | Train from past sessions |
 | `save_session(path)` | Persist cookies and session state to file |
 | `load_session(path)` | Restore cookies and session state from file |
-| `start()` | Start browser session |
-| `stop()` | Stop browser session |
+| `tools()` | Get tool descriptions |
 
 **SuperBrowser properties**:
 
@@ -65,7 +65,6 @@ These will not break within a major version. Deprecations are announced one majo
 | `memory` | `MemoryStore | None` | Memory store instance |
 | `is_running` | `bool` | Whether browser is active |
 | `stealth_backend` | `str` | Active stealth backend name |
-| `tools()` | `str` | Get tool descriptions |
 
 **Result types** (`super_browser.results.types`):
 
@@ -99,7 +98,7 @@ Everything with a `_` prefix is internal. It may change without notice between m
 Common internals users should not depend on:
 
 - `_page`, `_session`, `_controller` on SuperBrowser
-- `_raw_page` on any backend (deprecated, removed in most places)
+- `_raw_page` on any backend (escape hatch for advanced use, not a stable interface)
 - `_cdp_bridge` — use `stealth_bridge` instead
 - `_FakeResult` — testing utility, removed
 - Any method starting with `_configure_`, `_attach_`, `_current_`
@@ -107,7 +106,6 @@ Common internals users should not depend on:
 ## Deprecation Policy
 
 - **Deprecated features** are kept for **2 major versions** with runtime warnings.
-- Example: `raw_page` was deprecated in v1.9.0, will be removed in v2.0.0 (kept through v1.x).
 - Deprecation warnings use `DeprecationWarning` and are visible with `python -Wd`.
 
 ## Configuration
@@ -116,22 +114,32 @@ Common internals users should not depend on:
 
 ```
 Config
-  ├── browser: SessionConfig    (backend, browser_type, endpoint, headless)
-  ├── agent: AgentConfig        (wraps SuperBrowserConfig + LLM fields)
-  ├── budget: BudgetConfig      (daily cap, per-action limits)
-  ├── security: SecurityConfig  (domain filter, redaction, vault)
-  ├── stealth: StealthConfig    (injectors, proxies, human behavior)
-  ├── tracing: TracingConfig    (session DB, sinks)
-  ├── network: NetworkConfig    (proxy, retries)
-  └── memory: MemoryConfig      (memory store settings)
+  ├── browser: SessionConfig        (backend, browser_type, endpoint, headless)
+  ├── agent: AgentConfig            (wraps SuperBrowserConfig + LLM fields)
+  ├── budget: BudgetConfig          (daily cap, per-action limits)
+  ├── security: SecurityConfig      (domain filter, redaction, vault)
+  ├── stealth: StealthConfig        (injectors, proxies, human behavior)
+  ├── tracing: TracingConfig        (enabled, sink_type, output_dir)
+  ├── network: NetworkConfig        (proxy, retries)
+  ├── memory: MemoryConfig          (memory store settings)
+  ├── consistency: ConsistencyConfig (fingerprint consistency engine)
+  └── cloak: CloakConfig            (CloakBrowser integration)
 ```
 
-`SuperBrowserConfig` (in `agent/config.py`) is a **legacy alias** that still works but is not the recommended entry point. New code should use `Config`.
+`SuperBrowserConfig` (in `agent/config.py`) is a **compatibility config** that can be passed directly to `SuperBrowser()` for backward compatibility. New code should use `Config`.
 
 ## Version Scheme
 
 Super Browser follows [Semantic Versioning](https://semver.org/):
 
 - **Major** (2.0.0): breaking API changes
-- **Minor** (1.9.0): new features, backward compatible
-- **Patch** (1.9.1): bug fixes, backward compatible
+- **Minor** (1.10.0): new features, backward compatible
+- **Patch** (1.10.1): bug fixes, backward compatible
+
+## Documentation Snippets
+
+Code snippets in `README.md`, `docs/quickstart.md`, and other documentation files are **illustrative** unless they appear in the test suite under `tests/`. Specifically:
+
+- Import statements in docs reflect the real public API and are verified by `tests/integration/test_public_api.py`.
+- Constructor and method call examples show correct usage patterns but are not automatically tested against the runtime.
+- For guaranteed-correct examples, see the `examples/` directory and the integration test suite.
