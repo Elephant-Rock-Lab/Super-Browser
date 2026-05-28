@@ -146,6 +146,10 @@ export SB_HEADLESS=true
 export SB_DAILY_BUDGET=5.0
 ```
 
+> **Note:** `SB_HEADLESS=true` hides the browser window. Use it for CI and testing.
+> For anti-detection scenarios, leave it unset (default is headed — a visible
+> browser is less detectable than headless).
+
 ```python
 from super_browser.config import Config
 

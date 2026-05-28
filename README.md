@@ -65,6 +65,30 @@ asyncio.run(main())
 > sb = SuperBrowser(llm_client=MockLLMClient())
 > ```
 
+## Headless Mode
+
+By default, Super Browser launches a **visible browser window**. This is intentional — headless mode is a detectable signal for anti-bot systems.
+
+For **testing, CI, and scripting** where you don't need stealth, switch to headless:
+
+```python
+from super_browser import Config
+from super_browser.browser.config import SessionConfig
+
+cfg = Config(browser=SessionConfig(headless=True))
+```
+
+Or via environment variable:
+
+```bash
+SB_HEADLESS=true python your_script.py
+```
+
+| Mode | Use case | Stealth-safe? |
+|:-----|:---------|:-------------|
+| Headed (default) | Anti-detection, production scraping | Yes |
+| Headless | CI, testing, quick scripts | No — detectable |
+
 ## Architecture
 
 Super Browser is built on a **three-tier action cascade**:
