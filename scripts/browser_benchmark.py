@@ -106,14 +106,19 @@ def _metadata() -> dict[str, Any]:
 # Benchmark functions
 # ---------------------------------------------------------------------------
 
+_headed = False  # Global; set by CLI --headed flag
+
+
+def _config() -> "SessionConfig":
+    return SessionConfig(backend="patchright", headless=not _headed)
+
 
 async def bench_browser_launch(base_url: str, runs: int) -> dict[str, Any]:
     """Measure browser engine start + stop cycle time."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
     samples: list[float] = []
-    config = SessionConfig(backend="patchright")
+    config = _config()
     for _ in range(runs):
         engine = PatchrightEngine(config)
         t0 = time.monotonic()
@@ -128,9 +133,8 @@ async def bench_browser_launch(base_url: str, runs: int) -> dict[str, Any]:
 async def bench_new_page(base_url: str, runs: int) -> dict[str, Any]:
     """Measure new page creation time on an already-running engine."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
-    config = SessionConfig(backend="patchright")
+    config = _config()
     engine = PatchrightEngine(config)
     await engine.start()
     try:
@@ -150,9 +154,8 @@ async def bench_new_page(base_url: str, runs: int) -> dict[str, Any]:
 async def bench_local_navigation(base_url: str, runs: int) -> dict[str, Any]:
     """Measure navigation to a local fixture page."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
-    config = SessionConfig(backend="patchright")
+    config = _config()
     engine = PatchrightEngine(config)
     await engine.start()
     try:
@@ -174,9 +177,8 @@ async def bench_local_navigation(base_url: str, runs: int) -> dict[str, Any]:
 async def bench_external_navigation(base_url: str, runs: int) -> dict[str, Any]:
     """Measure navigation to an external page (requires --live)."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
-    config = SessionConfig(backend="patchright")
+    config = _config()
     engine = PatchrightEngine(config)
     await engine.start()
     try:
@@ -201,9 +203,8 @@ async def bench_external_navigation(base_url: str, runs: int) -> dict[str, Any]:
 async def bench_click(base_url: str, runs: int) -> dict[str, Any]:
     """Measure click latency on the submit button (non-navigating)."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
-    config = SessionConfig(backend="patchright")
+    config = _config()
     engine = PatchrightEngine(config)
     await engine.start()
     try:
@@ -225,9 +226,8 @@ async def bench_click(base_url: str, runs: int) -> dict[str, Any]:
 async def bench_fill(base_url: str, runs: int) -> dict[str, Any]:
     """Measure fill latency on a text input."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
-    config = SessionConfig(backend="patchright")
+    config = _config()
     engine = PatchrightEngine(config)
     await engine.start()
     try:
@@ -249,9 +249,8 @@ async def bench_fill(base_url: str, runs: int) -> dict[str, Any]:
 async def bench_screenshot(base_url: str, runs: int) -> dict[str, Any]:
     """Measure screenshot capture time."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
-    config = SessionConfig(backend="patchright")
+    config = _config()
     engine = PatchrightEngine(config)
     await engine.start()
     try:
@@ -274,9 +273,8 @@ async def bench_screenshot(base_url: str, runs: int) -> dict[str, Any]:
 async def bench_cdp_roundtrip(base_url: str, runs: int) -> dict[str, Any]:
     """Measure CDP round-trip time for Runtime.evaluate."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
-    config = SessionConfig(backend="patchright")
+    config = _config()
     engine = PatchrightEngine(config)
     await engine.start()
     try:
@@ -303,9 +301,8 @@ async def bench_stealth_overhead(base_url: str, runs: int) -> dict[str, Any]:
     which is where the inject script is applied.
     """
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
-    config = SessionConfig(backend="patchright")
+    config = _config()
     plain_samples: list[float] = []
     stealth_samples: list[float] = []
 
@@ -356,9 +353,8 @@ async def bench_session_save_load(base_url: str, runs: int) -> dict[str, Any]:
     import tempfile
 
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
-    config = SessionConfig(backend="patchright")
+    config = _config()
     save_samples: list[float] = []
     load_samples: list[float] = []
 
@@ -404,9 +400,8 @@ async def bench_session_save_load(base_url: str, runs: int) -> dict[str, Any]:
 async def bench_memory(base_url: str, runs: int) -> dict[str, Any]:
     """Measure process-tree RSS after launch and after 5 tabs."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
-    from super_browser.browser.config import SessionConfig
 
-    config = SessionConfig(backend="patchright")
+    config = _config()
     launch_samples: list[float] = []
     tabs_samples: list[float] = []
 
@@ -532,7 +527,11 @@ def main() -> None:
     parser.add_argument("--json", type=str, help="Write JSON results to file")
     parser.add_argument("--md", type=str, help="Write Markdown report to file")
     parser.add_argument("--runs", type=int, default=DEFAULT_RUNS, help="Iterations per metric")
+    parser.add_argument("--headed", action="store_true", help="Run with visible browser (default is headless)")
     args = parser.parse_args()
+
+    global _headed
+    _headed = args.headed
 
     report = asyncio.run(run_all(live=args.live, runs=args.runs))
 
