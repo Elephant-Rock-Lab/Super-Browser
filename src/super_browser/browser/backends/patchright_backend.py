@@ -106,6 +106,11 @@ class PatchrightPage:
         self._cdp = cdp
         self._stealth_bridge = PatchrightStealthBridge(cdp)
 
+    @property
+    def mouse(self) -> Any:
+        """Access the underlying page mouse for wheel/scroll operations."""
+        return self._page.mouse
+
     # -- Navigation ------------------------------------------------
 
     async def goto(self, url: str, *, wait_until: str = "load", **kwargs: Any) -> None:
