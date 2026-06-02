@@ -170,8 +170,10 @@ class CAPTCHAWatchdog(BaseWatchdog):
                 CAPTCHAProvider.KASADA,
                 CAPTCHAProvider.AKAMAI,
             ):
+                # v2.0: Kasada PoW detection available, but no solving
                 logger.warning(
-                    "CAPTCHA provider %s requires external solver — deferred to v2.0",
+                    "CAPTCHA provider %s requires external solver — "
+                    "use proxy escalation or third-party solver",
                     provider.value,
                 )
                 result = False
