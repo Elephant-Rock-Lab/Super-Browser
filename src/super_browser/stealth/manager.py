@@ -83,9 +83,6 @@ class StealthManager:
                     # Fallback: CDPBridge from engine_page.
                     if self._cdp is None and hasattr(session._page, "cdp"):
                         self._cdp = session._page.cdp
-                elif hasattr(session._page, "raw_page"):
-                    # Legacy fallback — raw Playwright Page.
-                    self._page = session._page.raw_page
                 elif hasattr(session._page, "cdp"):
                     self._cdp = session._page.cdp
             elif hasattr(session, "cdp"):

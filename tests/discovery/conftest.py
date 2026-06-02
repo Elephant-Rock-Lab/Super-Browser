@@ -13,9 +13,10 @@ from typing import Any
 
 import pytest
 
-from super_browser.agent.config import SuperBrowserConfig
+from super_browser.agent.config import AgentConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.llm.factory import create_llm
+from super_browser.config import Config
 
 # ---------------------------------------------------------------------------
 # Marker registration
@@ -58,14 +59,16 @@ def llm_client():
 @pytest.fixture
 async def sb(llm_client):
     """Provide a running SuperBrowser instance with a real LLM client."""
-    config = SuperBrowserConfig(
-        enable_recovery=False,
-        enable_budget=False,
-        enable_security=False,
-        enable_vision=False,
-        enable_stealth=False,
-        enable_skills=False,
-        trace_enabled=False,
+    config = Config(
+        agent=AgentConfig(
+            enable_recovery=False,
+            enable_budget=False,
+            enable_security=False,
+            enable_vision=False,
+            enable_stealth=False,
+            enable_skills=False,
+            trace_enabled=False,
+        ),
     )
     browser = SuperBrowser(config=config, llm_client=llm_client)
     await browser.start()
@@ -80,14 +83,16 @@ async def sb(llm_client):
 @pytest.fixture
 async def sb_browser():
     """Provide a running SuperBrowser WITHOUT an LLM client (Tier-1 only)."""
-    config = SuperBrowserConfig(
-        enable_recovery=False,
-        enable_budget=False,
-        enable_security=False,
-        enable_vision=False,
-        enable_stealth=False,
-        enable_skills=False,
-        trace_enabled=False,
+    config = Config(
+        agent=AgentConfig(
+            enable_recovery=False,
+            enable_budget=False,
+            enable_security=False,
+            enable_vision=False,
+            enable_stealth=False,
+            enable_skills=False,
+            trace_enabled=False,
+        ),
     )
     browser = SuperBrowser(config=config)
     await browser.start()

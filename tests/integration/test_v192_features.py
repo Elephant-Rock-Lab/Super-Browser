@@ -62,25 +62,23 @@ class TestV192DocsCodeAlignment:
 
     # -- ITEM-6: Config composition root wires recovery/budget --
 
-    def test_config_agent_core_has_enable_recovery(self) -> None:
+    def test_config_agent_has_enable_recovery(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_recovery")
+        assert hasattr(cfg.agent, "enable_recovery")
 
-    def test_config_agent_core_has_enable_budget(self) -> None:
+    def test_config_agent_has_enable_budget(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_budget")
+        assert hasattr(cfg.agent, "enable_budget")
 
     def test_config_recovery_defaults_false(self) -> None:
         cfg = Config()
-        assert cfg.agent.core.enable_recovery is False
+        assert cfg.agent.enable_recovery is False
 
     def test_config_budget_defaults_false(self) -> None:
         cfg = Config()
-        assert cfg.agent.core.enable_budget is False
+        assert cfg.agent.enable_budget is False
 
     def test_config_recovery_can_enable(self) -> None:
-        from super_browser.agent.config import SuperBrowserConfig
-        from super_browser.config import AgentConfig
-        core = SuperBrowserConfig(enable_recovery=True)
-        cfg = Config(agent=AgentConfig(core=core))
-        assert cfg.agent.core.enable_recovery is True
+        from super_browser.agent.config import AgentConfig
+        cfg = Config(agent=AgentConfig(enable_recovery=True))
+        assert cfg.agent.enable_recovery is True

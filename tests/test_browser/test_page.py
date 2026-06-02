@@ -44,8 +44,3 @@ class TestPageHandle:
         cdp = CDPBridge(AsyncMock(), SessionConfig())
         ph = _make_page_handle(cdp=cdp)
         assert ph.cdp is cdp
-
-    def test_raw_page_exposes_page(self):
-        page = AsyncMock()
-        ph = _make_page_handle(page)
-        assert ph.raw_page is page

@@ -47,30 +47,30 @@ class TestV193RuntimeAlignment:
         cfg = Config(browser=SessionConfig(backend="patchright"))
         assert _detect_backend(cfg) == "patchright"
 
-    # -- ITEM-2/3/4: Config.agent.core enables subsystems --
+    # -- ITEM-2/3/4: Config.agent enables subsystems --
 
-    def test_config_agent_core_enable_vision(self) -> None:
+    def test_config_agent_enable_vision(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_vision")
-        assert cfg.agent.core.enable_vision is False
+        assert hasattr(cfg.agent, "enable_vision")
+        assert cfg.agent.enable_vision is False
 
-    def test_config_agent_core_enable_stealth(self) -> None:
+    def test_config_agent_enable_stealth(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_stealth")
-        assert cfg.agent.core.enable_stealth is False
+        assert hasattr(cfg.agent, "enable_stealth")
+        assert cfg.agent.enable_stealth is False
 
-    def test_config_agent_core_enable_skills(self) -> None:
+    def test_config_agent_enable_skills(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_skills")
-        assert cfg.agent.core.enable_skills is False
+        assert hasattr(cfg.agent, "enable_skills")
+        assert cfg.agent.enable_skills is False
 
-    def test_config_agent_core_enable_recovery(self) -> None:
+    def test_config_agent_enable_recovery(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_recovery")
+        assert hasattr(cfg.agent, "enable_recovery")
 
-    def test_config_agent_core_enable_budget(self) -> None:
+    def test_config_agent_enable_budget(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_budget")
+        assert hasattr(cfg.agent, "enable_budget")
 
     # -- ITEM-5: Docs alignment --
 

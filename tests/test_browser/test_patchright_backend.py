@@ -126,20 +126,6 @@ class TestPatchrightEngineCapabilities:
 
 
 # =========================================================================
-# TEST-46-02-06: PageHandle.raw_page still works (deprecated)
-# =========================================================================
-
-
-class TestPageHandleRawPage:
-    def test_raw_page_returns_underlying_page(self):
-        """TEST-46-02-06: PageHandle.raw_page still works (deprecated)."""
-        mock_page = MagicMock()
-        mock_cdp = MagicMock(spec=CDPBridge)
-        handle = PageHandle(mock_page, mock_cdp)
-        assert handle.raw_page is mock_page
-
-
-# =========================================================================
 # TEST-46-02-07: PageHandle.engine_page returns EnginePage
 # =========================================================================
 
@@ -179,14 +165,15 @@ class TestControllerEnginePage:
         raw.mouse.wheel = AsyncMock()
         raw.locator = MagicMock(return_value=raw)
         raw.scroll = AsyncMock()
-        page.raw_page = raw
+        page.engine_page = raw
+        page.raw_page = raw  # backward compat for old mock pattern
         cdp = MagicMock(spec=CDPBridge)
         cdp.send = AsyncMock(return_value=CDPResult(ok=True, data={}, method="test"))
 
         ctrl = MultimodalController(page, cdp)
         assert ctrl is not None
         # Verify the page handle has engine_page
-        assert hasattr(page, "engine_page") or hasattr(page, "raw_page")
+        assert hasattr(page, "engine_page")
 
 
 # =========================================================================

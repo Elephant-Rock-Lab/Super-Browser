@@ -238,11 +238,6 @@ class PlaywrightPage:
         return self._cdp_session
 
     @property
-    def raw_page(self) -> Any:
-        """Underlying Playwright Page. For advanced use."""
-        return self._page
-
-    @property
     def engine_page(self) -> PlaywrightPage:
         """Self — PlaywrightPage IS the EnginePage wrapper."""
         return self

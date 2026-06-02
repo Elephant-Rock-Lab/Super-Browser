@@ -6,10 +6,10 @@ import os
 from pathlib import Path
 from unittest import mock
 
-from super_browser.agent.config import SuperBrowserConfig
+from super_browser.agent.config import AgentConfig
 from super_browser.browser.config import SessionConfig
 from super_browser.budget.types import BudgetConfig
-from super_browser.config import AgentConfig, Config, TracingConfig
+from super_browser.config import Config, TracingConfig
 from super_browser.security.types import SecurityConfig
 from super_browser.stealth.types import StealthConfig
 
@@ -58,7 +58,7 @@ class TestFromDict:
                 "llm_provider": "openai",
                 "llm_model": "gpt-4o",
                 "llm_api_key": "sk-key",
-                "core": {"max_steps": 100, "default_model": "gpt-4o"},
+                "core": {"max_steps": 100},
             },
             "stealth": {"proxy_url": "http://proxy:8080"},
             "budget": {"daily_cap_usd": 25.0},
@@ -75,8 +75,7 @@ class TestFromDict:
         assert cfg.agent.llm_provider == "openai"
         assert cfg.agent.llm_model == "gpt-4o"
         assert cfg.agent.llm_api_key == "sk-key"
-        assert isinstance(cfg.agent.core, SuperBrowserConfig)
-        assert cfg.agent.core.max_steps == 100
+        assert cfg.agent.max_steps == 100
 
         assert isinstance(cfg.stealth, StealthConfig)
         assert cfg.stealth.proxy_url == "http://proxy:8080"
@@ -160,7 +159,7 @@ class TestDefaults:
         assert cfg.agent.llm_provider == "anthropic"
         assert cfg.agent.llm_model == "claude-sonnet-4-20250514"
         assert cfg.agent.llm_api_key == ""
-        assert cfg.agent.core.max_steps == 50
+        assert cfg.agent.max_steps == 50
         assert cfg.budget.daily_cap_usd == 10.0
         assert cfg.security.injection_detection_enabled is True
         assert cfg.stealth.headless is False

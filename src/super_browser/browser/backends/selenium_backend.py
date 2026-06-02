@@ -368,11 +368,6 @@ class SeleniumPage:
         return self._stealth_bridge
 
     @property
-    def raw_page(self) -> Any:
-        """Underlying WebDriver instance. For advanced use."""
-        return self._driver
-
-    @property
     def engine_page(self) -> SeleniumPage:
         """Self — SeleniumPage IS the EnginePage wrapper."""
         return self

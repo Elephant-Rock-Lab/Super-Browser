@@ -1,7 +1,7 @@
 """Integration tests for v1.10.0 — Launch Blockers Fix.
 
 ITEM-1: Friendly error when no browser backend installed (already exists)
-ITEM-2: _configure_verification() wired to Config.agent.core.enable_verification
+ITEM-2: _configure_verification() wired to Config.agent.enable_verification
 ITEM-3: BiDi injector documented as future (doc-only)
 ITEM-4-5: Backend NotImplementedError documented (doc-only)
 ITEM-6-7: Stealth test fixes (live tests, not unit)
@@ -40,21 +40,21 @@ class TestBackendDetection:
 
 
 class TestVerificationWiring:
-    """_configure_verification reads Config.agent.core.enable_verification."""
+    """_configure_verification reads Config.agent.enable_verification."""
 
     def test_enable_verification_field_exists(self):
-        """SuperBrowserConfig has enable_verification field."""
-        from super_browser.agent.config import SuperBrowserConfig
+        """AgentConfig has enable_verification field."""
+        from super_browser.agent.config import AgentConfig
 
-        cfg = SuperBrowserConfig()
+        cfg = AgentConfig()
         assert hasattr(cfg, "enable_verification")
         assert cfg.enable_verification is False
 
     def test_enable_verification_can_be_true(self):
-        """SuperBrowserConfig.enable_verification can be set to True."""
-        from super_browser.agent.config import SuperBrowserConfig
+        """AgentConfig.enable_verification can be set to True."""
+        from super_browser.agent.config import AgentConfig
 
-        cfg = SuperBrowserConfig(enable_verification=True)
+        cfg = AgentConfig(enable_verification=True)
         assert cfg.enable_verification is True
 
     def test_facade_configure_verification_is_not_pass(self):

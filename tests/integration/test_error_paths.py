@@ -35,7 +35,6 @@ def _mocked_browser_with_llm(llm_client=None) -> SuperBrowser:
     sb._page.url = "https://example.com"
     sb._page.title = AsyncMock(return_value="Test")
     sb._page.goto = AsyncMock()
-    sb._page.raw_page = MagicMock()
     sb._page.cdp = MagicMock()
     sb._controller = MagicMock()
     sb._controller._page = sb._page

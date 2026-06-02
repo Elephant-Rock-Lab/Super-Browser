@@ -24,7 +24,6 @@ def _mocked_browser() -> SuperBrowser:
     sb._page.title = AsyncMock(return_value="Example")
     sb._page.goto = AsyncMock()
     sb._page.close = AsyncMock()
-    sb._page.raw_page = MagicMock()
     sb._page.cdp = MagicMock()
     sb._controller = MagicMock()
     sb._controller._page = sb._page
@@ -200,7 +199,6 @@ class TestLifecycleSmoke:
                 mock_page.title = AsyncMock(return_value="Blank")
                 mock_page.engine_page = MagicMock()
                 mock_page.engine_page.cdp = MagicMock()
-                mock_page.raw_page = MagicMock()
                 mock_session = AsyncMock()
                 mock_session._context = MagicMock()
                 mock_engine.session = mock_session

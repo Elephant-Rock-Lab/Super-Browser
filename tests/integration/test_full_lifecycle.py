@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from super_browser.agent.config import SuperBrowserConfig
+from super_browser.agent.config import AgentConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.registry import ToolRegistry
 from super_browser.agent.types import (
@@ -46,11 +46,11 @@ class TestInit:
         assert isinstance(sb._config, Config)
 
     def test_creates_with_custom_config(self) -> None:
-        """SuperBrowser accepts a SuperBrowserConfig (auto-wrapped in Config)."""
-        config = SuperBrowserConfig(max_steps=10)
+        """SuperBrowser accepts a Config with custom AgentConfig."""
+        config = Config(agent=AgentConfig(max_steps=10))
         sb = SuperBrowser(config=config)
         assert isinstance(sb._config, Config)
-        assert sb._config.agent.core.max_steps == 10
+        assert sb._config.agent.max_steps == 10
 
     def test_creates_with_custom_registry(self) -> None:
         """SuperBrowser accepts a custom ToolRegistry."""
@@ -445,21 +445,19 @@ class TestStealthHeaders:
             mock_page.title = AsyncMock(return_value="Blank")
             mock_page.goto = AsyncMock()
             mock_page.cdp = MagicMock()
-            mock_page.raw_page = MagicMock()
             mock_session.new_page = AsyncMock(return_value=mock_page)
             MockSession.return_value = mock_session
 
-            config = SuperBrowserConfig(enable_stealth=True)
+            config = Config(agent=AgentConfig(enable_stealth=True))
 
             sb = SuperBrowser(config=config)
 
             async def _test() -> None:
-                with patch("super_browser.agent.facade.SessionConfig"):
-                    with patch("super_browser.stealth.StealthManager") as MockStealth:
-                        mock_stealth_instance = MagicMock()
-                        MockStealth.return_value = mock_stealth_instance
-                        await sb.start()
-                        assert sb._stealth_manager is mock_stealth_instance
+                with patch("super_browser.stealth.StealthManager") as MockStealth:
+                    mock_stealth_instance = MagicMock()
+                    MockStealth.return_value = mock_stealth_instance
+                    await sb.start()
+                    assert sb._stealth_manager is mock_stealth_instance
                 await sb.stop()
 
             asyncio.run(_test())
@@ -500,18 +498,16 @@ class TestBudgetTracking:
             mock_page.url = "about:blank"
             mock_page.title = AsyncMock(return_value="Blank")
             mock_page.cdp = MagicMock()
-            mock_page.raw_page = MagicMock()
             mock_session.new_page = AsyncMock(return_value=mock_page)
             MockSession.return_value = mock_session
 
-            config = SuperBrowserConfig(enable_budget=True)
+            config = Config(agent=AgentConfig(enable_budget=True))
 
             sb = SuperBrowser(config=config)
 
             async def _test() -> None:
-                with patch("super_browser.agent.facade.SessionConfig"):
-                    await sb.start()
-                    assert sb._budget_client is not None
+                await sb.start()
+                assert sb._budget_client is not None
                 await sb.stop()
 
             asyncio.run(_test())

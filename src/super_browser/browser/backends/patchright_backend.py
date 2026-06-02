@@ -233,11 +233,6 @@ class PatchrightPage:
         return self._cdp
 
     @property
-    def raw_page(self) -> Any:
-        """Underlying Playwright Page. For advanced use."""
-        return self._page
-
-    @property
     def engine_page(self) -> PatchrightPage:
         """Self — PatchrightPage IS the EnginePage wrapper."""
         return self
@@ -285,7 +280,7 @@ class PatchrightEngine:
         if self._session is None:
             raise RuntimeError("Engine not started. Call start() first.")
         handle = await self._session.new_page()
-        return PatchrightPage(handle.raw_page, handle.cdp)
+        return PatchrightPage(handle._page, handle.cdp)
 
     @property
     def capabilities(self) -> EngineCapabilities:

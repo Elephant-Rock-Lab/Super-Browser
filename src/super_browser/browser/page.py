@@ -71,12 +71,6 @@ class PageHandle:
         """
         if self._engine_page is None:
             from super_browser.browser.backends.patchright_backend import PatchrightPage
-            # Use raw_page (which returns self._page) so that mocks
-            # with .raw_page properly configured still work.
-            self._engine_page = PatchrightPage(self.raw_page, self._cdp)
+            self._engine_page = PatchrightPage(self._page, self._cdp)
         return self._engine_page
 
-    @property
-    def raw_page(self) -> Any:
-        """Underlying Patchright Page for advanced usage."""
-        return self._page

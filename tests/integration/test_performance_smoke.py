@@ -14,10 +14,11 @@ import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from super_browser.agent.config import SuperBrowserConfig
+from super_browser.agent.config import AgentConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.loop import AgentLoop
 from super_browser.agent.registry import ToolRegistry
+from super_browser.config import Config
 from super_browser.interaction.decorator import agent_action
 from super_browser.results import ActionResult, action_result
 
@@ -35,7 +36,6 @@ def _mocked_browser_for_perf() -> SuperBrowser:
     sb._page.url = "https://example.com"
     sb._page.title = AsyncMock(return_value="Test")
     sb._page.goto = AsyncMock()
-    sb._page.raw_page = MagicMock()
     sb._page.cdp = MagicMock()
     sb._controller = MagicMock()
     sb._controller._page = sb._page
@@ -69,12 +69,14 @@ class TestColdStart:
 
     def test_init_with_config_under_5s(self) -> None:
         """SuperBrowser(config=...) instantiation takes <5s."""
-        config = SuperBrowserConfig(
+        config = Config(
+            agent=AgentConfig(
                 max_steps=50,
                 trace_enabled=True,
                 enable_recovery=False,
                 enable_budget=False,
-            )
+            ),
+        )
 
         start = time.monotonic()
         for _ in range(100):
@@ -95,7 +97,6 @@ class TestColdStart:
                 mock_page.title = AsyncMock(return_value="Blank")
                 mock_page.engine_page = MagicMock()
                 mock_page.engine_page.cdp = MagicMock()
-                mock_page.raw_page = MagicMock()
                 mock_session = AsyncMock()
                 mock_session._context = MagicMock()
                 mock_engine.session = mock_session
