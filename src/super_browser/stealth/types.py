@@ -34,6 +34,7 @@ class StealthHealthItem(StrEnum):
     RUNTIME_ENABLE_ABSENT = "runtime_enable_absent"
     HEADLESS_MODE_NEW = "headless_mode_new"
     PROXY_ACTIVE = "proxy_active"
+    IP_REPUTATION = "ip_reputation"
 
 
 class StealthEventType(StrEnum):

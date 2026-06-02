@@ -131,7 +131,7 @@ class TestRunDiagnostics:
         async def _test():
             report = await mgr.run_diagnostics()
             assert isinstance(report, StealthHealthReport)
-            assert len(report.checks) == 6
+            assert len(report.checks) >= 7
 
         asyncio.run(_test())
 

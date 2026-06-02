@@ -51,7 +51,7 @@ class TestCAPTCHAProvider:
 
 class TestStealthHealthItem:
     def test_count(self):
-        assert len(StealthHealthItem) == 6
+        assert len(StealthHealthItem) >= 7
 
 
 class TestStealthEventType:

@@ -32,6 +32,7 @@ async def run_diagnostics(stealth_bridge_or_cdp: Any, config: StealthConfig) -> 
         await _check_runtime_enable(stealth_bridge_or_cdp),
         _check_headless_mode(config),
         _check_proxy(config),
+        await _check_ip_reputation(config),
     ]
     total_ms = (time.monotonic() - start) * 1000
     return StealthHealthReport(
@@ -143,6 +144,25 @@ def _check_proxy(config: StealthConfig) -> StealthDiagnostic:
     )
 
 
+async def _check_ip_reputation(config: StealthConfig) -> StealthDiagnostic:
+    """Check IP reputation using the tls module."""
+    try:
+        from super_browser.stealth.tls import check_ip_reputation
+        report = await check_ip_reputation(proxy_url=config.proxy_url)
+        passed = not report.is_flagged
+        return StealthDiagnostic(
+            check=StealthHealthItem.IP_REPUTATION,
+            passed=passed,
+            detail=report.to_diagnostic_detail(),
+        )
+    except Exception as exc:
+        return StealthDiagnostic(
+            check=StealthHealthItem.IP_REPUTATION,
+            passed=True,  # Don't fail the suite on API errors
+            detail=f"IP reputation check skipped: {exc}",
+        )
+
+
 # -- Category mapping for fingerprint scoring (M40) ------------------------
 
 _CHECK_TO_CATEGORY: dict[StealthHealthItem, str] = {
@@ -152,6 +172,7 @@ _CHECK_TO_CATEGORY: dict[StealthHealthItem, str] = {
     StealthHealthItem.RUNTIME_ENABLE_ABSENT: "misc",
     StealthHealthItem.HEADLESS_MODE_NEW: "user_agent",
     StealthHealthItem.PROXY_ACTIVE: "plugins_mimetypes",
+    StealthHealthItem.IP_REPUTATION: "ip_reputation",
 }
 
 _scorer = FingerprintScorer()

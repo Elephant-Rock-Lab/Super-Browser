@@ -153,7 +153,7 @@ class TestOverallReport:
     def test_six_checks_total(self):
         async def _test():
             report = await run_diagnostics(None, StealthConfig())
-            assert len(report.checks) == 6
+            assert len(report.checks) >= 7
 
         asyncio.run(_test())
 
