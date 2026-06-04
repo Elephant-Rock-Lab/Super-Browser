@@ -1,0 +1,58 @@
+name: DCO
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify DCO Sign-off
+        run: |
+          BASE="${{ github.base_ref }}"
+          unsigned=""
+          count=0
+
+          while IFS= read -r commit; do
+            subject=$(git log -1 --format="%s" "$commit")
+            if ! git log -1 --format="%B" "$commit" | grep -qE "^Signed-off-by:"; then
+              unsigned="${unsigned}  • ${subject}\n  https://github.com/${{ github.repository }}/commit/${commit}\n\n"
+              count=$((count + 1))
+            fi
+          done < <(git log "origin/${BASE}..HEAD" --no-merges --format="%H")
+
+          if [ -n "$unsigned" ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "❌ DCO check failed: ${count} commit(s) missing Signed-off-by"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "The following commits need a sign-off:"
+            echo ""
+            echo -e "$unsigned"
+            echo "How to fix:"
+            echo ""
+            echo "  1. Add your sign-off to the latest commit:"
+            echo "     \$ git commit --amend --signoff"
+            echo ""
+            echo "  2. If you have multiple unsigned commits, sign all of them:"
+            echo "     \$ git rebase --signoff origin/${BASE}"
+            echo ""
+            echo "  3. Force-push your branch:"
+            echo "     \$ git push --force-with-lease"
+            echo ""
+            echo "What is DCO?"
+            echo "  https://developercertificate.org/"
+            echo ""
+            echo "By signing off, you certify that you wrote or have the right"
+            echo "to submit the code under the project's license."
+            echo ""
+            exit 1
+          fi
+
+          echo "✅ All commits have proper DCO sign-off"
