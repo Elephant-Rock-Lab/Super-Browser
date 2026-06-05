@@ -21,8 +21,8 @@ python -m venv .venv
 source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate   # Windows
 
-# Install in editable mode with all extras
-pip install -e ".[browser,anthropic,openai,dev]"
+# Install in editable mode with all extras (matches CI)
+pip install -e ".[dev,all]"
 ```
 
 ### Environment Variables
@@ -66,7 +66,7 @@ mypy src/super_browser
 
 ## PR Process
 
-1. **Fork** the repository and create a feature branch from `master`.
+1. **Fork** the repository and create a feature branch from `main`.
 2. **Write tests** for any new functionality. Aim for >80% coverage on changed files.
 3. **Run the full test suite** locally before pushing:
    ```bash
@@ -78,12 +78,25 @@ mypy src/super_browser
    fix(stealth): patch navigator.plugins fingerprint
    docs(readme): update installation instructions
    ```
-5. **Open a Pull Request** against `master`. Include:
+5. **Open a Pull Request** against `main`. Include:
    - A clear description of the change
    - Link to any related issue
    - Screenshots or logs if relevant
 6. **Review**: At least one approval is required. Address all review comments.
 7. **Merge**: Squash-merge is preferred for a clean history.
+
+## Execution Doctrine
+
+This project follows **Disk-Verified Large-Wave Execution**. See [`docs/operating-doctrine.md`](docs/operating-doctrine.md) for the full protocol.
+
+In short:
+
+- **Ground by disk** — inspect actual files before planning, not documentation or memory.
+- **Scale by wave** — deliver in coherent, bounded waves with one strategic objective.
+- **Accept by tests** — every wave must include machine-checkable evidence.
+- **Seal by evidence** — prove the change exists, the forbidden didn't happen, and tests pass.
+
+PRs should include verification evidence: which files were inspected, what was confirmed on disk, and which tests cover the change.
 
 ## Code Style
 

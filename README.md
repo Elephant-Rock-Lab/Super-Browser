@@ -415,7 +415,7 @@ pip install -e ".[patchright,anthropic,openai,dev]"
 pytest
 ```
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full guide.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full guide. All work follows the [Disk-Verified Large-Wave Execution](docs/operating-doctrine.md) doctrine.
 
 ## License
 
