@@ -25,10 +25,10 @@ from super_browser.memory.store import MemoryStore
 class FakeLLM:
     """Minimal LLM client that returns a done response."""
 
-    async def propose_action(self, prompt: str) -> dict:
+    async def propose_action(self, prompt: str, *, tools=None) -> dict:
         return {"done": True}
 
-    async def create_plan(self, instruction: str, tool_api: str) -> list[dict]:
+    async def create_plan(self, instruction: str, *, tools=None) -> list[dict]:
         return [{"description": instruction}]
 
     async def replan(self, **kwargs: Any) -> list[dict]:
@@ -41,13 +41,13 @@ class FakeLLMWithActions:
     def __init__(self) -> None:
         self._call = 0
 
-    async def propose_action(self, prompt: str) -> dict:
+    async def propose_action(self, prompt: str, *, tools=None) -> dict:
         self._call += 1
         if self._call == 1:
             return {"action": "click", "params": {"target": "#btn"}}
         return {"done": True}
 
-    async def create_plan(self, instruction: str, tool_api: str) -> list[dict]:
+    async def create_plan(self, instruction: str, *, tools=None) -> list[dict]:
         return [{"description": instruction}]
 
     async def replan(self, **kwargs: Any) -> list[dict]:
@@ -57,10 +57,10 @@ class FakeLLMWithActions:
 class FakeLLMFail:
     """LLM that causes an error."""
 
-    async def propose_action(self, prompt: str) -> dict:
+    async def propose_action(self, prompt: str, *, tools=None) -> dict:
         raise RuntimeError("LLM failure")
 
-    async def create_plan(self, instruction: str, tool_api: str) -> list[dict]:
+    async def create_plan(self, instruction: str, *, tools=None) -> list[dict]:
         raise RuntimeError("plan failure")
 
     async def replan(self, **kwargs: Any) -> list[dict]:
@@ -189,11 +189,11 @@ class TestMemoryContextInjection:
         prompts_seen: list[str] = []
 
         class CaptureLLM:
-            async def propose_action(self, prompt: str) -> dict:
+            async def propose_action(self, prompt: str, *, tools=None) -> dict:
                 prompts_seen.append(prompt)
                 return {"done": True}
 
-            async def create_plan(self, instruction: str, tool_api: str) -> list[dict]:
+            async def create_plan(self, instruction: str, *, tools=None) -> list[dict]:
                 return [{"description": instruction}]
 
         controller = MagicMock()

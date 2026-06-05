@@ -106,6 +106,7 @@ class SuperBrowser:
             self._page = await self._session.new_page()
         self._controller = MultimodalController(self._page, self._page.engine_page.cdp)
         self._running = True
+        self._register_builtin_tools()
         self._configure_verification()
         self._configure_vision()
         self._configure_stealth()
@@ -767,6 +768,27 @@ class SuperBrowser:
             config=vconfig,
         )
         self._controller.enable_verification(verifier)
+
+    def _register_builtin_tools(self) -> None:
+        """Register built-in browser and facade tools into the registry.
+
+        Called during :meth:`start` after the controller is created.
+        Does not overwrite tools already registered by the user.
+        """
+        if not self._controller:
+            return
+
+        # Controller-level interaction tools
+        for name in ("click", "fill", "select", "hover", "drag", "scroll", "keypress"):
+            method = getattr(self._controller, name, None)
+            if method is not None and self._registry.get(name) is None:
+                self._registry.register(method)
+
+        # Facade-level tools (navigate is on the facade, not controller)
+        for name in ("navigate", "extract", "observe"):
+            method = getattr(self, name, None)
+            if method is not None and self._registry.get(name) is None:
+                self._registry.register(method)
 
     def _configure_verification(self) -> None:
         _lc = getattr(self, "_legacy_core", None)
