@@ -153,6 +153,27 @@ if result.ok:
 
 **Raises:** `ConfigurationError` if no `llm_client` was provided.
 
+#### `act_stream(instruction, *, max_steps=50) → AsyncIterator[StreamEvent]`
+
+Streaming variant of :meth:`act`. Yields ``StreamEvent`` for each step lifecycle event, allowing callers to observe progress in real time. The final event is ``StepEvent.DONE`` with ``completion_reason``, ``total_steps``, and ``total_duration_ms``.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `instruction` | `str` | *(required)* | Natural-language instruction. |
+| `max_steps` | `int` | `50` | Maximum agent loop iterations. |
+
+**Yields:** `StreamEvent` — frozen dataclass ``(type: StepEvent, data: dict)`` for each lifecycle event. The ``data`` dict should be treated as read-only by callers.
+
+```python
+async for event in sb.act_stream("Fill the form"):
+    if event.type == "step_complete":
+        print(f"Step done: {event.data}")
+    if event.type == "done":
+        print(f"Finished: {event.data['completion_reason']}")
+```
+
+**Raises:** `ConfigurationError` if no `llm_client` was provided. Yields a single ``ABORT`` event if the browser is not started.
+
 ### Extraction
 
 #### `extract(query, *, selector=None, schema=None) → ActionResult`
