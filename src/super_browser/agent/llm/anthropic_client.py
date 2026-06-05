@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,37 @@ class AnthropicLLMClient:
         result = self._parse_propose_action(response)
         result["tokens"] = self._extract_tokens(response)
         return result
+
+    async def propose_action_stream(
+        self,
+        prompt: str,
+        *,
+        tools: list[dict] | None = None,
+    ) -> AsyncIterator[dict]:
+        """Stream the LLM's proposed next action, yielding token deltas.
+
+        Uses ``anthropic.AsyncAnthropic.messages.stream()``.
+        Yields ``{"type": "token", "content": str}`` during streaming,
+        then ``{"type": "done", "result": dict}`` with the final parsed action.
+        """
+        messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
+        kwargs: dict[str, Any] = {
+            "model": self._model,
+            "max_tokens": self._max_tokens,
+            "messages": messages,
+        }
+        if tools:
+            kwargs["tools"] = tools
+
+        async with self._client.messages.stream(**kwargs) as stream:
+            async for text in stream.text_stream:
+                yield {"type": "token", "content": text}
+
+            message = await stream.get_final_message()
+
+        result = self._parse_propose_action(message)
+        result["tokens"] = self._extract_tokens(message)
+        yield {"type": "done", "result": result}
 
     async def create_plan(
         self,

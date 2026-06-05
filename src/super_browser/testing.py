@@ -15,6 +15,7 @@ Usage::
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 
@@ -58,6 +59,17 @@ class MockLLMClient:
         self.call_count += 1
         self.last_prompt = prompt
         return dict(self._action_response)
+
+    async def propose_action_stream(
+        self,
+        prompt: str,
+        *,
+        tools: list[dict] | None = None,
+    ) -> AsyncIterator[dict]:
+        """Return a single done event (no token streaming in mock)."""
+        self.call_count += 1
+        self.last_prompt = prompt
+        yield {"type": "done", "result": dict(self._action_response)}
 
     async def create_plan(
         self,

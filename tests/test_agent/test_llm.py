@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -38,6 +39,8 @@ class TestLLMClientProtocol:
         class FakeLLM:
             async def propose_action(self, prompt: str, *, tools: list[dict] | None = None) -> dict:
                 return {}
+            async def propose_action_stream(self, prompt: str, *, tools: list[dict] | None = None) -> AsyncIterator[dict]:
+                yield {"type": "done", "result": {}}
             async def create_plan(self, instruction: str, *, tools: list[dict]) -> list[dict]:
                 return []
             async def replan(self, *, instruction: str, original_plan: list[dict], failed_step: int, error: str) -> list[dict]:

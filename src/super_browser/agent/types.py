@@ -25,6 +25,7 @@ class StepEvent(StrEnum):
     ABORT = "abort"
     MAX_STEPS_REACHED = "max_steps_reached"
     DONE = "done"
+    LLM_TOKEN = "llm_token"
 
 
 @dataclass(frozen=True)
