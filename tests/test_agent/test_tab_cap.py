@@ -52,10 +52,10 @@ def _make_session_mock(*, slow: float = 0.0):
 
 
 class _NoOpLLM:
-    async def propose_action(self, prompt):
+    async def propose_action(self, prompt, *, tools=None):
         return {"done": True}
 
-    async def create_plan(self, instruction, tools):
+    async def create_plan(self, instruction, *, tools=None):
         return [{"description": instruction}]
 
     async def replan(self, **kwargs):
@@ -71,7 +71,7 @@ class SlowLLM(_NoOpLLM):
         self.max_running = 0
         self._lock = asyncio.Lock()
 
-    async def propose_action(self, prompt):
+    async def propose_action(self, prompt, *, tools=None):
         async with self._lock:
             self.running_count += 1
             self.max_running = max(self.max_running, self.running_count)

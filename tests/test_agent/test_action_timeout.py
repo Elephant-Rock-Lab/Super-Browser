@@ -60,13 +60,13 @@ def _make_done_llm(action_name: str = "slow_handler"):
         def __init__(self):
             self._called = False
 
-        async def propose_action(self, prompt):
+        async def propose_action(self, prompt, *, tools=None):
             if self._called:
                 return {"done": True}
             self._called = True
             return {"action": action_name, "params": {}}
 
-        async def create_plan(self, instruction, tools):
+        async def create_plan(self, instruction, *, tools=None):
             return [{"description": instruction}]
 
         async def replan(self, **kwargs):
