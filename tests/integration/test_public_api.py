@@ -6,6 +6,8 @@ actually exists in the source.
 
 from __future__ import annotations
 
+import pytest
+
 
 class TestTopLevelImports:
     """All Tier 1 top-level imports from api-stability.md resolve."""
@@ -255,3 +257,23 @@ class TestFacadeProperties:
 
     def test_stealth_backend(self) -> None:
         assert "stealth_backend" in self._get_properties()
+
+
+class TestStreamingAPI:
+    """Streaming API exports from api-stability.md."""
+
+    def test_stream_event_import(self) -> None:
+        from super_browser import StreamEvent
+        assert StreamEvent is not None
+
+    def test_act_stream_exists(self) -> None:
+        from super_browser import SuperBrowser
+        assert hasattr(SuperBrowser, "act_stream")
+        assert callable(getattr(SuperBrowser, "act_stream"))
+
+    def test_stream_event_is_frozen(self) -> None:
+        from super_browser import StreamEvent
+        from super_browser.agent.types import StepEvent
+        event = StreamEvent(type=StepEvent.STEP_START, data={"step_number": 1})
+        with pytest.raises(AttributeError):
+            event.type = StepEvent.STEP_COMPLETE  # type: ignore[misc]

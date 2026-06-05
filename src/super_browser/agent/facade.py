@@ -5,14 +5,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any, Optional
 
 from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.delegator import SubagentDelegator
 from super_browser.agent.loop import AgentLoop
 from super_browser.agent.registry import ToolRegistry
-from super_browser.agent.types import DelegationResult
+from super_browser.agent.types import DelegationResult, StepEvent, StreamEvent
 from super_browser.browser.config import SessionConfig
 from super_browser.browser.engine import _detect_backend
 from super_browser.browser.session import BrowserSession
@@ -262,6 +262,64 @@ class SuperBrowser:
                 execution_history=[{"step": s.step_number, "action": s.action_name} for s in result.steps],
             ),
         )
+
+    async def act_stream(
+        self,
+        instruction: str,
+        *,
+        max_steps: int = 50,
+    ) -> AsyncIterator[StreamEvent]:
+        """Run the agent loop and yield streaming lifecycle events.
+
+        Unlike :meth:`act` which blocks until completion, ``act_stream``
+        yields a :class:`StreamEvent` for each step lifecycle event, allowing
+        callers to observe progress in real time.
+
+        The final event is ``StepEvent.DONE`` with ``completion_reason``,
+        ``total_steps``, and ``total_duration_ms``.
+
+        Usage::
+
+            async for event in sb.act_stream("Fill the form"):
+                if event.type == "step_complete":
+                    print(f"Step done: {event.data}")
+                if event.type == "done":
+                    print(f"Finished: {event.data['completion_reason']}")
+
+        Returns:
+            AsyncIterator[StreamEvent] — yields events until the loop completes.
+        """
+        if not self._controller:
+            yield StreamEvent(type=StepEvent.ABORT, data={"reason": "not_started"})
+            return
+
+        if self._llm_client is None:
+            raise ConfigurationError(
+                "No LLM client configured. Pass llm_client= to SuperBrowser()."
+            )
+
+        loop = AgentLoop(
+            controller=self._controller,
+            registry=self._registry,
+            llm_client=self._llm_client,
+            max_steps=max_steps,
+            recovery_coordinator=self._coordinator,
+            budget_client=self._budget_client,
+            flow_logger=self._flow_logger,
+            security_manager=self._security_manager,
+            stealth_manager=getattr(self, '_stealth_manager', None),
+            debug_config=getattr(self._config, 'debug_config', None),
+            retry_budget=getattr(self._config, 'retry_budget', None),
+        )
+        if self._memory_store is not None and self._page:
+            try:
+                current_url = self._page.url
+            except Exception:
+                current_url = ""
+            loop.set_memory_store(self._memory_store, current_url=current_url)
+
+        async for event in loop.run_stream(instruction):
+            yield event
 
     async def extract(self, query: str, *, selector: Optional[str] = None, schema: Optional[dict] = None) -> ActionResult:
         """Extract content from the current page.
