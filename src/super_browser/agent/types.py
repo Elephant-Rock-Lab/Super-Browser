@@ -24,6 +24,19 @@ class StepEvent(StrEnum):
     PLAN_UPDATED = "plan_updated"
     ABORT = "abort"
     MAX_STEPS_REACHED = "max_steps_reached"
+    DONE = "done"
+
+
+@dataclass(frozen=True)
+class StreamEvent:
+    """Structured event yielded by ``SuperBrowser.act_stream()``.
+
+    Frozen dataclass — the ``type`` field cannot be reassigned.
+    The ``data`` dict payload should be treated as read-only by callers.
+    """
+
+    type: StepEvent
+    data: dict[str, Any] = field(default_factory=dict)
 
 
 class DelegationStatus(StrEnum):

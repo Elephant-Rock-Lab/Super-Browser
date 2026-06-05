@@ -19,6 +19,7 @@ These will not break within a major version. Deprecations are announced one majo
 | `ActionResult` | Typed return for every action |
 | `create_llm()` | Factory for LLM clients |
 | `MockLLMClient` | Testing double (from `super_browser.testing`) |
+| `StreamEvent` | Structured event from ``act_stream()`` |
 
 **SuperBrowser facade methods** (enumerated from source):
 
@@ -32,6 +33,7 @@ These will not break within a major version. Deprecations are announced one majo
 | `extract(query)` | Extract data from page |
 | `observe()` | Snapshot current page state |
 | `act(instruction)` | Run LLM-driven agent step loop |
+| `act_stream(instruction)` | Async generator — yields ``StreamEvent`` for each step |
 | `open_tab(url)` | Open new tab |
 | `switch_tab(tab_id)` | Switch to tab by index |
 | `close_tab(tab_id)` | Close tab by index |

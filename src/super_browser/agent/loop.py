@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Optional
 
 from super_browser.agent.loop_detector import ActionLoopDetector
@@ -21,6 +22,7 @@ from super_browser.agent.types import (
     RetryBudget,
     StepEvent,
     StepResult,
+    StreamEvent,
 )
 from super_browser.results import (
     ActionError,
@@ -108,6 +110,64 @@ class AgentLoop:
             instruction, signal, start, steps, plan,
             loop_detections, replan_count, stalled_count, prev_fingerprint,
         )
+
+    async def run_stream(
+        self,
+        instruction: str,
+        *,
+        abort_signal: Optional[asyncio.Event] = None,
+        initial_plan: Optional[list[PlanItem]] = None,
+    ) -> AsyncIterator[StreamEvent]:
+        """Run the agent loop, yielding ``StreamEvent`` for each lifecycle event.
+
+        Reuses :meth:`run` via the existing ``event_callback`` mechanism.
+        Does not fork or duplicate loop logic.
+
+        The final yielded event is ``StepEvent.DONE`` with ``completion_reason``,
+        ``total_steps``, and ``total_duration_ms``.
+
+        If the consumer stops iterating early, the background task is cancelled.
+        """
+        queue: asyncio.Queue[StreamEvent | None] = asyncio.Queue()
+        original_callback = self._event_callback
+        task: Optional[asyncio.Task[LoopResult]] = None
+
+        async def _queue_callback(event: StepEvent, data: dict) -> None:
+            stream_event = StreamEvent(type=event, data=data)
+            await queue.put(stream_event)
+            if original_callback is not None:
+                await original_callback(event, data)
+
+        self._event_callback = _queue_callback
+        try:
+            task = asyncio.create_task(
+                self.run(instruction, abort_signal=abort_signal, initial_plan=initial_plan)
+            )
+
+            while True:
+                if task.done() and queue.empty():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=0.1)
+                    if event is None:
+                        break
+                    yield event
+                except asyncio.TimeoutError:
+                    if task.done():
+                        break
+
+            result = task.result()
+            yield StreamEvent(type=StepEvent.DONE, data={
+                "completion_reason": result.completion_reason,
+                "total_steps": result.total_steps,
+                "total_duration_ms": result.total_duration_ms,
+            })
+        finally:
+            self._event_callback = original_callback
+            if task is not None and not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
     async def _run_loop(
         self, instruction, signal, start, steps, plan,
