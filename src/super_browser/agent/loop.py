@@ -202,9 +202,10 @@ class AgentLoop:
 
             step_start = time.monotonic()
             try:
+                tool_schemas = self._registry.build_tool_schemas()
                 tool_api = self._registry.build_tool_api_description()
                 prompt = self._build_prompt(instruction, plan, steps, tool_api, nudge=nudge)
-                llm_response = await self._llm.propose_action(prompt)
+                llm_response = await self._llm.propose_action(prompt, tools=tool_schemas)
 
                 if llm_response.get("done"):
                     duration = (time.monotonic() - step_start) * 1000
@@ -353,7 +354,7 @@ class AgentLoop:
 
     async def _request_initial_plan(self, instruction: str) -> list[PlanItem]:
         try:
-            raw_plan = await self._llm.create_plan(instruction, self._registry.build_tool_api_description())
+            raw_plan = await self._llm.create_plan(instruction, tools=self._registry.build_tool_schemas())
             return [
                 PlanItem(index=i, description=item.get("description", f"Step {i+1}"))
                 for i, item in enumerate(raw_plan)

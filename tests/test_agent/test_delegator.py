@@ -23,10 +23,10 @@ def _make_session_mock():
 
 
 class _NoOpLLM:
-    async def propose_action(self, prompt):
+    async def propose_action(self, prompt, *, tools=None):
         return {"done": True}
 
-    async def create_plan(self, instruction, tools):
+    async def create_plan(self, instruction, *, tools=None):
         return [{"description": instruction}]
 
     async def replan(self, **kwargs):
@@ -66,7 +66,7 @@ class TestSubagentDelegator:
             max_running = 0
 
             class SlowLLM(_NoOpLLM):
-                async def propose_action(self, prompt):
+                async def propose_action(self, prompt, *, tools=None):
                     nonlocal running, max_running
                     running += 1
                     max_running = max(max_running, running)
@@ -116,12 +116,12 @@ class TestSubagentDelegator:
             class ActionThenDoneLLM:
                 def __init__(self):
                     self.called = False
-                async def propose_action(self, prompt):
+                async def propose_action(self, prompt, *, tools=None):
                     if not self.called:
                         self.called = True
                         return {"action": "click_handler", "params": {"target": "#btn"}}
                     return {"done": True}
-                async def create_plan(self, instruction, tools):
+                async def create_plan(self, instruction, *, tools=None):
                     return [{"description": instruction}]
                 async def replan(self, **kwargs):
                     return [{"description": "retry"}]

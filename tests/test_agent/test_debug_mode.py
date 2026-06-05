@@ -51,7 +51,7 @@ def _make_llm(actions=None):
     call_count = 0
 
     class MockLLM:
-        async def propose_action(self, prompt):
+        async def propose_action(self, prompt, *, tools=None):
             nonlocal call_count
             if call_count >= len(actions):
                 return {"done": True}
@@ -59,7 +59,7 @@ def _make_llm(actions=None):
             call_count += 1
             return result
 
-        async def create_plan(self, instruction, tools):
+        async def create_plan(self, instruction, *, tools=None):
             return [{"description": instruction}]
 
         async def replan(self, **kwargs):
