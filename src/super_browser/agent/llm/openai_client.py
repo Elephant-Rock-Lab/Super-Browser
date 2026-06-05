@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,92 @@ class OpenAILLMClient:
         result = self._parse_propose_action(response)
         result["tokens"] = self._extract_tokens(response)
         return result
+
+    async def propose_action_stream(
+        self,
+        prompt: str,
+        *,
+        tools: list[dict] | None = None,
+    ) -> AsyncIterator[dict]:
+        """Stream the LLM's proposed next action, yielding token deltas.
+
+        Yields ``{"type": "token", "content": str}`` during streaming,
+        then ``{"type": "done", "result": dict}`` with the final parsed action.
+        """
+        messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
+        kwargs: dict[str, Any] = {
+            "model": self._model,
+            "max_tokens": self._max_tokens,
+            "messages": messages,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        if tools:
+            kwargs["tools"] = self._format_tools(tools)
+
+        response = await self._call_with_retry(
+            self._client.chat.completions.create, **kwargs
+        )
+
+        accumulated_text = ""
+        tool_calls_acc: dict[int, dict[str, str]] = {}  # index -> {id, name, arguments}
+        final_usage: dict[str, int] = {"input": 0, "output": 0}
+
+        async for chunk in response:
+            # Extract usage from final chunk
+            if hasattr(chunk, "usage") and chunk.usage is not None:
+                final_usage = self._extract_tokens(chunk)
+
+            if not chunk.choices:
+                continue
+
+            delta = chunk.choices[0].delta
+
+            # Accumulate text content
+            if delta.content:
+                accumulated_text += delta.content
+                yield {"type": "token", "content": delta.content}
+
+            # Accumulate tool call deltas by index
+            if delta.tool_calls:
+                for tc_delta in delta.tool_calls:
+                    idx = tc_delta.index if hasattr(tc_delta, "index") and tc_delta.index is not None else 0
+                    if idx not in tool_calls_acc:
+                        tool_calls_acc[idx] = {
+                            "id": "",
+                            "name": "",
+                            "arguments": "",
+                        }
+                    if hasattr(tc_delta, "id") and tc_delta.id:
+                        tool_calls_acc[idx]["id"] += tc_delta.id
+                    if hasattr(tc_delta, "function") and tc_delta.function:
+                        if tc_delta.function.name:
+                            tool_calls_acc[idx]["name"] += tc_delta.function.name
+                        if tc_delta.function.arguments:
+                            tool_calls_acc[idx]["arguments"] += tc_delta.function.arguments
+
+        # Build final result — prefer tool calls over text
+        if tool_calls_acc:
+            first_tc = tool_calls_acc[min(tool_calls_acc.keys())]
+            try:
+                params = json.loads(first_tc["arguments"])
+            except json.JSONDecodeError:
+                params = {}
+            result = {"action": first_tc["name"], "params": params}
+        elif accumulated_text.strip():
+            try:
+                parsed = json.loads(accumulated_text.strip())
+                if isinstance(parsed, dict):
+                    result = parsed
+                else:
+                    result = {"done": True, "summary": accumulated_text.strip()}
+            except json.JSONDecodeError:
+                result = {"done": True, "summary": accumulated_text.strip()}
+        else:
+            result = {"done": True, "summary": ""}
+
+        result["tokens"] = final_usage
+        yield {"type": "done", "result": result}
 
     async def create_plan(
         self,

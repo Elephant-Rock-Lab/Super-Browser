@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,17 @@ class BrowserLLMClient:
         result = self._parse_propose_action(response_data)
         result["tokens"] = self._extract_tokens(response_data)
         return result
+
+    async def propose_action_stream(
+        self,
+        prompt: str,
+        *,
+        tools: list[dict] | None = None,
+    ) -> AsyncIterator[dict]:
+        """BrowserFetch does not support streaming — yields single done event."""
+        # BrowserFetch returns full responses; degrade to one-shot.
+        result = await self.propose_action(prompt, tools=tools)
+        yield {"type": "done", "result": result}
 
     async def create_plan(
         self,

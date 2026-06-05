@@ -121,6 +121,9 @@ class AgentLoop:
         """Run the agent loop, yielding ``StreamEvent`` for each lifecycle event.
 
         Reuses :meth:`run` via the existing ``event_callback`` mechanism.
+        When the LLM client supports ``propose_action_stream()``, token deltas
+        are emitted as ``StepEvent.LLM_TOKEN`` events.
+
         Does not fork or duplicate loop logic.
 
         The final yielded event is ``StepEvent.DONE`` with ``completion_reason``,
@@ -130,6 +133,7 @@ class AgentLoop:
         """
         queue: asyncio.Queue[StreamEvent | None] = asyncio.Queue()
         original_callback = self._event_callback
+        original_llm = self._llm
         task: Optional[asyncio.Task[LoopResult]] = None
 
         async def _queue_callback(event: StepEvent, data: dict) -> None:
@@ -137,6 +141,16 @@ class AgentLoop:
             await queue.put(stream_event)
             if original_callback is not None:
                 await original_callback(event, data)
+
+        # Wrap the LLM client so propose_action() uses streaming internally
+        # and emits LLM_TOKEN events through the queue.
+        has_stream = hasattr(original_llm, "propose_action_stream") and callable(
+            getattr(original_llm, "propose_action_stream", None)
+        )
+
+        if has_stream:
+            llm_wrapper = _StreamingLLMWrapper(original_llm, queue)
+            self._llm = llm_wrapper
 
         self._event_callback = _queue_callback
         try:
@@ -164,6 +178,7 @@ class AgentLoop:
             })
         finally:
             self._event_callback = original_callback
+            self._llm = original_llm
             if task is not None and not task.done():
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -560,4 +575,62 @@ class AgentLoop:
             total_steps=len(steps),
             loop_detections=detections,
             replan_count=replans,
+        )
+
+
+class _StreamingLLMWrapper:
+    """Wraps an LLM client so propose_action() uses propose_action_stream()
+    internally, emitting LLM_TOKEN events through the queue.
+
+    All other methods (create_plan, replan) delegate to the original client.
+    The wrapper is transparent to _run_loop() — it returns the same dict shape.
+    """
+
+    def __init__(self, llm: Any, queue: asyncio.Queue[StreamEvent | None]) -> None:
+        self._llm = llm
+        self._queue = queue
+
+    async def propose_action(
+        self,
+        prompt: str,
+        *,
+        tools: list[dict] | None = None,
+    ) -> dict:
+        """Use propose_action_stream() to get token events, return final result."""
+        final_result: dict | None = None
+        try:
+            async for chunk in self._llm.propose_action_stream(prompt, tools=tools):
+                if chunk.get("type") == "token":
+                    await self._queue.put(StreamEvent(
+                        type=StepEvent.LLM_TOKEN,
+                        data={"content": chunk["content"]},
+                    ))
+                elif chunk.get("type") == "done":
+                    final_result = chunk["result"]
+        except (TypeError, AttributeError):
+            # Fallback if propose_action_stream is not a real async generator
+            return await self._llm.propose_action(prompt, tools=tools)
+        return final_result or {"done": True, "summary": ""}
+
+    async def create_plan(
+        self,
+        instruction: str,
+        *,
+        tools: list[dict],
+    ) -> list[dict]:
+        return await self._llm.create_plan(instruction, tools=tools)
+
+    async def replan(
+        self,
+        *,
+        instruction: str,
+        original_plan: list[dict],
+        failed_step: int,
+        error: str,
+    ) -> list[dict]:
+        return await self._llm.replan(
+            instruction=instruction,
+            original_plan=original_plan,
+            failed_step=failed_step,
+            error=error,
         )

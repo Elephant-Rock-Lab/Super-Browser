@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Protocol, runtime_checkable
 
 
@@ -24,6 +25,21 @@ class LLMClient(Protocol):
         Returns:
             ``{"action": str, "params": dict}`` for a tool invocation, or
             ``{"done": True, "summary": str}`` when the task is complete.
+        """
+        ...  # pragma: no cover
+
+    async def propose_action_stream(
+        self,
+        prompt: str,
+        *,
+        tools: list[dict] | None = None,
+    ) -> AsyncIterator[dict]:
+        """Yield streaming token deltas followed by a final parsed action.
+
+        Yields:
+            ``{"type": "token", "content": str}`` during streaming, then
+            ``{"type": "done", "result": dict}`` with the final parsed action
+            (same schema as :meth:`propose_action`).
         """
         ...  # pragma: no cover
 
