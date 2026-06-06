@@ -192,6 +192,9 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._page:
             return action_result(ok=False, error=__import__("super_browser.results", fromlist=["ActionError"]).ActionError(__import__("super_browser.results", fromlist=["ErrorCategory"]).ErrorCategory.BROWSER_CRASH, "Not started"))
+        sec = await self._check_facade_security("navigate", {"url": url}, url=url)
+        if sec is not None:
+            return sec
         await self._page.goto(url, wait_until=wait_until)
         final_url = self._page.url
         title = await self._page.title()
@@ -212,12 +215,19 @@ class SuperBrowser:
     async def click(self, target: str, *, description: Optional[str] = None) -> ActionResult:
         if not self._controller:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started. Call await sb.start() first."))
+        sec = await self._check_facade_security("click", {"target": target})
+        if sec is not None:
+            return sec
         return await self._controller.click(target, description=description)
 
     async def fill(self, target: str, value: str, *, clear_first: bool = True, description: Optional[str] = None) -> ActionResult:
         if not self._controller:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started. Call await sb.start() first."))
-        return await self._controller.fill(target, value, clear_first=clear_first, description=description)
+        params = {"target": target, "value": value}
+        sec = await self._check_facade_security("fill", params)
+        if sec is not None:
+            return sec
+        return await self._controller.fill(params["target"], params["value"], clear_first=clear_first, description=description)
 
     async def act(self, instruction: str, *, max_steps: int = 50) -> ActionResult:
         if not self._controller:
@@ -768,6 +778,40 @@ class SuperBrowser:
             config=vconfig,
         )
         self._controller.enable_verification(verifier)
+
+    async def _check_facade_security(
+        self,
+        action: str,
+        params: dict[str, Any],
+        *,
+        url: str = "",
+        security_level: str = "sensitive",
+    ) -> ActionResult | None:
+        """Enforce configured security policy on a direct facade call.
+
+        Returns ``None`` when the action is allowed (or security is disabled).
+        Returns an ``ActionResult`` with ``ErrorCategory.SECURITY`` when blocked.
+
+        The *params* dict is passed by reference so that the security manager
+        can redact values in-place before the caller uses them.
+        """
+        if self._security_manager is None:
+            return None
+
+        from super_browser.security.types import SecurityLevel
+        level = SecurityLevel(security_level)
+        sec_result = await self._security_manager.check_action(
+            action, params, url, level,
+        )
+        if not sec_result.passed:
+            return action_result(
+                ok=False,
+                error=ActionError(
+                    ErrorCategory.SECURITY,
+                    f"Security check failed: {sec_result.blocked_by}",
+                ),
+            )
+        return None
 
     def _register_builtin_tools(self) -> None:
         """Register built-in browser and facade tools into the registry.
