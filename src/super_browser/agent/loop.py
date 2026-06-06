@@ -557,7 +557,17 @@ class AgentLoop:
 
         memory_block = f"\n\n{memory_context}\n" if memory_context else ""
 
-        return f"Instruction: {instruction}{nudge_str}{memory_block}\n\nPlan:\n{plan_str}\n\nRecent steps:\n{history_str}\n\n{self._wrap_untrusted(tool_api)}"
+        tools_note = (
+            "Available tools are provided through the structured tools interface. "
+            "Use them directly via the tools parameter — do not parse tool descriptions below."
+        ) if tool_api else ""
+
+        return (
+            f"Instruction: {instruction}{nudge_str}{memory_block}\n\n"
+            f"Plan:\n{plan_str}\n\n"
+            f"Recent steps:\n{history_str}\n\n"
+            f"{tools_note}"
+        )
 
     async def _emit(self, event: StepEvent, data: dict) -> None:
         if self._event_callback:
