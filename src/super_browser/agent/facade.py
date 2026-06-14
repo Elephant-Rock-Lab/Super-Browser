@@ -478,6 +478,11 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._tab_manager:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "No tabs open"))
+        params = {"tab_id": tab_id}
+        sec = await self._check_facade_security("switch_tab", params, security_level="sensitive")
+        if sec is not None:
+            return sec
+        tab_id = params["tab_id"]
         try:
             tab = await self._tab_manager.switch_tab(tab_id)
             page_obj = self._tab_manager.get_page(tab_id)
@@ -494,6 +499,11 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._tab_manager:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "No tabs open"))
+        params = {"tab_id": tab_id}
+        sec = await self._check_facade_security("close_tab", params, security_level="sensitive")
+        if sec is not None:
+            return sec
+        tab_id = params["tab_id"]
         try:
             await self._tab_manager.close_tab(tab_id)
             return timed_action_result(ok=True, start_ns=start, data={"closed_tab": tab_id})
@@ -607,6 +617,11 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        params = {"selector": selector}
+        sec = await self._check_facade_security("enter_frame", params, security_level="sensitive")
+        if sec is not None:
+            return sec
+        selector = params["selector"]
         try:
             frame = self._page.engine_page.frame_locator(selector)
             self._frame_stack.append(frame)
@@ -617,6 +632,9 @@ class SuperBrowser:
     async def exit_frame(self) -> ActionResult:
         """Exit the current iframe, returning to the parent frame."""
         start = time.monotonic()
+        sec = await self._check_facade_security("exit_frame", {}, security_level="sensitive")
+        if sec is not None:
+            return sec
         if self._frame_stack:
             self._frame_stack.pop()
             return timed_action_result(ok=True, start_ns=start, data={"depth": len(self._frame_stack)})
@@ -1166,6 +1184,11 @@ class SuperBrowser:
         :returns: ActionResult with data=ReplayReport.
         """
         start = time.monotonic()
+        params = {"path": path}
+        sec = await self._check_facade_security("replay", params, security_level="dangerous")
+        if sec is not None:
+            return sec
+        path = params["path"]
         try:
             from super_browser.recording.persistence import load as load_recording
             from super_browser.recording.replayer import RecordingReplayer
