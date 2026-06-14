@@ -455,6 +455,11 @@ class SuperBrowser:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser context not available"))
         if self._tab_manager is None:
             self._tab_manager = TabManager(ctx)
+        params = {"url": url or ""}
+        sec = await self._check_facade_security("open_tab", params, url=url or "")
+        if sec is not None:
+            return sec
+        url = params["url"] or None  # consume potentially redacted URL
         try:
             tab = await self._tab_manager.open_tab(url)
             # Update page reference and controller to new tab
@@ -515,6 +520,12 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        params = {"selector": selector, "file_path": file_path}
+        sec = await self._check_facade_security("upload_file", params, security_level="dangerous")
+        if sec is not None:
+            return sec
+        selector = params["selector"]
+        file_path = params["file_path"]
         try:
             await self._page.engine_page.set_input_files(selector, file_path)
             import os
@@ -539,6 +550,12 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        params = {"url_or_selector": url_or_selector, "save_path": save_path or ""}
+        sec = await self._check_facade_security("download", params)
+        if sec is not None:
+            return sec
+        url_or_selector = params["url_or_selector"]
+        save_path = params["save_path"] or None
         try:
             # Start listening for download
             async with self._page.engine_page.expect_download() as download_info:
