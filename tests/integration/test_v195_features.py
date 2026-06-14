@@ -1,8 +1,8 @@
 """v1.9.5 feature tests — Doc Version Normalization + Example Fix.
 
 Verifies:
-- docs/api-stability.md version header updated to v1.10.0
-- docs/error-catalog.md version header updated to v1.10.0
+- docs/api-stability.md version header updated to v1.11.0
+- docs/error-catalog.md version header updated to v1.11.0
 - examples/stealth_mode.py uses StealthConfig (not Config.Stealth)
 - No Config.Browser/Config.Agent/Config.Budget in any example
 - No Config.Stealth in any example
@@ -28,11 +28,11 @@ class TestV195DocNormalization:
 
     def test_api_stability_version_header(self) -> None:
         header = (DOCS_DIR / "api-stability.md").read_text(encoding="utf-8").split("\n")[:5]
-        assert "v1.10.0" in "\n".join(header)
+        assert "v1.11.0" in "\n".join(header)
 
     def test_error_catalog_version_header(self) -> None:
         header = (DOCS_DIR / "error-catalog.md").read_text(encoding="utf-8").split("\n")[:5]
-        assert "v1.10.0" in "\n".join(header)
+        assert "v1.11.0" in "\n".join(header)
 
     def test_no_config_browser_alias_in_examples(self) -> None:
         for f in EXAMPLES_DIR.glob("*.py"):
@@ -48,8 +48,8 @@ class TestV195DocNormalization:
         assert "Config.Stealth" not in content
 
     def test_all_doc_headers_current(self) -> None:
-        """All user-facing doc headers should reference v1.10.0, not older versions."""
-        stale_patterns = ["v1.9.0 —", "v1.9.1 —", "v1.9.2 —"]
+        """All user-facing doc headers should not reference stale versions."""
+        stale_patterns = ["v1.9.0 —", "v1.9.1 —", "v1.9.2 —", "v1.9.3 —", "v1.10.0 —"]
         for doc in DOCS_DIR.rglob("*.md"):
             if "aiv" in str(doc) or "discovery" in str(doc):
                 continue

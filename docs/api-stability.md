@@ -1,6 +1,6 @@
 # API Stability Contract
 
-> **Super Browser** v1.10.0 — Public API stability guarantees.
+> **Super Browser** v1.11.0 — Public API stability guarantees.
 
 This document defines which APIs are stable, which are protocols (stable interface, evolving implementations), and which are internal.
 
@@ -135,8 +135,8 @@ Config
 Super Browser follows [Semantic Versioning](https://semver.org/):
 
 - **Major** (2.0.0): breaking API changes
-- **Minor** (1.10.0): new features, backward compatible
-- **Patch** (1.10.1): bug fixes, backward compatible
+- **Minor** (1.11.0): new features, backward compatible
+- **Patch** (1.11.1): bug fixes, backward compatible
 
 ## Documentation Snippets
 
