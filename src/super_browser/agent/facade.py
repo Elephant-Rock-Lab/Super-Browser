@@ -854,6 +854,28 @@ class SuperBrowser:
             )
         return None
 
+    def _make_controller_wrapper(self, method_name: str):
+        """Create a late-binding wrapper for a controller method.
+
+        The wrapper dereferences ``self._controller`` at call time, so after
+        :meth:`_attach_page` replaces the controller, the registered tool still
+        routes to the current controller and page.
+
+        Signature and docstring are copied from the current controller method
+        via :func:`functools.wraps` so the registry can introspect parameters.
+        No security check is added — AgentLoop._dispatch_action handles that.
+        """
+        import functools
+
+        original = getattr(self._controller, method_name)
+
+        @functools.wraps(original)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            return await getattr(self._controller, method_name)(*args, **kwargs)
+
+        wrapper.__name__ = method_name
+        return wrapper
+
     def _register_builtin_tools(self) -> None:
         """Register built-in browser and facade tools into the registry.
 
@@ -863,11 +885,15 @@ class SuperBrowser:
         if not self._controller:
             return
 
-        # Controller-level interaction tools
+        # Controller-level interaction tools.
+        # Use late-binding wrappers so that after _attach_page() replaces
+        # self._controller, the registered tools still route to the current
+        # controller. Raw bound methods would capture the old controller
+        # instance and act on a stale page after tab switches.
         for name in ("click", "fill", "select", "hover", "drag", "scroll", "keypress"):
             method = getattr(self._controller, name, None)
             if method is not None and self._registry.get(name) is None:
-                self._registry.register(method)
+                self._registry.register(self._make_controller_wrapper(name))
 
         # Facade-level tools
         # navigate: register _navigate_impl via a closure (no security check)
