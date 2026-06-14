@@ -189,9 +189,27 @@ class SuperBrowser:
     # -- Facade methods --
 
     async def navigate(self, url: str, *, wait_until: str = "domcontentloaded") -> ActionResult:
+        """Navigate to a URL. Enforces facade security before side effects."""
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Not started"))
+        params = {"url": url}
+        sec = await self._check_facade_security("navigate", params, url=url)
+        if sec is not None:
+            return sec
+        url = params["url"]  # consume potentially redacted URL
+        return await self._navigate_impl(url, wait_until=wait_until)
+
+    async def _navigate_impl(self, url: str, *, wait_until: str = "domcontentloaded") -> ActionResult:
+        """Navigation logic without facade security check.
+
+        Security is enforced by the caller — either :meth:`navigate` (direct
+        SDK path) or :meth:`AgentLoop._dispatch_action` (agent loop path).
+        Registered as the ``navigate`` tool so the agent loop does not
+        double-check security.
+        """
         start = time.monotonic()
         if not self._page:
-            return action_result(ok=False, error=__import__("super_browser.results", fromlist=["ActionError"]).ActionError(__import__("super_browser.results", fromlist=["ErrorCategory"]).ErrorCategory.BROWSER_CRASH, "Not started"))
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Not started"))
         await self._page.goto(url, wait_until=wait_until)
         final_url = self._page.url
         title = await self._page.title()
@@ -212,12 +230,19 @@ class SuperBrowser:
     async def click(self, target: str, *, description: Optional[str] = None) -> ActionResult:
         if not self._controller:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started. Call await sb.start() first."))
+        sec = await self._check_facade_security("click", {"target": target})
+        if sec is not None:
+            return sec
         return await self._controller.click(target, description=description)
 
     async def fill(self, target: str, value: str, *, clear_first: bool = True, description: Optional[str] = None) -> ActionResult:
         if not self._controller:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started. Call await sb.start() first."))
-        return await self._controller.fill(target, value, clear_first=clear_first, description=description)
+        params = {"target": target, "value": value}
+        sec = await self._check_facade_security("fill", params)
+        if sec is not None:
+            return sec
+        return await self._controller.fill(params["target"], params["value"], clear_first=clear_first, description=description)
 
     async def act(self, instruction: str, *, max_steps: int = 50) -> ActionResult:
         if not self._controller:
@@ -769,6 +794,46 @@ class SuperBrowser:
         )
         self._controller.enable_verification(verifier)
 
+    async def _check_facade_security(
+        self,
+        action: str,
+        params: dict[str, Any],
+        *,
+        url: str = "",
+        security_level: str = "sensitive",
+    ) -> ActionResult | None:
+        """Enforce configured security policy on a direct facade call.
+
+        Returns ``None`` when the action is allowed (or security is disabled).
+        Returns an ``ActionResult`` with ``ErrorCategory.SECURITY`` when blocked.
+
+        The *params* dict is passed by reference so that the security manager
+        can redact values in-place before the caller uses them.
+        """
+        if self._security_manager is None:
+            return None
+
+        if not url:
+            try:
+                url = str(self._page.url) if self._page and hasattr(self._page, "url") else ""
+            except Exception:
+                url = ""
+
+        from super_browser.security.types import SecurityLevel
+        level = SecurityLevel(security_level)
+        sec_result = await self._security_manager.check_action(
+            action, params, url, level,
+        )
+        if not sec_result.passed:
+            return action_result(
+                ok=False,
+                error=ActionError(
+                    ErrorCategory.SECURITY,
+                    f"Security check failed: {sec_result.blocked_by}",
+                ),
+            )
+        return None
+
     def _register_builtin_tools(self) -> None:
         """Register built-in browser and facade tools into the registry.
 
@@ -784,8 +849,21 @@ class SuperBrowser:
             if method is not None and self._registry.get(name) is None:
                 self._registry.register(method)
 
-        # Facade-level tools (navigate is on the facade, not controller)
-        for name in ("navigate", "extract", "observe"):
+        # Facade-level tools
+        # navigate: register _navigate_impl via a closure (no security check)
+        # because AgentLoop._dispatch_action already enforces security.
+        # The public navigate() method keeps its own check for direct SDK calls.
+        if self._registry.get("navigate") is None:
+            facade_ref = self
+
+            async def navigate(url: str, *, wait_until: str = "domcontentloaded") -> ActionResult:
+                """Navigate to a URL (security enforced by AgentLoop dispatcher)."""
+                return await facade_ref._navigate_impl(url, wait_until=wait_until)
+
+            self._registry.register(navigate)
+
+        # extract, observe: no facade security check, safe to register directly
+        for name in ("extract", "observe"):
             method = getattr(self, name, None)
             if method is not None and self._registry.get(name) is None:
                 self._registry.register(method)
