@@ -189,14 +189,27 @@ class SuperBrowser:
     # -- Facade methods --
 
     async def navigate(self, url: str, *, wait_until: str = "domcontentloaded") -> ActionResult:
-        start = time.monotonic()
+        """Navigate to a URL. Enforces facade security before side effects."""
         if not self._page:
-            return action_result(ok=False, error=__import__("super_browser.results", fromlist=["ActionError"]).ActionError(__import__("super_browser.results", fromlist=["ErrorCategory"]).ErrorCategory.BROWSER_CRASH, "Not started"))
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Not started"))
         params = {"url": url}
         sec = await self._check_facade_security("navigate", params, url=url)
         if sec is not None:
             return sec
         url = params["url"]  # consume potentially redacted URL
+        return await self._navigate_impl(url, wait_until=wait_until)
+
+    async def _navigate_impl(self, url: str, *, wait_until: str = "domcontentloaded") -> ActionResult:
+        """Navigation logic without facade security check.
+
+        Security is enforced by the caller — either :meth:`navigate` (direct
+        SDK path) or :meth:`AgentLoop._dispatch_action` (agent loop path).
+        Registered as the ``navigate`` tool so the agent loop does not
+        double-check security.
+        """
+        start = time.monotonic()
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Not started"))
         await self._page.goto(url, wait_until=wait_until)
         final_url = self._page.url
         title = await self._page.title()
@@ -836,8 +849,21 @@ class SuperBrowser:
             if method is not None and self._registry.get(name) is None:
                 self._registry.register(method)
 
-        # Facade-level tools (navigate is on the facade, not controller)
-        for name in ("navigate", "extract", "observe"):
+        # Facade-level tools
+        # navigate: register _navigate_impl via a closure (no security check)
+        # because AgentLoop._dispatch_action already enforces security.
+        # The public navigate() method keeps its own check for direct SDK calls.
+        if self._registry.get("navigate") is None:
+            facade_ref = self
+
+            async def navigate(url: str, *, wait_until: str = "domcontentloaded") -> ActionResult:
+                """Navigate to a URL (security enforced by AgentLoop dispatcher)."""
+                return await facade_ref._navigate_impl(url, wait_until=wait_until)
+
+            self._registry.register(navigate)
+
+        # extract, observe: no facade security check, safe to register directly
+        for name in ("extract", "observe"):
             method = getattr(self, name, None)
             if method is not None and self._registry.get(name) is None:
                 self._registry.register(method)

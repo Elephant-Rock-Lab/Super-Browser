@@ -40,8 +40,17 @@ def _make_browser_with_mocks(*, security_manager=None) -> SuperBrowser:
     browser._page.goto = AsyncMock()
     browser._page.close = AsyncMock()
     browser._controller = MagicMock()
-    browser._controller.click = AsyncMock(return_value=action_result(ok=True))
-    browser._controller.fill = AsyncMock(return_value=action_result(ok=True))
+    # Set __name__ and __doc__ on each mock method so registry.register() works
+    for name, doc in [
+        ("click", "Click"), ("fill", "Fill"), ("select", "Select"),
+        ("hover", "Hover"), ("drag", "Drag"), ("scroll", "Scroll"),
+        ("keypress", "Keypress"),
+    ]:
+        m = AsyncMock(return_value=action_result(ok=True))
+        m.__name__ = name
+        m.__doc__ = doc
+        setattr(browser._controller, name, m)
+    browser._controller.capture_ax_snapshot = AsyncMock()
     browser._running = True
     browser._security_manager = security_manager
     return browser
@@ -271,4 +280,57 @@ class TestSecurityErrorCategory:
                 result = await call()
                 assert not result.ok, f"{method_name} should fail"
                 assert result.error.category.value == "security", f"{method_name} should be SECURITY"
+        asyncio.run(_test())
+
+
+# ---------------------------------------------------------------------------
+# Single-check invariant: AgentLoop-driven navigate not double-checked
+# ---------------------------------------------------------------------------
+
+class TestSingleCheckInvariant:
+    """When navigate is dispatched through AgentLoop, security must be checked
+    exactly once (by _dispatch_action), not again inside the tool handler."""
+
+    def test_agent_loop_navigate_security_checked_once(self) -> None:
+        async def _test():
+            from super_browser.agent.loop import AgentLoop
+            from super_browser.testing import MockLLMClient
+
+            mgr, _ = _make_fake_security_manager(blocked=False)
+
+            browser = _make_browser_with_mocks(security_manager=mgr)
+            # Register built-in tools (registers _navigate_impl closure, not navigate)
+            browser._register_builtin_tools()
+
+            # Use a tracking LLM that returns navigate once, then done
+            class SequentialLLM(MockLLMClient):
+                def __init__(self):
+                    super().__init__()
+                    self._step = 0
+
+                async def propose_action(self, prompt, *, tools=None):
+                    self._step += 1
+                    if self._step == 1:
+                        return {"action": "navigate", "params": {"url": "https://example.com"}}
+                    return {"done": True, "summary": "done"}
+
+            loop = AgentLoop(
+                controller=browser._controller,
+                registry=browser._registry,
+                llm_client=SequentialLLM(),
+                max_steps=5,
+                security_manager=mgr,
+            )
+            await loop.run("navigate to example.com")
+
+            # Security checked exactly once for the navigate dispatch
+            navigate_calls = [
+                c for c in mgr.check_action.call_args_list
+                if c[0][0] == "navigate"
+            ]
+            assert len(navigate_calls) == 1, (
+                f"navigate security checked {len(navigate_calls)} times, expected 1. "
+                f"This means the registered navigate tool still has a facade-level "
+                f"security check that duplicates the AgentLoop dispatch check."
+            )
         asyncio.run(_test())
