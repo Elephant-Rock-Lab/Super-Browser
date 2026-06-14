@@ -697,6 +697,14 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        # Derive security level from action: block/mock modify traffic, log only observes
+        security_level = "dangerous" if action in ("block", "mock") else "sensitive"
+        params = {"pattern": pattern, "action": action}
+        sec = await self._check_facade_security("intercept_requests", params, security_level=security_level)
+        if sec is not None:
+            return sec
+        pattern = params["pattern"]
+        action = params["action"]
         try:
             intercepted = []
 
@@ -739,6 +747,14 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        params = {"pattern": pattern, "body": body, "content_type": content_type, "status": status}
+        sec = await self._check_facade_security("mock_response", params, security_level="dangerous")
+        if sec is not None:
+            return sec
+        pattern = params["pattern"]
+        body = params["body"]
+        content_type = params["content_type"]
+        status = params["status"]
         try:
             async def handle_mock(route: Any) -> None:
                 await route.fulfill(
@@ -765,6 +781,9 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
+        sec = await self._check_facade_security("clear_interceptions", {})
+        if sec is not None:
+            return sec
         try:
             await self._page.engine_page.unroute_all()
             self._network_interceptors.clear()
