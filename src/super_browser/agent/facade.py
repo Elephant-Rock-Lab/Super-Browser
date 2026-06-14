@@ -192,9 +192,11 @@ class SuperBrowser:
         start = time.monotonic()
         if not self._page:
             return action_result(ok=False, error=__import__("super_browser.results", fromlist=["ActionError"]).ActionError(__import__("super_browser.results", fromlist=["ErrorCategory"]).ErrorCategory.BROWSER_CRASH, "Not started"))
-        sec = await self._check_facade_security("navigate", {"url": url}, url=url)
+        params = {"url": url}
+        sec = await self._check_facade_security("navigate", params, url=url)
         if sec is not None:
             return sec
+        url = params["url"]  # consume potentially redacted URL
         await self._page.goto(url, wait_until=wait_until)
         final_url = self._page.url
         title = await self._page.title()
@@ -797,6 +799,12 @@ class SuperBrowser:
         """
         if self._security_manager is None:
             return None
+
+        if not url:
+            try:
+                url = str(self._page.url) if self._page and hasattr(self._page, "url") else ""
+            except Exception:
+                url = ""
 
         from super_browser.security.types import SecurityLevel
         level = SecurityLevel(security_level)

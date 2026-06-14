@@ -84,6 +84,29 @@ class TestNavigateSecurity:
             browser._page.goto.assert_called_once()
         asyncio.run(_test())
 
+    def test_redacted_url_passed_onward(self) -> None:
+        """navigate() uses potentially redacted URL after security check."""
+        async def _test():
+            mgr, _ = _make_fake_security_manager(blocked=False)
+
+            async def redacting_check(action, params, url, level):
+                if action == "navigate" and "url" in params:
+                    params["url"] = "https://sanitized.example.com"
+                result_obj = MagicMock()
+                result_obj.passed = True
+                result_obj.blocked_by = ""
+                return result_obj
+
+            mgr.check_action = AsyncMock(side_effect=redacting_check)
+
+            browser = _make_browser_with_mocks(security_manager=mgr)
+            await browser.navigate("https://malicious.com")
+
+            # goto should receive the redacted URL, not the original
+            call_args = browser._page.goto.call_args
+            assert call_args[0][0] == "https://sanitized.example.com"
+        asyncio.run(_test())
+
 
 # ---------------------------------------------------------------------------
 # click() security
@@ -187,6 +210,46 @@ class TestFillSecurity:
             result = await browser.fill("#email", "test@test.com")
             assert result.ok
             browser._controller.fill.assert_called_once()
+        asyncio.run(_test())
+
+
+# ---------------------------------------------------------------------------
+# URL context parity — click/fill derive current page URL
+# ---------------------------------------------------------------------------
+
+class TestURLContextParity:
+    """Direct facade calls must pass current-page URL to SecurityManager,
+    matching the AgentLoop dispatch path."""
+
+    def test_click_passes_current_page_url(self) -> None:
+        async def _test():
+            mgr, _ = _make_fake_security_manager(blocked=False)
+            browser = _make_browser_with_mocks(security_manager=mgr)
+            browser._page.url = "https://current.example.com/page"
+            await browser.click("#btn")
+            call_args = mgr.check_action.call_args
+            # 3rd positional arg is url
+            assert call_args[0][2] == "https://current.example.com/page"
+        asyncio.run(_test())
+
+    def test_fill_passes_current_page_url(self) -> None:
+        async def _test():
+            mgr, _ = _make_fake_security_manager(blocked=False)
+            browser = _make_browser_with_mocks(security_manager=mgr)
+            browser._page.url = "https://current.example.com/page"
+            await browser.fill("#email", "test@test.com")
+            call_args = mgr.check_action.call_args
+            assert call_args[0][2] == "https://current.example.com/page"
+        asyncio.run(_test())
+
+    def test_navigate_passes_target_url_explicitly(self) -> None:
+        async def _test():
+            mgr, _ = _make_fake_security_manager(blocked=False)
+            browser = _make_browser_with_mocks(security_manager=mgr)
+            await browser.navigate("https://target.example.com")
+            call_args = mgr.check_action.call_args
+            # navigate passes the target URL explicitly
+            assert call_args[0][2] == "https://target.example.com"
         asyncio.run(_test())
 
 
