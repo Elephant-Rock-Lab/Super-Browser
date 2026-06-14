@@ -309,3 +309,69 @@ class TestDownloadSecurity:
             # Should use redacted URL
             assert browser._page.engine_page.evaluate.call_args[0][1] == "https://safe.example.com/file.zip"
         asyncio.run(_test())
+
+    def test_url_mode_passes_target_url_to_security(self) -> None:
+        """URL-mode download must pass the download target URL to check_action,
+        not the current page URL."""
+        async def _test():
+            mgr, _ = _make_fake_security_manager(blocked=False)
+            browser = _make_browser_with_mocks(security_manager=mgr)
+            browser._page.url = "https://current-page.example.com"
+
+            mock_download = MagicMock()
+            mock_download.suggested_filename = "file.zip"
+            mock_download.save_as = AsyncMock()
+            mock_download.path = AsyncMock(return_value="/tmp/file.zip")
+
+            class FakeDI:
+                @property
+                def value(self):
+                    async def _get():
+                        return mock_download
+                    return _get()
+
+            cm = MagicMock()
+            cm.__aenter__ = AsyncMock(return_value=FakeDI())
+            cm.__aexit__ = AsyncMock(return_value=None)
+            browser._page.engine_page.expect_download = MagicMock(return_value=cm)
+            browser._page.engine_page.evaluate = AsyncMock()
+
+            await browser.download("https://evil-download.example.com/file.exe")
+
+            call_args = mgr.check_action.call_args
+            # 3rd positional arg is url — must be the download target, not current page
+            assert call_args[0][2] == "https://evil-download.example.com/file.exe"
+        asyncio.run(_test())
+
+    def test_selector_mode_uses_current_page_url(self) -> None:
+        """Selector-mode download must pass current page URL to check_action
+        (since the download target is a click, not a direct URL)."""
+        async def _test():
+            mgr, _ = _make_fake_security_manager(blocked=False)
+            browser = _make_browser_with_mocks(security_manager=mgr)
+            browser._page.url = "https://current-page.example.com"
+
+            mock_download = MagicMock()
+            mock_download.suggested_filename = "file.zip"
+            mock_download.save_as = AsyncMock()
+            mock_download.path = AsyncMock(return_value="/tmp/file.zip")
+
+            class FakeDI:
+                @property
+                def value(self):
+                    async def _get():
+                        return mock_download
+                    return _get()
+
+            cm = MagicMock()
+            cm.__aenter__ = AsyncMock(return_value=FakeDI())
+            cm.__aexit__ = AsyncMock(return_value=None)
+            browser._page.engine_page.expect_download = MagicMock(return_value=cm)
+            browser._page.engine_page.click = AsyncMock()
+
+            await browser.download("#download-link")
+
+            call_args = mgr.check_action.call_args
+            # 3rd positional arg is url — must be current page URL for selector mode
+            assert call_args[0][2] == "https://current-page.example.com"
+        asyncio.run(_test())

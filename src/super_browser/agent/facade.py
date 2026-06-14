@@ -551,7 +551,10 @@ class SuperBrowser:
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started"))
         params = {"url_or_selector": url_or_selector, "save_path": save_path or ""}
-        sec = await self._check_facade_security("download", params)
+        # For URL-mode downloads, check against the download target URL.
+        # For selector-mode, _check_facade_security derives current page URL.
+        security_url = url_or_selector if url_or_selector.startswith(("http://", "https://")) else ""
+        sec = await self._check_facade_security("download", params, url=security_url)
         if sec is not None:
             return sec
         url_or_selector = params["url_or_selector"]
