@@ -39,6 +39,7 @@ def _make_facade_with_bridge(tmp_path: Path) -> tuple[SuperBrowser, MagicMock]:
     facade = SuperBrowser.__new__(SuperBrowser)
     facade._page = page
     facade._running = True
+    facade._security_manager = None
 
     return facade, bridge
 

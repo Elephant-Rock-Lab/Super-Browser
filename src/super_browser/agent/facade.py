@@ -1044,6 +1044,11 @@ class SuperBrowser:
         stealth_bridge = getattr(self._page.engine_page, "stealth_bridge", None)
         if stealth_bridge is None:
             return action_result(ok=False, error=ActionError(ErrorCategory.VALIDATION, "No stealth bridge available for cookie access."))
+        params = {"path": path}
+        sec = await self._check_facade_security("save_session", params, security_level="dangerous")
+        if sec is not None:
+            return sec
+        path = params["path"]
         try:
             cookies = await stealth_bridge.get_all_cookies()
             session_data = {
@@ -1085,6 +1090,11 @@ class SuperBrowser:
         stealth_bridge = getattr(self._page.engine_page, "stealth_bridge", None)
         if stealth_bridge is None:
             return action_result(ok=False, error=ActionError(ErrorCategory.VALIDATION, "No stealth bridge available for cookie access."))
+        params = {"path": path}
+        sec = await self._check_facade_security("load_session", params, security_level="dangerous")
+        if sec is not None:
+            return sec
+        path = params["path"]
         try:
             from pathlib import Path as _Path
             source = _Path(path)
