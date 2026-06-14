@@ -1,11 +1,7 @@
 """v1.9.1 feature tests — Config normalization + session persistence.
 
-Verifies:
-- Config is the default composition root
-- SuperBrowserConfig is auto-wrapped via from_legacy
-- save_session / load_session exist on the facade
-- SessionConfig has session_file field
-- All 2,164+ tests still pass
+Updated for v2.0: SuperBrowserConfig removed, fields flattened onto AgentConfig.
+from_legacy removed. Tests verify flat config works.
 """
 
 from __future__ import annotations
@@ -13,14 +9,13 @@ from __future__ import annotations
 from packaging.version import Version as _V
 
 from super_browser import __version__
-from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.browser.config import SessionConfig
-from super_browser.config import Config
+from super_browser.config import AgentConfig, Config
 
 
 class TestV191Features:
-    """Feature gate tests for v1.9.1."""
+    """Feature gate tests for v1.9.1 (updated for v2.0 flat config)."""
 
     def test_version_is_191(self) -> None:
         assert _V(__version__) >= _V("1.9.1")
@@ -31,29 +26,21 @@ class TestV191Features:
         sb = SuperBrowser()
         assert isinstance(sb._config, Config)
 
-    def test_legacy_config_auto_wrapped(self) -> None:
-        legacy = SuperBrowserConfig(max_steps=42)
-        sb = SuperBrowser(config=legacy)
+    def test_flat_config_max_steps(self) -> None:
+        cfg = Config(agent=AgentConfig(max_steps=42))
+        sb = SuperBrowser(config=cfg)
         assert isinstance(sb._config, Config)
-        assert sb._config.agent.core.max_steps == 42
-        assert sb._legacy_core is legacy
+        assert sb._config.agent.max_steps == 42
 
-    def test_explicit_config_not_wrapped(self) -> None:
+    def test_explicit_config_accepted(self) -> None:
         cfg = Config()
         sb = SuperBrowser(config=cfg)
         assert sb._config is cfg
-        assert sb._legacy_core is None
 
-    def test_from_legacy_maps_tracing(self) -> None:
-        legacy = SuperBrowserConfig(trace_enabled=True, trace_output_dir="/tmp")
-        cfg = Config.from_legacy(legacy)
-        assert cfg.tracing.enabled is True
-        assert cfg.tracing.sink_type == "file"
-
-    def test_from_legacy_tracing_console(self) -> None:
-        legacy = SuperBrowserConfig(trace_enabled=True, trace_output_dir="")
-        cfg = Config.from_legacy(legacy)
-        assert cfg.tracing.sink_type == "console"
+    def test_agent_config_trace_mapping(self) -> None:
+        cfg = Config(agent=AgentConfig(trace_enabled=True, trace_output_dir="/tmp"))
+        assert cfg.agent.trace_enabled is True
+        assert cfg.agent.trace_output_dir == "/tmp"
 
     # -- Session persistence --
 
@@ -82,11 +69,3 @@ class TestV191Features:
         methods = [m for m in dir(SuperBrowser) if not m.startswith("_")]
         assert "save_session" in methods
         assert "load_session" in methods
-
-    # -- Config from_legacy returns Config --
-
-    def test_from_legacy_returns_config(self) -> None:
-        legacy = SuperBrowserConfig()
-        cfg = Config.from_legacy(legacy)
-        assert isinstance(cfg, Config)
-        assert isinstance(cfg.browser, SessionConfig)

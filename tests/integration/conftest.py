@@ -163,7 +163,7 @@ def mock_browser() -> SuperBrowser:
     browser._page.title = AsyncMock(return_value="Test Page")
     browser._page.goto = AsyncMock()
     browser._page.close = AsyncMock()
-    browser._page.raw_page = MagicMock()
+    browser._page.backend_page = MagicMock()
     browser._page.cdp = MagicMock()
     browser._controller = MagicMock()
     browser._controller._cdp = MagicMock()

@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.registry import ToolRegistry
 from super_browser.agent.types import (
@@ -19,7 +18,7 @@ from super_browser.agent.types import (
     DelegationResult,
     DelegationStatus,
 )
-from super_browser.config import Config
+from super_browser.config import AgentConfig, Config
 from super_browser.interaction.decorator import agent_action
 from super_browser.results import (
     ActionResult,
@@ -47,10 +46,10 @@ class TestInit:
 
     def test_creates_with_custom_config(self) -> None:
         """SuperBrowser accepts a SuperBrowserConfig (auto-wrapped in Config)."""
-        config = SuperBrowserConfig(max_steps=10)
+        config = Config(agent=AgentConfig(max_steps=10))
         sb = SuperBrowser(config=config)
         assert isinstance(sb._config, Config)
-        assert sb._config.agent.core.max_steps == 10
+        assert sb._config.agent.max_steps == 10
 
     def test_creates_with_custom_registry(self) -> None:
         """SuperBrowser accepts a custom ToolRegistry."""
@@ -438,19 +437,19 @@ class TestStealthHeaders:
 
     def test_stealth_manager_attached_on_navigation(self) -> None:
         """When stealth is enabled, a StealthManager is created on start."""
-        with patch("super_browser.agent.facade.BrowserSession") as MockSession:
+        with patch("super_browser.agent.facade._detect_backend", return_value="playwright"), \
+             patch("super_browser.agent.facade.BrowserSession") as MockSession:
             mock_session = AsyncMock()
             mock_page = MagicMock()
             mock_page.url = "about:blank"
             mock_page.title = AsyncMock(return_value="Blank")
             mock_page.goto = AsyncMock()
             mock_page.cdp = MagicMock()
-            mock_page.raw_page = MagicMock()
+            mock_page.backend_page = MagicMock()
             mock_session.new_page = AsyncMock(return_value=mock_page)
             MockSession.return_value = mock_session
 
-            config = SuperBrowserConfig(enable_stealth=True)
-
+            config = Config(agent=AgentConfig(enable_stealth=True))
             sb = SuperBrowser(config=config)
 
             async def _test() -> None:
@@ -494,17 +493,18 @@ class TestBudgetTracking:
 
     def test_budget_client_created_on_start(self) -> None:
         """When budget is enabled, BudgetAwareLLMClient is created."""
-        with patch("super_browser.agent.facade.BrowserSession") as MockSession:
+        with patch("super_browser.agent.facade._detect_backend", return_value="playwright"), \
+             patch("super_browser.agent.facade.BrowserSession") as MockSession:
             mock_session = AsyncMock()
             mock_page = MagicMock()
             mock_page.url = "about:blank"
             mock_page.title = AsyncMock(return_value="Blank")
             mock_page.cdp = MagicMock()
-            mock_page.raw_page = MagicMock()
+            mock_page.backend_page = MagicMock()
             mock_session.new_page = AsyncMock(return_value=mock_page)
             MockSession.return_value = mock_session
 
-            config = SuperBrowserConfig(enable_budget=True)
+            config = Config(agent=AgentConfig(enable_budget=True))
 
             sb = SuperBrowser(config=config)
 

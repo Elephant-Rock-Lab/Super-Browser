@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from super_browser.agent.config import SuperBrowserConfig
+# AgentConfig is defined in this module (no import from agent.config)
 from super_browser.browser.config import SessionConfig
 from super_browser.budget.types import BudgetConfig
 from super_browser.security.types import SecurityConfig
@@ -85,17 +85,41 @@ class MemoryConfig:
 
 @dataclass(frozen=True)
 class AgentConfig:
-    """Agent sub-config: wraps :class:`SuperBrowserConfig` with LLM-client fields.
+    """Agent sub-config: LLM settings and feature flags.
 
-    The ``core`` attribute holds the original :class:`SuperBrowserConfig`.
-    The top-level attributes (``llm_provider``, ``llm_model``, ``llm_api_key``)
-    supply values needed by :func:`create_llm`.
+    All former ``SuperBrowserConfig`` fields are flattened here as
+    top-level attributes. The ``core`` nested wrapper is removed in v2.0.
     """
 
+    # -- LLM client --
     llm_provider: str = "anthropic"
     llm_model: str = "claude-sonnet-4-20250514"
     llm_api_key: str = ""
-    core: SuperBrowserConfig = field(default_factory=lambda: SuperBrowserConfig)
+
+    # -- Agent loop (formerly SuperBrowserConfig) --
+    max_steps: int = 50
+    loop_window_size: int = 20
+    stagnation_threshold: int = 3
+    nudge_levels: tuple[int, ...] = (5, 8, 12)
+    max_delegation_concurrency: int = 4
+    default_model: str = "claude-sonnet-4-20250514"
+    llm_temperature: float = 0.0
+    llm_max_tokens: int = 4096
+
+    # -- Feature flags (formerly SuperBrowserConfig) --
+    enable_recovery: bool = False
+    enable_budget: bool = False
+    enable_security: bool = False
+    enable_vision: bool = False
+    vision_cache_dir: str = ""
+    enable_stealth: bool = False
+    enable_skills: bool = False
+    skills_dir: str = ""
+    enable_verification: bool = False
+
+    # -- Tracing (formerly SuperBrowserConfig) --
+    trace_enabled: bool = True
+    trace_output_dir: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -123,31 +147,6 @@ class Config:
     cloak: CloakConfig = field(default_factory=CloakConfig)
     consistency: ConsistencyConfig = field(default_factory=ConsistencyConfig)
     network: NetworkConfig = field(default_factory=NetworkConfig)
-
-    @classmethod
-    def from_legacy(cls, sb_config: SuperBrowserConfig) -> Config:
-        """Create a :class:`Config` from a legacy :class:`SuperBrowserConfig`.
-
-        Maps the flat ``SuperBrowserConfig`` fields to the corresponding
-        nested sub-configs so the facade can derive everything from the
-        composition root.
-        """
-        return cls(
-            browser=SessionConfig(
-                headless=True,
-            ),
-            agent=AgentConfig(
-                core=sb_config,
-            ),
-            tracing=TracingConfig(
-                enabled=sb_config.trace_enabled,
-                sink_type="file" if sb_config.trace_output_dir else "console",
-                output_dir=sb_config.trace_output_dir or "",
-            ),
-            memory=MemoryConfig(
-                memory_enabled=False,
-            ),
-        )
 
     # ------------------------------------------------------------------
     # from_env
@@ -388,16 +387,23 @@ def _build_sub(cls_type: type, data: dict) -> object:
 
 
 def _build_agent(data: dict) -> AgentConfig:
-    """Build an :class:`AgentConfig` from a dict, also constructing the
-    nested ``core`` :class:`SuperBrowserConfig` if provided."""
+    """Build an :class:`AgentConfig` from a dict.
+
+    In v2.0, all fields are top-level on AgentConfig (no nested 'core').
+    For backward compatibility, if a 'core' sub-dict is present, its fields
+    are merged into the top-level before construction.
+    """
     if not isinstance(data, dict):
         return AgentConfig()
 
-    valid_agent = {f.name for f in AgentConfig.__dataclass_fields__.values()}
-    agent_kw: dict = {k: v for k, v in data.items() if k in valid_agent and k != "core"}
+    # Merge legacy 'core' sub-dict into top-level for v1.x compat
+    merged = dict(data)
+    core_data = merged.pop("core", {})
+    if isinstance(core_data, dict):
+        for k, v in core_data.items():
+            if k not in merged:
+                merged[k] = v
 
-    core_data = data.get("core", {})
-    if isinstance(core_data, dict) and core_data:
-        agent_kw["core"] = SuperBrowserConfig(**{k: v for k, v in core_data.items() if k in {f.name for f in SuperBrowserConfig.__dataclass_fields__.values()}})
-
-    return AgentConfig(**agent_kw)
+    valid_fields = {f.name for f in AgentConfig.__dataclass_fields__.values()}
+    filtered = {k: v for k, v in merged.items() if k in valid_fields}
+    return AgentConfig(**filtered)

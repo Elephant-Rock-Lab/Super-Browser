@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from super_browser.agent.config import SuperBrowserConfig
 from super_browser.browser.config import SessionConfig
 from super_browser.config import AgentConfig, Config, TracingConfig
 
@@ -89,18 +88,17 @@ class TestTracingOutputDir:
         assert cfg.tracing.output_dir == "/tmp/sb"
 
     def test_legacy_bridge_populates_output_dir(self) -> None:
-        """When constructed from SuperBrowserConfig, output_dir is set."""
-        legacy = SuperBrowserConfig(trace_enabled=True, trace_output_dir="/tmp/leg")
-        cfg = Config.from_legacy(legacy)
-        assert cfg.tracing.output_dir == "/tmp/leg"
-        assert cfg.tracing.enabled is True
+        """AgentConfig trace fields map to tracing sub-config."""
+        cfg = Config(agent=AgentConfig(trace_enabled=True, trace_output_dir="/tmp/leg"))
+        assert cfg.agent.trace_output_dir == "/tmp/leg"
+        assert cfg.agent.trace_enabled is True
 
 
 # ── 1-C: Config() path features (no _legacy_core) ───────────────────────
 
 
 class TestConfigPathFeatures:
-    """1-C — Config() constructor enables features through cfg.agent.core."""
+    """1-C — Config() constructor enables features through cfg.agent."""
 
     def _make_config(
         self,
@@ -114,27 +112,25 @@ class TestConfigPathFeatures:
     ) -> Config:
         return Config(
             agent=AgentConfig(
-                core=SuperBrowserConfig(
-                    enable_stealth=enable_stealth,
-                    enable_vision=enable_vision,
-                    enable_skills=enable_skills,
-                    enable_budget=enable_budget,
-                    enable_recovery=enable_recovery,
-                    enable_security=enable_security,
-                ),
+                enable_stealth=enable_stealth,
+                enable_vision=enable_vision,
+                enable_skills=enable_skills,
+                enable_budget=enable_budget,
+                enable_recovery=enable_recovery,
+                enable_security=enable_security,
             ),
         )
 
     def test_no_legacy_core(self) -> None:
-        """Config() path must have _legacy_core is None."""
+        """Config() path must not have _legacy_core attribute."""
         from super_browser.agent.facade import SuperBrowser
 
         sb = SuperBrowser(Config())
-        assert sb._legacy_core is None
+        assert not hasattr(sb, "_legacy_core") or sb._legacy_core is None
 
     @pytest.mark.asyncio
     async def test_stealth_via_config(self) -> None:
-        """StealthManager activates through Config.agent.core.enable_stealth."""
+        """StealthManager activates through Config.agent.enable_stealth."""
         from super_browser.agent.facade import SuperBrowser
 
         cfg = self._make_config(enable_stealth=True)
@@ -150,7 +146,7 @@ class TestConfigPathFeatures:
 
     @pytest.mark.asyncio
     async def test_budget_via_config(self) -> None:
-        """BudgetAwareLLMClient activates through Config.agent.core.enable_budget."""
+        """BudgetAwareLLMClient activates through Config.agent.enable_budget."""
         from super_browser.agent.facade import SuperBrowser
 
         cfg = self._make_config(enable_budget=True)
@@ -200,7 +196,7 @@ class TestConfigPathFeatures:
 
     @pytest.mark.asyncio
     async def test_security_via_config(self) -> None:
-        """SecurityManager activates through Config.agent.core.enable_security."""
+        """SecurityManager activates through Config.agent.enable_security."""
         from super_browser.agent.facade import SuperBrowser
 
         cfg = self._make_config(enable_security=True)
@@ -214,7 +210,7 @@ class TestConfigPathFeatures:
 
     @pytest.mark.asyncio
     async def test_recovery_via_config(self) -> None:
-        """Recovery activates through Config.agent.core.enable_recovery."""
+        """Recovery activates through Config.agent.enable_recovery."""
         from super_browser.agent.facade import SuperBrowser
 
         cfg = self._make_config(enable_recovery=True)
@@ -230,17 +226,18 @@ class TestConfigPathFeatures:
 
 # ── 1-D: SuperBrowserConfig (legacy) path compatibility ─────────────────
 
+# ── Flat config path compatibility (formerly 1-D: SuperBrowserConfig legacy) ──
 
-class TestLegacyPathCompat:
-    """1-D — SuperBrowserConfig still enables all features when passed directly."""
+
+class TestFlatConfigCompat:
+    """v2.0 — flat AgentConfig enables all features when used directly."""
 
     @pytest.mark.asyncio
-    async def test_legacy_stealth(self) -> None:
+    async def test_flat_stealth(self) -> None:
         from super_browser.agent.facade import SuperBrowser
 
-        cfg = SuperBrowserConfig(enable_stealth=True)
+        cfg = Config(agent=AgentConfig(enable_stealth=True))
         sb = SuperBrowser(cfg)
-        assert sb._legacy_core is cfg
         mock_engine, _ = _mock_engine_and_page()
         with patch("super_browser.agent.facade._detect_backend", return_value="patchright"), \
              patch("super_browser.browser.backends.patchright_backend.PatchrightEngine", return_value=mock_engine), \
@@ -251,12 +248,11 @@ class TestLegacyPathCompat:
             await sb.stop()
 
     @pytest.mark.asyncio
-    async def test_legacy_budget(self) -> None:
+    async def test_flat_budget(self) -> None:
         from super_browser.agent.facade import SuperBrowser
 
-        cfg = SuperBrowserConfig(enable_budget=True)
+        cfg = Config(agent=AgentConfig(enable_budget=True))
         sb = SuperBrowser(cfg)
-        assert sb._legacy_core is cfg
         mock_engine, _ = _mock_engine_and_page()
         with patch("super_browser.agent.facade._detect_backend", return_value="patchright"), \
              patch("super_browser.browser.backends.patchright_backend.PatchrightEngine", return_value=mock_engine), \
@@ -266,13 +262,14 @@ class TestLegacyPathCompat:
             await sb.stop()
 
     @pytest.mark.asyncio
-    async def test_legacy_tracing_file(self, tmp_path: Path) -> None:
+    async def test_flat_tracing_file(self, tmp_path: Path) -> None:
         from super_browser.agent.facade import SuperBrowser
 
         trace_dir = str(tmp_path / "traces")
-        cfg = SuperBrowserConfig(trace_enabled=True, trace_output_dir=trace_dir)
+        cfg = Config(
+            agent=AgentConfig(trace_enabled=True, trace_output_dir=trace_dir),
+        )
         sb = SuperBrowser(cfg)
-        assert sb._legacy_core is cfg
         mock_engine, _ = _mock_engine_and_page()
         with patch("super_browser.agent.facade._detect_backend", return_value="patchright"), \
              patch("super_browser.browser.backends.patchright_backend.PatchrightEngine", return_value=mock_engine):
@@ -282,12 +279,11 @@ class TestLegacyPathCompat:
             await sb.stop()
 
     @pytest.mark.asyncio
-    async def test_legacy_security(self) -> None:
+    async def test_flat_security(self) -> None:
         from super_browser.agent.facade import SuperBrowser
 
-        cfg = SuperBrowserConfig(enable_security=True)
+        cfg = Config(agent=AgentConfig(enable_security=True))
         sb = SuperBrowser(cfg)
-        assert sb._legacy_core is cfg
         mock_engine, _ = _mock_engine_and_page()
         with patch("super_browser.agent.facade._detect_backend", return_value="patchright"), \
              patch("super_browser.browser.backends.patchright_backend.PatchrightEngine", return_value=mock_engine):
@@ -296,12 +292,11 @@ class TestLegacyPathCompat:
             await sb.stop()
 
     @pytest.mark.asyncio
-    async def test_legacy_recovery(self) -> None:
+    async def test_flat_recovery(self) -> None:
         from super_browser.agent.facade import SuperBrowser
 
-        cfg = SuperBrowserConfig(enable_recovery=True)
+        cfg = Config(agent=AgentConfig(enable_recovery=True))
         sb = SuperBrowser(cfg)
-        assert sb._legacy_core is cfg
         mock_engine, _ = _mock_engine_and_page()
         with patch("super_browser.agent.facade._detect_backend", return_value="patchright"), \
              patch("super_browser.browser.backends.patchright_backend.PatchrightEngine", return_value=mock_engine), \

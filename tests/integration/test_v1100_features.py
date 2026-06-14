@@ -44,17 +44,17 @@ class TestVerificationWiring:
 
     def test_enable_verification_field_exists(self):
         """SuperBrowserConfig has enable_verification field."""
-        from super_browser.agent.config import SuperBrowserConfig
+        from super_browser.config import AgentConfig
 
-        cfg = SuperBrowserConfig()
+        cfg = AgentConfig()
         assert hasattr(cfg, "enable_verification")
         assert cfg.enable_verification is False
 
     def test_enable_verification_can_be_true(self):
         """SuperBrowserConfig.enable_verification can be set to True."""
-        from super_browser.agent.config import SuperBrowserConfig
+        from super_browser.config import AgentConfig
 
-        cfg = SuperBrowserConfig(enable_verification=True)
+        cfg = AgentConfig(enable_verification=True)
         assert cfg.enable_verification is True
 
     def test_facade_configure_verification_is_not_pass(self):

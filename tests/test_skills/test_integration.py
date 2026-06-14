@@ -2,7 +2,7 @@
 
 import asyncio
 
-from super_browser.agent.config import SuperBrowserConfig
+from super_browser.config import AgentConfig
 from super_browser.skills import (
     DomainSkill,
     SkillProvenance,
@@ -14,12 +14,12 @@ from super_browser.skills import (
 
 class TestConfigWiring:
     def test_default_skills_disabled(self):
-        cfg = SuperBrowserConfig()
+        cfg = AgentConfig()
         assert cfg.enable_skills is False
         assert cfg.skills_dir == ""
 
     def test_custom_skills_config(self):
-        cfg = SuperBrowserConfig(enable_skills=True, skills_dir="/tmp/skills")
+        cfg = AgentConfig(enable_skills=True, skills_dir="/tmp/skills")
         assert cfg.enable_skills is True
         assert cfg.skills_dir == "/tmp/skills"
 

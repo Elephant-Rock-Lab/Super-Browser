@@ -1,6 +1,5 @@
 """GAP-07: Agent Orchestration & Facade."""
 
-from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.delegator import SubagentDelegator
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.llm import LLMClient, create_llm
@@ -20,9 +19,10 @@ from super_browser.agent.types import (
     StepEvent,
     StepResult,
 )
+from super_browser.config import AgentConfig
 
 __all__ = [
-    "SuperBrowserConfig",
+    "AgentConfig",
     "ChildTask", "DelegationResult", "DelegationStatus",
     "LoopNudge", "LoopResult",
     "PlanItem", "PlanStatus", "PluginSlotKey",
