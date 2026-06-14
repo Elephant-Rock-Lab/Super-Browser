@@ -368,9 +368,20 @@ class SeleniumPage:
         return self._stealth_bridge
 
     @property
-    def raw_page(self) -> Any:
+    def backend_page(self) -> Any:
         """Underlying WebDriver instance. For advanced use."""
         return self._driver
+
+    @property
+    def raw_page(self) -> Any:
+        """Deprecated: use :attr:`backend_page`."""
+        import warnings
+        warnings.warn(
+            "raw_page is deprecated, use backend_page instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.backend_page
 
     @property
     def engine_page(self) -> SeleniumPage:

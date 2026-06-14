@@ -233,9 +233,20 @@ class PatchrightPage:
         return self._cdp
 
     @property
-    def raw_page(self) -> Any:
+    def backend_page(self) -> Any:
         """Underlying Playwright Page. For advanced use."""
         return self._page
+
+    @property
+    def raw_page(self) -> Any:
+        """Deprecated: use :attr:`backend_page`."""
+        import warnings
+        warnings.warn(
+            "raw_page is deprecated, use backend_page instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.backend_page
 
     @property
     def engine_page(self) -> PatchrightPage:
@@ -285,7 +296,7 @@ class PatchrightEngine:
         if self._session is None:
             raise RuntimeError("Engine not started. Call start() first.")
         handle = await self._session.new_page()
-        return PatchrightPage(handle.raw_page, handle.cdp)
+        return PatchrightPage(handle.backend_page, handle.cdp)
 
     @property
     def capabilities(self) -> EngineCapabilities:

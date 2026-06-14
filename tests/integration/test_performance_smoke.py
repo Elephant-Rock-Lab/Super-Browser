@@ -14,10 +14,10 @@ import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.facade import SuperBrowser
 from super_browser.agent.loop import AgentLoop
 from super_browser.agent.registry import ToolRegistry
+from super_browser.config import AgentConfig, Config
 from super_browser.interaction.decorator import agent_action
 from super_browser.results import ActionResult, action_result
 
@@ -69,12 +69,12 @@ class TestColdStart:
 
     def test_init_with_config_under_5s(self) -> None:
         """SuperBrowser(config=...) instantiation takes <5s."""
-        config = SuperBrowserConfig(
+        config = Config(agent=AgentConfig(
                 max_steps=50,
                 trace_enabled=True,
                 enable_recovery=False,
                 enable_budget=False,
-            )
+            ))
 
         start = time.monotonic()
         for _ in range(100):

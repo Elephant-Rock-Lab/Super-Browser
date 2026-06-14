@@ -2,7 +2,7 @@
 
 Verifies:
 - _detect_backend reads Config.browser.backend correctly
-- _configure_vision/stealth/skills read cfg.agent.core
+- _configure_vision/stealth/skills read cfg.agent
 - create_llm uses SB_LLM_* env vars (not ANTHROPIC_API_KEY/OPENAI_API_KEY)
 - save_session/load_session documented in api-stability
 - StaleRefDetector has 10 signatures in agent-reliability docs
@@ -51,26 +51,26 @@ class TestV193RuntimeAlignment:
 
     def test_config_agent_core_enable_vision(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_vision")
-        assert cfg.agent.core.enable_vision is False
+        assert hasattr(cfg.agent, "enable_vision")
+        assert cfg.agent.enable_vision is False
 
     def test_config_agent_core_enable_stealth(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_stealth")
-        assert cfg.agent.core.enable_stealth is False
+        assert hasattr(cfg.agent, "enable_stealth")
+        assert cfg.agent.enable_stealth is False
 
     def test_config_agent_core_enable_skills(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_skills")
-        assert cfg.agent.core.enable_skills is False
+        assert hasattr(cfg.agent, "enable_skills")
+        assert cfg.agent.enable_skills is False
 
     def test_config_agent_core_enable_recovery(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_recovery")
+        assert hasattr(cfg.agent, "enable_recovery")
 
     def test_config_agent_core_enable_budget(self) -> None:
         cfg = Config()
-        assert hasattr(cfg.agent.core, "enable_budget")
+        assert hasattr(cfg.agent, "enable_budget")
 
     # -- ITEM-5: Docs alignment --
 

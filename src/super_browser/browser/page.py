@@ -71,12 +71,26 @@ class PageHandle:
         """
         if self._engine_page is None:
             from super_browser.browser.backends.patchright_backend import PatchrightPage
-            # Use raw_page (which returns self._page) so that mocks
-            # with .raw_page properly configured still work.
-            self._engine_page = PatchrightPage(self.raw_page, self._cdp)
+            self._engine_page = PatchrightPage(self._page, self._cdp)
         return self._engine_page
 
     @property
-    def raw_page(self) -> Any:
-        """Underlying Patchright Page for advanced usage."""
+    def backend_page(self) -> Any:
+        """Underlying Patchright/Playwright Page for advanced usage."""
         return self._page
+
+    @property
+    def raw_page(self) -> Any:
+        """Deprecated alias for :attr:`backend_page`.
+
+        .. deprecated:: 2.0
+            Use :attr:`backend_page` instead. Will be removed in v2.1.
+        """
+        import warnings
+        warnings.warn(
+            "raw_page is deprecated, use backend_page instead. "
+            "Will be removed in v2.1.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.backend_page

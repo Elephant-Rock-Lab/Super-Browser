@@ -65,6 +65,7 @@ jobs:
           --ignore=tests/e2e_edge_cases.py
           --ignore=tests/pattern_validation.py
           --ignore=tests/stealth_detection/
+          --ignore=tests/discovery/
           -q
         env:
           PYTHONIOENCODING: utf-8

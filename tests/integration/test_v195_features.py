@@ -1,8 +1,8 @@
 """v1.9.5 feature tests — Doc Version Normalization + Example Fix.
 
 Verifies:
-- docs/api-stability.md version header updated to v1.11.0
-- docs/error-catalog.md version header updated to v1.11.0
+- docs/api-stability.md version header updated to v2.0.0a1
+- docs/error-catalog.md version header updated to v2.0.0a1
 - examples/stealth_mode.py uses StealthConfig (not Config.Stealth)
 - No Config.Browser/Config.Agent/Config.Budget in any example
 - No Config.Stealth in any example
@@ -28,11 +28,11 @@ class TestV195DocNormalization:
 
     def test_api_stability_version_header(self) -> None:
         header = (DOCS_DIR / "api-stability.md").read_text(encoding="utf-8").split("\n")[:5]
-        assert "v1.11.0" in "\n".join(header)
+        assert "v2.0.0a1" in "\n".join(header)
 
     def test_error_catalog_version_header(self) -> None:
         header = (DOCS_DIR / "error-catalog.md").read_text(encoding="utf-8").split("\n")[:5]
-        assert "v1.11.0" in "\n".join(header)
+        assert "v2.0.0a1" in "\n".join(header)
 
     def test_no_config_browser_alias_in_examples(self) -> None:
         for f in EXAMPLES_DIR.glob("*.py"):

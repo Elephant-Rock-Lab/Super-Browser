@@ -8,7 +8,6 @@ import time
 from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any, Optional
 
-from super_browser.agent.config import SuperBrowserConfig
 from super_browser.agent.delegator import SubagentDelegator
 from super_browser.agent.loop import AgentLoop
 from super_browser.agent.registry import ToolRegistry
@@ -35,8 +34,6 @@ from super_browser.results import (
     action_result,
     timed_action_result,
 )
-from super_browser.security.types import SecurityConfig
-from super_browser.stealth.types import StealthConfig
 
 if TYPE_CHECKING:
     from super_browser.agent.llm.protocol import LLMClient
@@ -47,24 +44,21 @@ logger = logging.getLogger(__name__)
 
 class SuperBrowser:
 
-    _legacy_core: Optional[SuperBrowserConfig]  # set in __init__, None for Config users
-
     def __init__(
         self,
-        config: Optional[Config | SuperBrowserConfig] = None,
+        config: Optional[Config] = None,
         *,
         tool_registry: Optional[ToolRegistry] = None,
         llm_client: Optional[LLMClient] = None,
     ) -> None:
         if config is None:
             self._config = Config()
-            self._legacy_core = None
-        elif isinstance(config, SuperBrowserConfig):
-            self._config = Config.from_legacy(config)
-            self._legacy_core = config
-        else:
+        elif isinstance(config, Config):
             self._config = config
-            self._legacy_core = None
+        else:
+            raise TypeError(
+                f"config must be Config or None, got {type(config).__name__}"
+            )
         self._registry = tool_registry or ToolRegistry()
         self._llm_client = llm_client
         self._session: Optional[BrowserSession] = None
@@ -111,19 +105,16 @@ class SuperBrowser:
         self._configure_vision()
         self._configure_stealth()
         self._configure_skills()
-        # -- Recovery (Config or legacy bridge) --
-        _lc = getattr(self, "_legacy_core", None)
-        recovery_on = (_lc.enable_recovery if _lc else False) or getattr(cfg.agent.core, "enable_recovery", False)
-        if recovery_on:
+        # -- Recovery --
+        if cfg.agent.enable_recovery:
             from super_browser.recovery import RecoveryCoordinator
 
             self._coordinator = RecoveryCoordinator(
                 session=self._session, controller=self._controller,
             )
             await self._coordinator.start()
-        # -- Budget (Config or legacy bridge) --
-        budget_on = (_lc.enable_budget if _lc else False) or getattr(cfg.agent.core, "enable_budget", False)
-        if budget_on:
+        # -- Budget --
+        if cfg.agent.enable_budget:
             from super_browser.budget import (
                 BudgetAwareLLMClient,
                 CircuitBreaker,
@@ -139,15 +130,12 @@ class SuperBrowser:
             cb = CircuitBreaker()
             comp = ContextCompressor()
             self._budget_client = BudgetAwareLLMClient(governor, cascade, pool, cb, comp)
-        # -- Tracing (Config or legacy bridge) --
-        trace_on = (_lc.trace_enabled if _lc else False) or cfg.tracing.enabled
-        if trace_on:
+        # -- Tracing --
+        if cfg.tracing.enabled or cfg.agent.trace_enabled:
             from super_browser.tracing import FlowLogger
             from super_browser.tracing.sinks import ConsoleSink
             sinks = [ConsoleSink()]
-            trace_dir = _lc.trace_output_dir if _lc else ""
-            if not trace_dir:
-                trace_dir = cfg.tracing.output_dir
+            trace_dir = cfg.tracing.output_dir or cfg.agent.trace_output_dir
             if trace_dir:
                 from pathlib import Path
 
@@ -156,11 +144,10 @@ class SuperBrowser:
                 sinks.append(FileSink(path))
             self._flow_logger = FlowLogger(sinks=sinks)
             await self._flow_logger.start()
-        # -- Security (from composition root) --
-        sec_on = (_lc.enable_security if _lc else False) or getattr(cfg.agent.core, "enable_security", False)
-        if sec_on:
+        # -- Security --
+        if cfg.agent.enable_security:
             from super_browser.security import SecurityManager
-            sec_config = cfg.security if isinstance(cfg, Config) else SecurityConfig()
+            sec_config = cfg.security
             self._security_manager = SecurityManager(sec_config)
         logger.info("SuperBrowser started")
 
@@ -644,7 +631,7 @@ class SuperBrowser:
         """Get the current frame (top of stack) or the raw page."""
         if self._frame_stack:
             return self._frame_stack[-1]
-        return self._page.engine_page.raw_page if self._page else None
+        return self._page.engine_page.backend_page if self._page else None
         # NOTE: Returns underlying Playwright Page for backward compat.
 
     # -- Shadow DOM --
@@ -952,14 +939,7 @@ class SuperBrowser:
                 self._registry.register(method)
 
     def _configure_verification(self) -> None:
-        _lc = getattr(self, "_legacy_core", None)
-        _cfg = self._config
-        verif_on = (
-            (_lc.enable_verification if _lc else False)
-            or getattr(getattr(_cfg, "agent", None), "core", None) is not None
-            and getattr(_cfg.agent.core, "enable_verification", False)
-        )
-        if not verif_on:
+        if not self._config.agent.enable_verification:
             return
         try:
             from super_browser.verification import VisualVerifier
@@ -974,37 +954,23 @@ class SuperBrowser:
             pass  # verification optional — fail silently
 
     def _configure_vision(self) -> None:
-        _lc = getattr(self, "_legacy_core", None)
-        _cfg = self._config
-        vis_on = (
-            (_lc.enable_vision if _lc else False)
-            or getattr(getattr(_cfg, "agent", None), "core", None) is not None
-            and getattr(_cfg.agent.core, "enable_vision", False)
-        )
-        if not vis_on:
+        if not self._config.agent.enable_vision:
             return
         from pathlib import Path
 
         from super_browser.vision import VisionCache, VisionController, VisionProviderFactory
         factory = VisionProviderFactory.from_env()
-        cache_dir_str = getattr(_lc, "vision_cache_dir", "") if _lc else ""
+        cache_dir_str = self._config.agent.vision_cache_dir
         cache_dir = Path(cache_dir_str) if cache_dir_str else None
         cache = VisionCache(cache_dir=cache_dir)
         self._vision_controller = VisionController(factory=factory, cache=cache)
         self._controller._vision_controller = self._vision_controller
 
     def _configure_stealth(self) -> None:
-        _lc = getattr(self, "_legacy_core", None)
-        _cfg = self._config
-        stl_on = (
-            (_lc.enable_stealth if _lc else False)
-            or getattr(getattr(_cfg, "agent", None), "core", None) is not None
-            and getattr(_cfg.agent.core, "enable_stealth", False)
-        )
-        if not stl_on:
+        if not self._config.agent.enable_stealth:
             return
         from super_browser.stealth import StealthManager
-        stealth_config = self._config.stealth if isinstance(self._config, Config) else StealthConfig()
+        stealth_config = self._config.stealth
         stealth_bridge = getattr(self._page.engine_page, "stealth_bridge", None)
         self._stealth_manager = StealthManager(
             stealth_config,
@@ -1015,19 +981,12 @@ class SuperBrowser:
         self._loop_stealth = self._stealth_manager
 
     def _configure_skills(self) -> None:
-        _lc = getattr(self, "_legacy_core", None)
-        _cfg = self._config
-        sk_on = (
-            (_lc.enable_skills if _lc else False)
-            or getattr(getattr(_cfg, "agent", None), "core", None) is not None
-            and getattr(_cfg.agent.core, "enable_skills", False)
-        )
-        if not sk_on:
+        if not self._config.agent.enable_skills:
             return
         from pathlib import Path
 
         from super_browser.skills import SkillRegistry
-        skills_dir_str = getattr(_lc, "skills_dir", "") if _lc else ""
+        skills_dir_str = self._config.agent.skills_dir
         skills_dir = Path(skills_dir_str) if skills_dir_str else None
         self._skill_registry = SkillRegistry(skills_dir=skills_dir)
         if self._page and hasattr(self._page, "cdp"):
