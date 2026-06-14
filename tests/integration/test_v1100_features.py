@@ -76,7 +76,7 @@ class TestVerificationWiring:
 
 
 class TestReadmeBadges:
-    """README badges point to real Elephant-Rock-Lab URLs."""
+    """README badges point to real Octo-Lex URLs."""
 
     @pytest.fixture()
     def readme(self):
@@ -84,8 +84,8 @@ class TestReadmeBadges:
             return f.read()
 
     def test_ci_badge_points_to_github(self, readme):
-        """CI badge uses github.com/Elephant-Rock-Lab."""
-        assert "Elephant-Rock-Lab/super-browser" in readme
+        """CI badge uses github.com/Octo-Lex."""
+        assert "Octo-Lex/Super-Browser" in readme
 
     def test_no_example_com_badges(self, readme):
         """No badges point to example.com."""
@@ -97,7 +97,7 @@ class TestReadmeBadges:
 
 
 class TestPyprojectUrls:
-    """pyproject.toml URLs point to Elephant-Rock-Lab."""
+    """pyproject.toml URLs point to Octo-Lex."""
 
     @pytest.fixture()
     def pyproject(self):
@@ -107,11 +107,11 @@ class TestPyprojectUrls:
 
     def test_homepage_url(self, pyproject):
         urls = pyproject["project"]["urls"]
-        assert "Elephant-Rock-Lab/super-browser" in urls["Homepage"]
+        assert "Octo-Lex/Super-Browser" in urls["Homepage"]
 
     def test_issues_url(self, pyproject):
         urls = pyproject["project"]["urls"]
-        assert "Elephant-Rock-Lab/super-browser/issues" in urls["Issues"]
+        assert "Octo-Lex/Super-Browser/issues" in urls["Issues"]
 
     def test_no_fake_super_browser_org(self, pyproject):
         urls = pyproject["project"]["urls"]
