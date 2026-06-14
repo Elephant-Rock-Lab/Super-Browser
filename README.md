@@ -1,8 +1,8 @@
-![Super-Browser — Anti-detection agent browser SDK, stealth, budget governance, security guardrails, and structured error recovery behind one async facade](https://github.com/Elephant-Rock-Lab/Super-Browser/blob/1ce1633ff586c28cfa7c2b0c50db82f2f1cb9fac/Banner.png)
+![Super-Browser — Anti-detection agent browser SDK, stealth, budget governance, security guardrails, and structured error recovery behind one async facade](https://github.com/Octo-Lex/Super-Browser/blob/1ce1633ff586c28cfa7c2b0c50db82f2f1cb9fac/Banner.png)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Elephant-Rock-Lab/super-browser/test.yml?branch=main)](https://github.com/Elephant-Rock-Lab/super-browser/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/Octo-Lex/Super-Browser/test.yml?branch=main)](https://github.com/Octo-Lex/Super-Browser/actions)
 [![PyPI](https://img.shields.io/pypi/v/super-browser?color=blue)](https://pypi.org/project/super-browser/)
-[![License](https://img.shields.io/badge/license-Apache--2.0-green)](https://github.com/Elephant-Rock-Lab/super-browser/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-green)](https://github.com/Octo-Lex/Super-Browser/blob/main/LICENSE)
 
 **Super Browser** is an anti-detection agent browser SDK. It wraps browser automation (Patchright, Playwright, Selenium, or raw CDP) in an agent-first API with stealth, budget governance, security guardrails, and structured error recovery. MCP is a transport, the agent SDK is the user-facing layer, and stealth is the foundation.
 
@@ -89,6 +89,69 @@ SB_HEADLESS=true python your_script.py
 | Headed (default) | Anti-detection, production scraping | Yes |
 | Headless | CI, testing, quick scripts | No — detectable |
 
+## Streaming
+
+For real-time visibility into agent execution, use `act_stream()` instead of `act()`. It yields `StreamEvent` objects for each lifecycle event:
+
+```python
+from super_browser import StreamEvent
+
+async for event in sb.act_stream("Fill the registration form"):
+    if event.type == "step_complete":
+        print(f"  Step done: {event.data.get('action', '?')}")
+    elif event.type == "token":
+        # Token deltas (when LLM client supports streaming)
+        print(event.data.get("delta", ""), end="", flush=True)
+    elif event.type == "done":
+        print(f"\nFinished in {event.data['total_steps']} steps")
+```
+
+`StreamEvent` is a frozen dataclass with `type` (a `StepEvent` enum) and `data` (a dict). The `data` dict is mutable but should be treated as read-only by callers.
+
+## Security Guardrails
+
+Super Browser enforces a **security perimeter** on all side-effecting facade methods. When a `SecurityManager` is configured (via `SecurityConfig`), each gated method is checked before its side effect executes. Blocked actions return an `ActionResult` with `ErrorCategory.SECURITY` — they never reach the browser.
+
+| Method | Level | What it protects |
+|:-------|:------|:----------------|
+| `navigate()` | SENSITIVE | URL allow/deny enforcement |
+| `click()` | SENSITIVE | Click target validation |
+| `fill()` | SENSITIVE | Input value redaction |
+| `open_tab()` | SENSITIVE | New-tab URL enforcement |
+| `download()` | SENSITIVE | Download path / URL validation |
+| `upload_file()` | DANGEROUS | Local file exposure risk |
+| `intercept_requests()` | SENSITIVE/DANGEROUS | Traffic observation / modification |
+| `block_requests()` | DANGEROUS | Traffic blocking |
+| `mock_response()` | DANGEROUS | Response injection / tampering |
+| `clear_interceptions()` | SENSITIVE | Disables interception controls |
+| `save_session()` | DANGEROUS | Exports auth cookies to disk |
+| `load_session()` | DANGEROUS | Imports cookies into browser |
+
+**Redaction propagation:** Security-checked methods use mutable params dicts, allowing `SecurityManager` to redact sensitive values (URLs, file paths, input values) in-place before they reach the browser.
+
+**Direct facade vs AgentLoop:** Direct facade calls (`sb.navigate()`, `sb.click()`) enforce security on the facade. AgentLoop-dispatched actions enforce security at the dispatch point — `_navigate_impl()` is used for the built-in `navigate` tool to avoid double-checking.
+
+## Default Agent Tooling
+
+When the browser starts, `SuperBrowser` auto-registers **10 built-in tools** that the LLM can invoke through the agent loop:
+
+| Tool | Source | Description |
+|:-----|:-------|:-------------|
+| `click` | Controller | Click an element |
+| `fill` | Controller | Fill an input field |
+| `select` | Controller | Select an option |
+| `hover` | Controller | Hover over an element |
+| `drag` | Controller | Drag from source to destination |
+| `scroll` | Controller | Scroll the page |
+| `keypress` | Controller | Press a keyboard key |
+| `navigate` | Facade | Navigate to a URL (via `_navigate_impl`) |
+| `extract` | Facade | Extract data from the page |
+| `observe` | Facade | Capture page state snapshot |
+
+Controller tools use **late-binding wrappers** that dereference `self._controller` at call time. This ensures that after `open_tab()` or `switch_tab()` replaces the controller, tools automatically route to the new controller — no stale page actions.
+
+Custom tools registered via `register_tool()` are not overwritten by the built-in registration.
+
 ## Architecture
 
 Super Browser is built on a **three-tier action cascade**:
@@ -109,6 +172,20 @@ Additional subsystems:
 | **Vision** | Screenshot-based fallback for pages that resist DOM inspection |
 
 Full API documentation lives in [`docs/`](docs/).
+
+## What's New (Unreleased)
+
+### Agent Streaming, Default Tooling, and Security Perimeter
+
+Nine waves of production-control improvements merged to `main`:
+
+- **Streaming API** — `act_stream()` yields `StreamEvent` for real-time agent progress. Provider token streaming for OpenAI and Anthropic.
+- **Default Tooling** — 10 built-in tools auto-registered on startup (7 controller + 3 facade). Agents work out-of-box.
+- **Prompt Isolation** — Tool API removed from `<untrusted-screen-content>` wrappers.
+- **Security Perimeter** — All 12 side-effecting facade methods enforce `SecurityManager` before reaching the browser.
+- **Controller Rebinding** — Tools late-bind to current controller after tab switches.
+
+See the [Security Guardrails](#security-guardrails), [Streaming](#streaming), and [Default Agent Tooling](#default-agent-tooling) sections above.
 
 ## What's New in v1.9
 
@@ -409,7 +486,7 @@ See [docs/cloak-integration.md](docs/cloak-integration.md) for the complete guid
 ## Development
 
 ```bash
-git clone https://github.com/Elephant-Rock-Lab/super-browser.git
+git clone https://github.com/Octo-Lex/Super-Browser.git
 cd super-browser
 pip install -e ".[patchright,anthropic,openai,dev]"
 pytest

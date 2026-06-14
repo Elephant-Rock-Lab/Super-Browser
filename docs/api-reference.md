@@ -679,6 +679,7 @@ A `@runtime_checkable` async protocol that every LLM backend must implement.
 @runtime_checkable
 class LLMClient(Protocol):
     async def propose_action(self, prompt: str, *, tools: list[dict] | None = None) -> dict: ...
+    async def propose_action_stream(self, prompt: str, *, tools: list[dict] | None = None) -> AsyncIterator[dict]: ...
     async def create_plan(self, instruction: str, *, tools: list[dict]) -> list[dict]: ...
     async def replan(self, *, instruction: str, original_plan: list[dict], failed_step: int, error: str) -> list[dict]: ...
 ```
@@ -690,6 +691,17 @@ class LLMClient(Protocol):
 Ask the LLM for its next action.
 
 **Returns:** `{"action": str, "params": dict}` for a tool invocation, or `{"done": True, "summary": str}` when complete.
+
+#### `propose_action_stream(prompt, *, tools=None) → AsyncIterator[dict]` *(async)*
+
+Streaming variant of `propose_action`. Yields intermediate token deltas as
+`{"delta": str}` chunks, followed by a final `dict` with the same schema as
+`propose_action`'s return value.
+
+When a client does not implement this method, `AgentLoop` falls back to
+`propose_action()` automatically.
+
+**Yields:** `{"delta": str}` per token chunk, then a final result dict.
 
 #### `create_plan(instruction, *, tools) → list[dict]` *(async)*
 

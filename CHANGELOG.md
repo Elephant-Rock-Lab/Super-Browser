@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semerv.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Agent Streaming API (Wave 1)
+- **`act_stream()`** method on `SuperBrowser` — streaming variant of `act()`
+  that yields `StreamEvent` objects for each step lifecycle event.
+- **`StreamEvent`** frozen dataclass exported from `super_browser` — fields
+  `type: StepEvent` and `data: dict` (treat as read-only).
+- `_StreamingLLMWrapper` — wraps an LLM client so `propose_action()` uses
+  `propose_action_stream()` and forwards token deltas as `StreamEvent`s.
+- `AgentLoop.run_stream()` — async generator yielding lifecycle events.
+- 12 streaming tests in `test_streaming.py`.
+
+### Added — Provider Token Streaming (Wave 2)
+- **`propose_action_stream()`** added to `LLMClient` protocol — async generator
+  yielding token deltas as `StreamEvent`s.
+- `OpenAIClient.propose_action_stream()` — SSE-based streaming for OpenAI.
+- `AnthropicClient.propose_action_stream()` — message-stream for Anthropic.
+- `browser_transport.py` — transport-agnostic streaming bridge.
+- 16 provider streaming tests in `test_llm_streaming.py`.
+
+### Added — Default Agent Tooling (Wave 3)
+- **`_register_builtin_tools()`** on `SuperBrowser` — auto-registers 10 tools
+  after controller creation in `start()`.
+- 7 controller tools: `click`, `fill`, `select`, `hover`, `drag`, `scroll`,
+  `keypress`.
+- 3 facade tools: `navigate` (via `_navigate_impl` closure), `extract`,
+  `observe`.
+- Does not overwrite user-registered tools.
+- Fixed `AgentLoop` to pass `tools=self._registry.build_tool_schemas()` to
+  both `create_plan()` and `propose_action()` as keyword argument.
+- 12 default-tooling tests in `test_default_tooling.py`.
+
+### Changed — Prompt/Tool Isolation (Wave 4)
+- `_build_prompt()` no longer wraps tool API in
+  `<untrusted-screen-content>`. Replaced with `tools_note` pointing to
+  the structured tools interface.
+- 11 prompt-isolation tests in `test_prompt_isolation.py`.
+
+### Added — Security Perimeter (Waves 5–9)
+- **`_check_facade_security()`** private helper on `SuperBrowser` — centralised
+  security gate for all side-effecting facade methods. Supports mutable params
+  for redaction propagation and auto-derives current page URL.
+- **Wave 5:** `navigate()`, `click()`, `fill()` secured (SENSITIVE).
+  `_navigate_impl()` extracted for single-check invariant.
+- **Wave 6:** `open_tab()` (SENSITIVE), `upload_file()` (DANGEROUS),
+  `download()` (SENSITIVE) secured.
+- **Wave 7:** Controller tool handlers use late-binding wrappers
+  (`_make_controller_wrapper()`) — tools route to current controller after
+  `open_tab()` / `switch_tab()` replaces it.
+- **Wave 8:** `intercept_requests()` (SENSITIVE/DANGEROUS),
+  `block_requests()` (DANGEROUS via delegation), `mock_response()` (DANGEROUS),
+  `clear_interceptions()` (SENSITIVE) secured.
+- **Wave 9:** `save_session()` (DANGEROUS), `load_session()` (DANGEROUS)
+  secured — credential-bearing session state exports/imports gated.
+- 78 security tests across 5 test files.
+
+### Fixed
+- Repository moved from `Elephant-Rock-Lab/super-browser` to
+  `Octo-Lex/Super-Browser`. All project URLs in `pyproject.toml`, README
+  badges, and clone instructions updated.
+
 ## [1.10.0] — 2026-05-28
 
 ### Fixed

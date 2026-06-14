@@ -224,11 +224,25 @@ LLM Call → BudgetAwareLLMClient → TokenBudgetGovernor
 - `CredentialVault` — Encrypted local credential storage (Fernet AES-128-CBC + HMAC-SHA256).
 
 **Security Levels:**
-- `safe` — Read-only actions (navigate, observe, extract)
-- `sensitive` — Data-modifying actions (fill, click)
-- `dangerous` — Destructive actions (delete, submit forms)
+- `safe` — Read-only actions (observe, extract)
+- `sensitive` — Side-effecting actions (navigate, click, fill, open_tab, download)
+- `dangerous` — Credential/file/network actions (upload_file, mock_response, save_session)
 
-Every action dispatched through `AgentLoop` passes through the security manager before execution.
+**Two enforcement points:**
+
+1. **Direct facade calls** — `SuperBrowser._check_facade_security()` gates 12
+   side-effecting methods before their side effects execute. Mutable params
+   allow the security manager to redact values in-place.
+2. **AgentLoop dispatch** — Every action proposed by the LLM passes through
+   the security manager before execution. The built-in `navigate` tool uses
+   `_navigate_impl()` to avoid double-checking.
+
+**Secured facade methods:**
+
+| Level | Methods |
+|:------|:--------|
+| SENSITIVE | `navigate`, `click`, `fill`, `open_tab`, `download`, `intercept_requests(log)`, `clear_interceptions` |
+| DANGEROUS | `upload_file`, `intercept_requests(block/mock)`, `block_requests`, `mock_response`, `save_session`, `load_session` |
 
 ---
 
