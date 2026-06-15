@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Behavioral Page</title></head>
+<body>
+  <h1>Behavioral Realism Fixture</h1>
+  <p>This page provides interactive elements for behavioral E2E tests.</p>
+
+  <div id="interactive-area">
+    <button id="action-btn" class="clickable">Click Me</button>
+    <input id="search-field" type="text" placeholder="Type here..." autocomplete="off">
+    <button id="submit-search" class="clickable">Search</button>
+  </div>
+
+  <div id="scroll-content" style="height: 3000px; padding: 20px;">
+    <h2>Scroll Target 1</h2>
+    <p>Content for scroll testing. This div is 3000px tall.</p>
+    <div id="scroll-target" style="margin-top: 2000px;">
+      <h2>Scroll Target 2</h2>
+      <p>You scrolled down to find this.</p>
+    </div>
+  </div>
+
+  <div id="result-display" data-value=""></div>
+
+  <script>
+    document.getElementById('action-btn').addEventListener('click', function() {
+      document.getElementById('result-display').setAttribute('data-value', 'clicked');
+    });
+    document.getElementById('submit-search').addEventListener('click', function() {
+      var val = document.getElementById('search-field').value;
+      document.getElementById('result-display').setAttribute('data-value', 'searched:' + val);
+    });
+  </script>
+</body>
+</html>

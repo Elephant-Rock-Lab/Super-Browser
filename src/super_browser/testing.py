@@ -308,3 +308,115 @@ class E2EContext:
         if self.fixture_server is not None:
             self.fixture_server.stop()
             self.fixture_server = None
+
+
+# ---------------------------------------------------------------------------
+# JSON/Markdown reporting (schema v2)
+# ---------------------------------------------------------------------------
+
+
+def build_e2e_json_report(
+    suite_name: str,
+    results: list[dict[str, Any]],
+    environment: dict[str, Any],
+    suite_duration_ms: float,
+    budget_seconds: float,
+) -> dict[str, Any]:
+    """Build a versioned JSON report from E2E test results.
+
+    Parameters
+    ----------
+    suite_name:
+        Name of the test suite (e.g., ``"e2e-real-browser"``).
+    results:
+        List of per-test result dicts with keys: ``test_name``,
+        ``status``, ``duration_ms``, ``budget_ms``, ``budget_exceeded``.
+    environment:
+        Environment metadata (from ``E2EContext.environment_info``).
+    suite_duration_ms:
+        Total suite execution time in milliseconds.
+    budget_seconds:
+        Configured suite budget in seconds.
+
+    Returns
+    -------
+    dict
+        JSON-serializable dict with schema_version=2.
+    """
+    total = len(results)
+    passed = sum(1 for r in results if r.get("status") == "passed")
+    failed = sum(1 for r in results if r.get("status") == "failed")
+    skipped = sum(1 for r in results if r.get("status") == "skipped")
+
+    import datetime
+
+    return {
+        "schema_version": 2,
+        "suite_name": suite_name,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "environment": environment,
+        "results": results,
+        "summary": {
+            "total": total,
+            "passed": passed,
+            "failed": failed,
+            "skipped": skipped,
+            "suite_duration_ms": suite_duration_ms,
+            "budget_seconds": budget_seconds,
+        },
+    }
+
+
+def render_e2e_markdown_report(json_report: dict[str, Any]) -> str:
+    """Render a Markdown summary from a JSON E2E report.
+
+    Parameters
+    ----------
+    json_report:
+        Report dict from ``build_e2e_json_report``.
+
+    Returns
+    -------
+    str
+        Human-readable Markdown report.
+    """
+    summary = json_report.get("summary", {})
+    env = json_report.get("environment", {})
+    results = json_report.get("results", [])
+
+    lines: list[str] = []
+    lines.append(f"# E2E Report: {json_report.get('suite_name', 'unknown')}")
+    lines.append("")
+    lines.append(f"**Schema version:** {json_report.get('schema_version', '?')}")
+    lines.append(f"**Timestamp:** {json_report.get('timestamp', 'N/A')}")
+    lines.append("")
+    lines.append("## Summary")
+    lines.append("")
+    lines.append(f"- **Total:** {summary.get('total', 0)}")
+    lines.append(f"- **Passed:** {summary.get('passed', 0)}")
+    lines.append(f"- **Failed:** {summary.get('failed', 0)}")
+    lines.append(f"- **Skipped:** {summary.get('skipped', 0)}")
+    lines.append(f"- **Duration:** {summary.get('suite_duration_ms', 0):.0f}ms")
+    lines.append(f"- **Budget:** {summary.get('budget_seconds', 0):.0f}s")
+    lines.append("")
+    lines.append("## Environment")
+    lines.append("")
+    lines.append(f"- **Backend:** {env.get('backend', 'N/A')}")
+    lines.append(f"- **Headless:** {env.get('headless', 'N/A')}")
+    lines.append(f"- **Python:** {env.get('python_version', 'N/A')}")
+    lines.append(f"- **Platform:** {env.get('platform', 'N/A')}")
+    lines.append(f"- **Live:** {env.get('live', 'N/A')}")
+    lines.append("")
+    lines.append("## Results")
+    lines.append("")
+    lines.append("| Test | Status | Duration (ms) | Budget Exceeded |")
+    lines.append("|:-----|:-------|:-------------|:----------------|")
+    for r in results:
+        name = r.get("test_name", "?")
+        status = r.get("status", "?")
+        dur = r.get("duration_ms", 0.0)
+        exceeded = r.get("budget_exceeded", False)
+        icon = "✅" if status == "passed" else ("❌" if status == "failed" else "⏭️")
+        lines.append(f"| {name} | {icon} {status} | {dur:.0f} | {exceeded} |")
+    lines.append("")
+    return "\n".join(lines)
