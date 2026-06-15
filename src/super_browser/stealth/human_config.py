@@ -28,6 +28,11 @@ _PRESETS: dict[str, dict] = {
         "tremor": 0.4,
         "wpm": 60,
         "scroll_style": "smooth",
+        # Track C dwell fields
+        "dwell_pre_action_ms": (200.0, 1500.0),
+        "dwell_post_action_ms": (300.0, 3000.0),
+        "dwell_page_settle_ms": 800.0,
+        "dwell_variability": 0.7,
     },
     "careful": {
         "typing_delay_ms": (80, 250),
@@ -40,6 +45,11 @@ _PRESETS: dict[str, dict] = {
         "tremor": 0.3,
         "wpm": 40,
         "scroll_style": "smooth",
+        # Track C dwell fields
+        "dwell_pre_action_ms": (500.0, 2500.0),
+        "dwell_post_action_ms": (800.0, 5000.0),
+        "dwell_page_settle_ms": 1500.0,
+        "dwell_variability": 0.6,
     },
     "fast": {
         "typing_delay_ms": (20, 60),
@@ -52,6 +62,11 @@ _PRESETS: dict[str, dict] = {
         "tremor": 0.2,
         "wpm": 90,
         "scroll_style": "inertial",
+        # Track C dwell fields
+        "dwell_pre_action_ms": (50.0, 400.0),
+        "dwell_post_action_ms": (100.0, 800.0),
+        "dwell_page_settle_ms": 300.0,
+        "dwell_variability": 0.8,
     },
 }
 
@@ -114,6 +129,14 @@ class HumanConfig:
     session_seed: str = ""
 
     preset: str = "default"
+
+    # Track C: Dwell timing fields (Wave 22)
+    # Action-aware pre/post delays in milliseconds
+    dwell_pre_action_ms: tuple[float, float] = (200.0, 1500.0)
+    dwell_post_action_ms: tuple[float, float] = (300.0, 3000.0)
+    dwell_page_settle_ms: float = 800.0
+    # Variability: 0.0 = uniform, 1.0 = high variance
+    dwell_variability: float = 0.7
 
     def __post_init__(self) -> None:
         """Apply preset values when ``preset`` is not ``"default"``."""
