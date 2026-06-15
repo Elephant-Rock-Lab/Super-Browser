@@ -1,0 +1,36 @@
+{
+  "_comment": "Curated TLS fingerprint baselines. Captured from real browser sessions. Do NOT scrape at runtime.",
+  "_format": "Each entry: profile_name → { ja3_hash, ja4_hash, ja4_string, tls_version, cipher_suites, extensions, source, captured_date }",
+  "baselines": {
+    "chrome143_macos": {
+      "ja3_hash": null,
+      "ja4_hash": null,
+      "ja4_string": "t13d1516h2_8daaf6152771_b0da82dd1658",
+      "tls_version": "TLSv1.3",
+      "cipher_suites": [],
+      "extensions": [],
+      "source": "curated_reference",
+      "captured_date": "2026-06-01"
+    },
+    "chrome130_macos": {
+      "ja3_hash": null,
+      "ja4_hash": null,
+      "ja4_string": "t13d1516h2_8daaf6152771_b0da82dd1658",
+      "tls_version": "TLSv1.3",
+      "cipher_suites": [],
+      "extensions": [],
+      "source": "curated_reference",
+      "captured_date": "2026-05-01"
+    },
+    "firefox120_linux": {
+      "ja3_hash": null,
+      "ja4_hash": null,
+      "ja4_string": "t13d1716h2_5b57614c22b0_8d6869a146b6",
+      "tls_version": "TLSv1.3",
+      "cipher_suites": [],
+      "extensions": [],
+      "source": "curated_reference",
+      "captured_date": "2026-05-01"
+    }
+  }
+}
