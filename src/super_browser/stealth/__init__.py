@@ -13,6 +13,11 @@ from super_browser.stealth.fingerprint_score import (
     FingerprintScoreResult,
 )
 from super_browser.stealth.headers import HeaderRandomizer
+from super_browser.stealth.ip_reputation import (
+    IPReputationClient,
+    IPReputationResult,
+    ReputationVerdict,
+)
 from super_browser.stealth.manager import (
     CaptchaTimeoutError,
     ProxyExhaustedError,
@@ -53,6 +58,9 @@ __all__ = [
     "ProxyPool",
     "ProxyPoolConfig",
     "ProxyTier",
+    "IPReputationClient",
+    "IPReputationResult",
+    "ReputationVerdict",
     "RotationStrategy",
     "StealthActionPolicy",
     "StealthConfig",
