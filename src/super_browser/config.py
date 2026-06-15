@@ -75,6 +75,18 @@ class NetworkConfig:
 
 
 @dataclass(frozen=True)
+class ChallengeConfig:
+    """Configuration for Track D challenge detection (v2.0-alpha.4).
+
+    Detection-only in v2.0. No solver integration.
+    """
+    turnstile_detect_enabled: bool = True
+    kasada_detect_enabled: bool = True
+    token_cache_ttl_s: float = 1800.0
+    token_cache_max_entries: int = 100
+
+
+@dataclass(frozen=True)
 class NetworkStealthConfig:
     """Configuration for Track B network stealth features (v2.0-alpha.2).
 
@@ -180,6 +192,7 @@ class Config:
     consistency: ConsistencyConfig = field(default_factory=ConsistencyConfig)
     network: NetworkConfig = field(default_factory=NetworkConfig)
     network_stealth: NetworkStealthConfig = field(default_factory=NetworkStealthConfig)
+    challenges: ChallengeConfig = field(default_factory=ChallengeConfig)
 
     # ------------------------------------------------------------------
     # from_env
@@ -270,6 +283,13 @@ class Config:
         _env_float(ns_kw, "SB_IP_REP_TIMEOUT", "ip_reputation_timeout")
         _env_float(ns_kw, "SB_IP_REP_CACHE_TTL", "ip_reputation_cache_ttl")
 
+        # -- Challenges (Track D) ----------------------------------
+        ch_kw: dict = {}
+        _env_bool(ch_kw, "SB_TURNSTILE_DETECT", "turnstile_detect_enabled")
+        _env_bool(ch_kw, "SB_KASADA_DETECT", "kasada_detect_enabled")
+        _env_float(ch_kw, "SB_TOKEN_CACHE_TTL", "token_cache_ttl_s")
+        _env_int(ch_kw, "SB_TOKEN_CACHE_MAX", "token_cache_max_entries")
+
         return cls(
             browser=SessionConfig(**browser_kw),
             agent=AgentConfig(**agent_kw),
@@ -282,6 +302,7 @@ class Config:
             consistency=ConsistencyConfig(**consistency_kw),
             network=NetworkConfig(**network_kw),
             network_stealth=NetworkStealthConfig(**ns_kw),
+            challenges=ChallengeConfig(**ch_kw),
         )
 
     # ------------------------------------------------------------------
@@ -348,6 +369,7 @@ class Config:
             consistency=_build_sub(ConsistencyConfig, d.get("consistency", {})),
             network=_build_sub(NetworkConfig, d.get("network", {})),
             network_stealth=_build_sub(NetworkStealthConfig, d.get("network_stealth", {})),
+            challenges=_build_sub(ChallengeConfig, d.get("challenges", {})),
         )
 
     # ------------------------------------------------------------------
