@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] — 2026-06-15
+
+### Fixed — CLI entry point (#148)
+
+- Fixed CLI module shadowing where both `src/super_browser/cli.py` and
+  `src/super_browser/cli/` existed, causing `super_browser.cli` to resolve
+  to the package and making several console commands inaccessible.
+- Consolidated all CLI commands into `src/super_browser/cli/__init__.py`.
+- Restored `superbrowser version`, `info`, `run`, `interactive`, `script`,
+  `replay`, `act`, and `stealth-check`.
+- Preserved compatibility aliases for existing imports:
+  `memory_handler`, `stealth_validate_handler`, and `_result_demo_handler`.
+
+No runtime API changes outside CLI dispatch.
+
 ## [2.0.1] — 2026-06-15
 
 ### Fixed — Hotfix: PyPI distribution naming
