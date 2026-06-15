@@ -19,6 +19,7 @@ from super_browser.stealth.manager import (
     StealthManager,
 )
 from super_browser.stealth.proxy import ProxyEscalator
+from super_browser.stealth.proxy_pool import ProxyEntry, ProxyHealth, ProxyPool, RotationStrategy
 from super_browser.stealth.types import (
     CAPTCHADetection,
     CAPTCHAProvider,
@@ -45,10 +46,14 @@ __all__ = [
     "HeaderRandomizer",
     "HTTPMorphRequestConfig",
     "HTTPMorphResponse",
+    "ProxyEntry",
     "ProxyEscalator",
     "ProxyExhaustedError",
+    "ProxyHealth",
+    "ProxyPool",
     "ProxyPoolConfig",
     "ProxyTier",
+    "RotationStrategy",
     "StealthActionPolicy",
     "StealthConfig",
     "StealthDiagnostic",
