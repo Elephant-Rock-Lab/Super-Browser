@@ -6,7 +6,7 @@ Super Browser supports **CloakBrowser** as an optional stealth backend. When ins
 
 ```bash
 # Install Super Browser with CloakBrowser support
-pip install super-browser[browser,cloak]
+pip install superbrowser-sdk[browser,cloak]
 
 # Or add to an existing installation
 pip install cloakbrowser>=0.3

@@ -93,7 +93,7 @@ class TestReadmeBadges:
 
     def test_pypi_badge_exists(self, readme):
         """PyPI badge exists."""
-        assert "pypi.org/project/super-browser" in readme or "pypi/v/super-browser" in readme
+        assert "pypi.org/project/superbrowser-sdk" in readme or "pypi/v/superbrowser-sdk" in readme
 
 
 class TestPyprojectUrls:

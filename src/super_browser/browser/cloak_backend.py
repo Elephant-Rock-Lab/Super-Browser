@@ -122,7 +122,7 @@ class CloakBrowserAdapter:
         except ImportError as exc:
             raise ImportError(
                 "cloakbrowser is required for CLOAK_LAUNCH mode. "
-                "Install with: pip install super-browser[cloak]"
+                "Install with: pip install superbrowser-sdk[cloak]"
             ) from exc
 
         kwargs: dict[str, Any] = {

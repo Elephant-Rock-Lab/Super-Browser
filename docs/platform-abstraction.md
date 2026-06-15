@@ -178,4 +178,4 @@ The Selenium backend does not support network interception:
 | `route()` | Raises `NotImplementedError` — Selenium has no equivalent to Playwright's route interception |
 | `unroute()` | Raises `NotImplementedError` — see above |
 
-For full feature coverage, use the Patchright backend (`pip install super-browser[patchright]`).
+For full feature coverage, use the Patchright backend (`pip install superbrowser-sdk[patchright]`).

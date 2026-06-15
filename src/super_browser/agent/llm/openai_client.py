@@ -49,7 +49,7 @@ class OpenAILLMClient:
         except ImportError as exc:
             raise ImportError(
                 "The 'openai' package is required for OpenAILLMClient. "
-                "Install it with:  pip install super-browser[openai]"
+                "Install it with:  pip install superbrowser-sdk[openai]"
             ) from exc
 
         self._client = openai.AsyncOpenAI(api_key=api_key)

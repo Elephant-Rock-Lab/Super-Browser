@@ -15,6 +15,9 @@ The v2.0 release delivers five tracks of improvement to the Super Browser
 anti-detection agent browser SDK. All tracks are implementation-complete with
 2,758 passing tests across 3 operating systems and 2 Python versions.
 
+**Distribution name:** `superbrowser-sdk` (`pip install superbrowser-sdk`)
+**Import name:** `super_browser` (`import super_browser`)
+
 ### Breaking Changes — Track A: API Simplification (Waves 14-16)
 
 - **`SuperBrowserConfig` removed.** All fields flattened onto `AgentConfig`.

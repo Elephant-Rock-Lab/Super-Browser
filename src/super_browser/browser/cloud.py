@@ -3,7 +3,7 @@
 Provides a unified interface for connecting to remote cloud browser
 sessions instead of running Chromium locally.
 
-Requires: pip install super-browser[cloud]
+Requires: pip install superbrowser-sdk[cloud]
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ class BrowserbaseConnector(CloudBrowserConnector):
         except ImportError:
             raise ImportError(
                 "httpx is required for cloud browser support. "
-                "Install with: pip install super-browser[cloud]"
+                "Install with: pip install superbrowser-sdk[cloud]"
             )
 
         if not self._api_key or not self._project_id:
@@ -182,7 +182,7 @@ class SteelConnector(CloudBrowserConnector):
         except ImportError:
             raise ImportError(
                 "httpx is required for cloud browser support. "
-                "Install with: pip install super-browser[cloud]"
+                "Install with: pip install superbrowser-sdk[cloud]"
             )
 
         if not self._api_key:

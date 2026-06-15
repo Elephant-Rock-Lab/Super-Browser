@@ -312,7 +312,7 @@ class TestCLICaptureBaseline:
                 sys,
                 "argv",
                 [
-                    "super-browser",
+                    "superbrowser",
                     "stealth-validate",
                     "--profile",
                     "test-profile",
@@ -368,7 +368,7 @@ class TestCLICIMode:
                 sys,
                 "argv",
                 [
-                    "super-browser",
+                    "superbrowser",
                     "stealth-validate",
                     "--profile",
                     "test-profile",
@@ -416,7 +416,7 @@ class TestCLICIMode:
                 sys,
                 "argv",
                 [
-                    "super-browser",
+                    "superbrowser",
                     "stealth-validate",
                     "--profile",
                     "test-profile",
@@ -447,7 +447,7 @@ class TestCLICIMode:
                 sys,
                 "argv",
                 [
-                    "super-browser",
+                    "superbrowser",
                     "stealth-validate",
                     "--profile",
                     "test-profile",

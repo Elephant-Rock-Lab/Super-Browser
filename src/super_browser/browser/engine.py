@@ -320,7 +320,7 @@ def _detect_backend(config: Any = None) -> str:
     # 5. Nothing found
     raise RuntimeError(
         "No browser backend found. Install one of:\n"
-        "  pip install super-browser[patchright]\n"
-        "  pip install super-browser[playwright]\n"
-        "  pip install super-browser[selenium]"
+        "  pip install superbrowser-sdk[patchright]\n"
+        "  pip install superbrowser-sdk[playwright]\n"
+        "  pip install superbrowser-sdk[selenium]"
     )

@@ -42,7 +42,7 @@ classifiers = [
 ]
 
 [project.scripts]
-super-browser = "super_browser.cli:main"
+superbrowser = "super_browser.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/Octo-Lex/Super-Browser"
@@ -69,7 +69,7 @@ cdp = [
     "aiohttp>=3.9",
 ]
 all = [
-    "super-browser[patchright,playwright,selenium,cdp,security,anthropic,openai,cloud]",
+    "superbrowser-sdk[patchright,playwright,selenium,cdp,security,anthropic,openai,cloud]",
 ]
 dev = [
     "pytest>=9.0",
