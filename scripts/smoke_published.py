@@ -64,6 +64,13 @@ def _create_venv(path: Path) -> Path:
     return path / "bin" / "python"
 
 
+def _write_report(report: dict[str, Any], out_path: Path) -> None:
+    """Write the smoke report JSON, creating parent dirs if needed."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2)
+
+
 def _check_result(name: str, rc: int, stdout: str, stderr: str) -> dict[str, Any]:
     """Build a check result dict."""
     return {
@@ -97,7 +104,9 @@ def run_smoke(
             venv_python = _create_venv(tmp / "venv")
         except RuntimeError as exc:
             checks.append(_check_result("venv_creation", 1, "", str(exc)))
-            return _build_report(started, install_spec, checks)
+            report = _build_report(started, install_spec, checks)
+            _write_report(report, out_path)
+            return report
 
         # Upgrade pip
         rc, out, err = _run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"])
@@ -111,7 +120,9 @@ def run_smoke(
         checks.append(_check_result(f"install_all ({install_spec}[all])", rc, out, err))
         if rc != 0:
             # No point continuing if base install fails
-            return _build_report(started, install_spec, checks)
+            report = _build_report(started, install_spec, checks)
+            _write_report(report, out_path)
+            return report
 
         # Import check
         rc, out, err = _run([
@@ -160,9 +171,7 @@ def run_smoke(
             })
 
     report = _build_report(started, install_spec, checks)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2)
+    _write_report(report, out_path)
     return report
 
 

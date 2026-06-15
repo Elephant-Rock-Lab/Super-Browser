@@ -189,3 +189,79 @@ class TestVenvCreation:
         rc, out, err = sp._run([str(venv_python), "--version"])
         assert rc == 0
         assert "Python" in out
+
+
+class TestWriteReport:
+    """Test _write_report() helper."""
+
+    def test_writes_valid_json(self, tmp_path: Path) -> None:
+        report = sp._build_report("ts", "spec", [sp._check_result("c", 0, "ok", "")])
+        out = tmp_path / "results" / "report.json"
+        sp._write_report(report, out)
+        assert out.exists()
+        loaded = json.loads(out.read_text())
+        assert loaded["schema_version"] == 1
+
+    def test_creates_nested_dirs(self, tmp_path: Path) -> None:
+        report = sp._build_report("ts", "spec", [])
+        out = tmp_path / "a" / "b" / "c" / "report.json"
+        sp._write_report(report, out)
+        assert out.exists()
+
+
+class TestEarlyFailurePaths:
+    """Test that JSON report is always written, even on early failures.
+
+    Regression guard for PR #156 review: venv creation failure and
+    [all] install failure previously returned without writing JSON.
+    """
+
+    def test_venv_creation_failure_writes_json(self, tmp_path: Path) -> None:
+        """Venv creation failure must still write the JSON report."""
+        from unittest.mock import patch
+
+        out_path = tmp_path / "smoke.json"
+
+        with patch.object(sp, "_create_venv", side_effect=RuntimeError("venv failed")):
+            sp.run_smoke(version="2.0.2", dist="superbrowser-sdk", out_path=out_path)
+
+        # JSON must be written
+        assert out_path.exists()
+        loaded = json.loads(out_path.read_text())
+        assert loaded["summary"]["overall"] == "FAIL"
+        assert loaded["summary"]["failed"] >= 1
+
+        # The venv_creation check should be in the report
+        check_names = [c["name"] for c in loaded["checks"]]
+        assert "venv_creation" in check_names
+
+    def test_install_all_failure_writes_json(self, tmp_path: Path) -> None:
+        """[all] install failure must still write the JSON report."""
+        from unittest.mock import patch
+
+        out_path = tmp_path / "smoke.json"
+
+        # Mock venv creation to succeed, but [all] install to fail
+        def mock_run(cmd: list[str], **kwargs: Any) -> tuple[int, str, str]:
+            if "venv" in str(cmd):
+                return 0, "", ""
+            if "pip" in cmd and "install" in cmd and "--upgrade" in cmd:
+                return 0, "pip upgraded", ""
+            if "[all]" in " ".join(cmd):
+                return 1, "", "ERROR: Package not found"
+            return 0, "", ""
+
+        with (
+            patch.object(sp, "_create_venv", return_value=Path("/fake/python")),
+            patch.object(sp, "_run", side_effect=mock_run),
+        ):
+            sp.run_smoke(version="2.0.2", dist="superbrowser-sdk", out_path=out_path)
+
+        # JSON must be written
+        assert out_path.exists()
+        loaded = json.loads(out_path.read_text())
+        assert loaded["summary"]["overall"] == "FAIL"
+
+        # Should have at least pip_upgrade and install_all checks
+        check_names = [c["name"] for c in loaded["checks"]]
+        assert any("install_all" in name for name in check_names)
