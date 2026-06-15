@@ -458,7 +458,7 @@ def main() -> None:
     json_path = args.json or (args.out_dir / "benchmark-results.json")
     md_path = args.markdown or (args.out_dir / "benchmark-results.md")
 
-    json_path.parent.mkdir(parents=True, exist_ok_ok=True)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
     md_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(json_path, "w", encoding="utf-8") as f:

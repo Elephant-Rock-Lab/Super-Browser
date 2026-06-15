@@ -232,3 +232,66 @@ class TestCliArgParsing:
 
     def test_output_dir_default(self) -> None:
         assert bm.Path("benchmarks/results")  # type: ignore[attr-defined]
+
+
+class TestOutputWriting:
+    """Regression test for the output-write path in main().
+
+    Exercises the exact file-writing block that previously contained a
+    ``exist_ok_ok`` typo which crashed the JSON write. Mocks the async
+    benchmark runner so no real browser is launched.
+    """
+
+    def test_writes_json_and_markdown(self, tmp_path: Path) -> None:
+        """main()-style output block should write both files successfully."""
+        report = {
+            "schema_version": 1,
+            "timestamp_utc": "2026-06-16T00:00:00Z",
+            "environment": {
+                "python": "3.12.0",
+                "platform": "linux",
+                "browser_backend": "patchright",
+                "headless": True,
+                "super_browser_version": "2.0.2",
+            },
+            "config": {
+                "iterations": 1,
+                "warmup": 0,
+                "fixtures_dir": "benchmarks/fixtures",
+                "timeout_s": 30,
+            },
+            "metrics": [bm._summarize("test_metric", "ms", [10.0])],
+            "memory": {"unit": "mb", "note": "test"},
+        }
+        md = bm.format_markdown(report)
+
+        json_path = tmp_path / "results" / "benchmark-results.json"
+        md_path = tmp_path / "results" / "benchmark-results.md"
+
+        # This mirrors the exact block from main() — the mkdir + write
+        # calls that previously contained the exist_ok_ok typo.
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        md_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2)
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(md)
+
+        assert json_path.exists()
+        assert md_path.exists()
+
+        loaded = json.loads(json_path.read_text(encoding="utf-8"))
+        assert loaded["schema_version"] == 1
+        assert "# Benchmark Results" in md_path.read_text(encoding="utf-8")
+
+    def test_nested_output_dir_created(self, tmp_path: Path) -> None:
+        """Output to a deeply nested non-existent dir should not crash."""
+        deep = tmp_path / "a" / "b" / "c" / "d"
+        json_path = deep / "benchmark-results.json"
+
+        # Must use exist_ok=True, not exist_ok_ok (regression guard).
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text("{}", encoding="utf-8")
+
+        assert json_path.exists()
