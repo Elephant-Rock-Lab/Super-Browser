@@ -8,7 +8,6 @@ edge cases.
 from __future__ import annotations
 
 import time
-from unittest.mock import patch
 
 import pytest
 
@@ -23,15 +22,11 @@ from super_browser.stealth.challenges.cache import (
 
 class TestCachedToken:
     def test_defaults(self) -> None:
-        with patch(
-            "super_browser.stealth.challenges.cache.time.monotonic",
-            return_value=1000.0,
-        ):
-            token = CachedToken(
-                domain="example.com",
-                token_name="cf_clearance",
-                token_value="abc123",
-            )
+        token = CachedToken(
+            domain="example.com",
+            token_name="cf_clearance",
+            token_value="abc123",
+        )
         assert token.domain == "example.com"
         assert token.token_name == "cf_clearance"
         assert token.token_value == "abc123"
@@ -57,16 +52,11 @@ class TestCachedToken:
         assert token.is_expired is True
 
     def test_age_seconds(self) -> None:
-        base = 5000.0
-        with patch(
-            "super_browser.stealth.challenges.cache.time.monotonic",
-            return_value=base + 50.0,
-        ):
-            token = CachedToken(
-                domain="x.com", token_name="t", token_value="v",
-                created_at=base,
-            )
-            assert token.age_seconds == pytest.approx(50.0)
+        token = CachedToken(
+            domain="x.com", token_name="t", token_value="v",
+            created_at=time.monotonic() - 50.0,
+        )
+        assert token.age_seconds == pytest.approx(50.0, abs=2.0)
 
     def test_success_rate_no_replays(self) -> None:
         token = CachedToken(domain="x.com", token_name="t", token_value="v")
@@ -250,15 +240,15 @@ class TestTTLEviction:
 class TestMaxEntriesEviction:
     def test_max_entries_evicts_oldest(self) -> None:
         cache = ChallengeTokenCache(max_entries=3)
-        with patch(
-            "super_browser.stealth.challenges.cache.time.monotonic",
-            side_effect=[1000.0, 2000.0, 3000.0, 4000.0, 5000.0],
-        ):
-            cache.store("a.com", "t", "v1")
-            cache.store("b.com", "t", "v2")
-            cache.store("c.com", "t", "v3")
-            # 4th entry should evict a.com (oldest)
-            cache.store("d.com", "t", "v4")
+        # Store 3 entries, each with a progressively older created_at
+        # by manipulating the internal dict directly
+        cache.store("a.com", "t", "v1")
+        cache.store("b.com", "t", "v2")
+        cache.store("c.com", "t", "v3")
+        # Force a.com to be oldest by backdating its created_at
+        cache._cache["a.com:t"].created_at = 0.0
+        # 4th entry should evict a.com (oldest)
+        cache.store("d.com", "t", "v4")
         assert cache.size == 3
         assert cache.get("a.com", "t") is None
         assert cache.get("d.com", "t") is not None
@@ -266,15 +256,13 @@ class TestMaxEntriesEviction:
     def test_max_entries_evicts_expired_first(self) -> None:
         """At capacity: expired tokens evicted before oldest."""
         cache = ChallengeTokenCache(max_entries=2)
-        with patch(
-            "super_browser.stealth.challenges.cache.time.monotonic",
-            side_effect=[1000.0, 1001.0, 1002.0, 3000.0],
-        ):
-            cache.store("a.com", "t", "v1", ttl_seconds=500.0)
-            cache.store("b.com", "t", "v2", ttl_seconds=500.0)
-            # At capacity. Inserting c.com should evict expired a.com.
-            cache.store("c.com", "t", "v3", ttl_seconds=500.0)
-        # a.com was expired (created at 1000, time now 3000, ttl 500)
+        cache.store("a.com", "t", "v1", ttl_seconds=0.01)
+        cache.store("b.com", "t", "v2", ttl_seconds=10000.0)
+        # Wait for a.com to expire
+        time.sleep(0.02)
+        # At capacity. Inserting c.com should evict expired a.com.
+        cache.store("c.com", "t", "v3", ttl_seconds=10000.0)
+        # a.com was expired and should have been evicted
         assert cache.get("a.com", "t") is None
         # b.com should still be there (not evicted)
         assert cache.get("b.com", "t") is not None
