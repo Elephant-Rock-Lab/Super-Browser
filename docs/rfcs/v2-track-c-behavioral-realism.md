@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft / planning-only. No implementation in this document.
+Implemented. See v2.0.0 release.
 
 ## Goal
 

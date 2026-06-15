@@ -7,6 +7,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-06-15
+
+### Overview
+
+The v2.0 release delivers five tracks of improvement to the Super Browser
+anti-detection agent browser SDK. All tracks are implementation-complete with
+2,758 passing tests across 3 operating systems and 2 Python versions.
+
+### Breaking Changes — Track A: API Simplification (Waves 14-16)
+
+- **`SuperBrowserConfig` removed.** All fields flattened onto `AgentConfig`.
+- **`Config.from_legacy()` removed.** The legacy bridge `_legacy_core` is gone.
+- **`AgentConfig.core` field removed.** Sub-configs are direct fields on `AgentConfig`.
+- **`SuperBrowser(config=...)` accepts `Config` only.** Passing other types raises `TypeError`.
+- **`raw_page` renamed to `backend_page`** with deprecation alias (removal in v2.1).
+- **`from_dict()` tolerates legacy nested `agent.core` dicts** for backward compatibility.
+
+### Added — Track B: Network Stealth (Waves 17-20)
+
+- **`ProxyPool`** (`stealth/proxy_pool.py`) — 4 rotation strategies (round_robin,
+  weighted_random, least_used, sticky), health tracking with auto-recovery,
+  domain-affinity sticky sessions with TTL, graceful degradation. 45 tests.
+- **`IPReputationClient`** (`stealth/ip_reputation.py`) — offline-first IP risk
+  assessment, AbuseIPDB support, risk score normalization, per-IP caching
+  with TTL. All failures degrade to UNKNOWN — never raises. 27 tests.
+- **`TLSFingerprintChecker`** (`stealth/tls_fingerprint.py`) — TLS fingerprint
+  observation and comparison against curated baselines (Chrome 143/130,
+  Firefox 120). Observe/compare/report only — SDK cannot alter TLS handshake.
+  32 tests.
+- **`NetworkStealthReport`** — aggregates proxy, IP reputation, and TLS status
+  with severity derivation (COMPROMISED > DEGRADED > HEALTHY > UNKNOWN).
+- **`NetworkStealthConfig`** added to `Config` with `SB_*` env var support.
+- Honesty boundary: SDK can observe/compare/report TLS fingerprints but
+  CANNOT alter the TLS ClientHello (Chromium's BoringSSL owns the handshake).
+
+### Added — Track C: Behavioral Realism (Waves 21-23)
+
+- **`DwellTimer`** (`behavioral/dwell.py`) — action-aware pre/post delays for
+  6 action types (click, type, scroll, navigate, hover, keypress), configurable
+  variability via triangular distribution, page-settle delay. Pure data:
+  returns floats, callers decide whether to sleep. 19 tests.
+- **`SessionSeed`** (`behavioral/session_seed.py`) — per-session deterministic
+  seed derivation. Empty base = non-deterministic (production default).
+  Reproducible: same seed → byte-identical behavioral output. 13 tests.
+- **`NavigationVariator`** (`behavioral/navigation.py`) — 4 navigation styles
+  (DIRECT, TYPE_AND_ENTER, CLICK_LINK, REFERRER) with weighted selection,
+  referrer pool, type delays. Honesty: all styles use page.goto() under the
+  hood — variation is in timing/headers. 15 tests.
+- **`BehaviorOrchestrator`** (`behavioral/orchestrator.py`) — thin coordination
+  layer wrapping `HumanBehaviorAdapter` with dwell timing, navigation variation,
+  and session seed propagation. All asyncio.sleep calls mockable. 18 tests.
+- **`HumanBehaviorAdapter`** now accepts optional `seed=` kwarg on
+  `humanize_click()`, `humanize_type()`, `humanize_scroll()` for deterministic
+  behavioral output.
+- **`HumanConfig`** extended with 4 dwell fields (`dwell_pre_action_ms`,
+  `dwell_post_action_ms`, `dwell_page_settle_ms`, `dwell_variability`).
+  All 3 presets updated. Fully backward-compatible defaults.
+
+### Added — Track D: Challenge Infrastructure (Waves 24-26)
+
+- **`TurnstileDetector`** (`stealth/challenges/turnstile.py`) — Cloudflare
+  Turnstile detection with two-indicator false-positive prevention (≥2 of:
+  iframe, response field, cf div). Version classification (invisible/managed).
+  Detection only — does NOT solve. 17 tests.
+- **`KasadaDetector`** (`stealth/challenges/pow.py`) — Kasada detection via 4
+  indicators (collector script, ksd cookie, meta tag, challenge form).
+  Classification: POW, JS_CHALLENGE, FINGERPRINT. Resolution deferred to v2.1.
+  18 tests.
+- **`ChallengeTokenCache`** (`stealth/challenges/cache.py`) — in-memory token
+  cache with TTL eviction, max-entries eviction (expired-first, then oldest),
+  replay tracking, per-domain clearing, stats. 36 tests.
+- **`ChallengeConfig`** added to `Config` with `SB_TURNSTILE_DETECT`,
+  `SB_KASADA_DETECT`, `SB_TOKEN_CACHE_TTL`, `SB_TOKEN_CACHE_MAX` env vars.
+
+### Added — Track E: E2E Harness (Waves 27-29)
+
+- **`E2EContext`** (`testing.py`) — env-gated E2E config with `SB_E2E`,
+  `SB_E2E_LIVE`, `SB_BACKEND`, `SB_HEADLESS`, `SB_E2E_BUDGET_S` parsing.
+- **`FixtureServer`** (`testing.py`) — threaded HTTP server serving local
+  fixture pages on random port. No external network required.
+- **20 E2E tests** across 8 test files — all opt-in, skip cleanly when
+  `SB_E2E` unset. Coverage: navigation, interaction, stealth overhead,
+  behavioral realism, challenge detection, multi-tab, session persistence,
+  and live navigation (SB_E2E_LIVE gated).
+- **JSON schema v2 reporting** — `build_e2e_json_report()` and
+  `render_e2e_markdown_report()` with versioned output, per-test results,
+  budget tracking, emoji status icons.
+- **Pytest lifecycle integration** — per-test result collection, screenshot
+  capture on failure, per-test budget enforcement, automatic JSON+Markdown
+  report emission at session end. 19 lifecycle + reporting unit tests.
+- **`behavioral.html`** fixture — interactive elements for Track C E2E tests.
+- Default CI unaffected — `tests/e2e/` in CI ignore list.
+
+### Infrastructure
+
+- RFCs for all 5 tracks published in `docs/rfcs/`.
+- Migration guide at `docs/migration/v1-to-v2.md`.
+- DCO sign-off required on all commits.
+- Squash-merge strategy for all PRs.
+- 30 PRs merged across Waves 0-29 (#115-#144).
+
+### Test Count
+
+- **2,758 tests passing** (up from 2,463 at v2.0a1).
+- 295 net new tests across Tracks B-E and E2E harness.
+- 9/9 CI checks green on all PRs.
+
 ## [1.11.0] — 2026-06-14
 
 ### Added — Agent Streaming API (Wave 1)
