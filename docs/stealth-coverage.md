@@ -120,3 +120,36 @@ These vectors warrant dedicated research sessions:
 | Deep font enumeration timing | Does our `measureText` override defeat CreepJS timing-based font detection? If not, what timing perturbation is needed? | Benchmark + analysis |
 | Speech synthesis voice fingerprinting | Can we build realistic per-OS voice inventories? How much does voice mismatch contribute to CreepJS trust score? | Data collection + implementation |
 | CDP target detection | What score do Patchright, Playwright, and CloakBrowser achieve on live CreepJS/Browserscan? Is CloakBrowser sufficient for the advanced case? | Live testing per backend |
+
+---
+
+## Track B — Network Stealth (v2.0-alpha.2, in progress)
+
+### ProxyPool (Wave 18 — implemented)
+
+The `ProxyPool` class (`stealth/proxy_pool.py`) provides rotation, health
+tracking, and session affinity for proxy management:
+
+| Feature | Status |
+|:--------|:-------|
+| Round-robin rotation | ✅ |
+| Weighted random rotation | ✅ (seeded `random.Random` for determinism) |
+| Least-used selection | ✅ |
+| Sticky sessions (domain affinity) | ✅ (TTL-based expiry) |
+| Health tracking (failure counting) | ✅ |
+| Cooldown / retry after failure | ✅ |
+| Active health checks | ✅ (opt-in via `health_check_url`, no default network calls) |
+| Unhealthy proxy isolation | ✅ (excluded from `acquire()` until cooldown expires) |
+| `acquire()` returns `None` when all unhealthy | ✅ (graceful degradation to direct connection) |
+
+**No new dependencies.** Stdlib only. No default CI network calls.
+
+### IP Reputation (Wave 19 — planned)
+
+Offline-first IP reputation checking with user-configured provider.
+Non-fatal: all failures degrade to `UNKNOWN` verdict.
+
+### TLS Fingerprint Reporting (Wave 20 — planned)
+
+Observe/compare/report only. The SDK cannot alter the TLS handshake
+(Chromium owns BoringSSL). Baselines are curated, not scraped at runtime.
