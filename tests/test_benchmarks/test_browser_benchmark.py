@@ -6,10 +6,14 @@ parsing, and psutil fallback — without requiring a real browser.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 SCRIPT = Path(__file__).resolve().parent.parent.parent / "scripts" / "browser_benchmark.py"
 PROJECT_ROOT = SCRIPT.parent.parent
@@ -295,3 +299,149 @@ class TestOutputWriting:
         json_path.write_text("{}", encoding="utf-8")
 
         assert json_path.exists()
+
+
+class TestTimeoutPropagation:
+    """Test that timeout_s is enforced via asyncio.wait_for."""
+
+    @pytest.mark.asyncio
+    async def test_timeout_raises_and_shuts_down_server(self) -> None:
+        """A slow benchmark should raise TimeoutError and still shut down the server."""
+        mock_server = MagicMock()
+
+        async def slow_launch(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            await asyncio.sleep(10)
+            return bm._summarize("never", "ms", [1.0])
+
+        with (
+            patch.object(bm, "_start_fixture_server", return_value=mock_server),
+            patch.object(bm, "_bench_launch", side_effect=slow_launch),
+        ):
+            with pytest.raises(TimeoutError):
+                await bm.run_benchmarks(
+                    fixtures_dir=Path("."),
+                    iterations=1,
+                    warmup=0,
+                    headless=True,
+                    backend="patchright",
+                    timeout_s=1,
+                )
+
+            mock_server.shutdown.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_timeout_recorded_in_config(self) -> None:
+        """timeout_s must be propagated into the report config block."""
+        mock_server = MagicMock()
+
+        async def fast_bench(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            return bm._summarize("fast", "ms", [10.0])
+
+        async def fast_memory(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            return {"unit": "mb", "note": "test"}
+
+        with (
+            patch.object(bm, "_start_fixture_server", return_value=mock_server),
+            patch.object(bm, "_bench_launch", side_effect=fast_bench),
+            patch.object(bm, "_bench_new_page", side_effect=fast_bench),
+            patch.object(bm, "_bench_navigate", side_effect=fast_bench),
+            patch.object(bm, "_bench_dom_query", side_effect=fast_bench),
+            patch.object(bm, "_bench_click_fill", side_effect=fast_bench),
+            patch.object(bm, "_bench_screenshot", side_effect=fast_bench),
+            patch.object(bm, "_bench_memory", side_effect=fast_memory),
+        ):
+            report = await bm.run_benchmarks(
+                fixtures_dir=Path("."),
+                iterations=1,
+                warmup=0,
+                headless=True,
+                backend="patchright",
+                timeout_s=60,
+            )
+
+            assert report["config"]["timeout_s"] == 60
+            mock_server.shutdown.assert_called_once()
+
+
+class TestServerShutdownOnError:
+    """Test that the fixture HTTP server is always shut down."""
+
+    @pytest.mark.asyncio
+    async def test_server_shutdown_on_exception(self) -> None:
+        """Server must be shut down even if a benchmark function raises."""
+        mock_server = MagicMock()
+
+        async def failing_launch(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            raise RuntimeError("browser crashed")
+
+        with (
+            patch.object(bm, "_start_fixture_server", return_value=mock_server),
+            patch.object(bm, "_bench_launch", side_effect=failing_launch),
+        ):
+            with pytest.raises(RuntimeError, match="browser crashed"):
+                await bm.run_benchmarks(
+                    fixtures_dir=Path("."),
+                    iterations=1,
+                    warmup=0,
+                    headless=True,
+                    backend="patchright",
+                    timeout_s=30,
+                )
+
+            mock_server.shutdown.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_server_shutdown_on_warmup_error(self) -> None:
+        """Server must shut down even if warmup raises."""
+        mock_server = MagicMock()
+
+        async def failing_warmup(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            raise RuntimeError("warmup failed")
+
+        with (
+            patch.object(bm, "_start_fixture_server", return_value=mock_server),
+            patch.object(bm, "_bench_launch", side_effect=failing_warmup),
+        ):
+            with pytest.raises(RuntimeError, match="warmup failed"):
+                await bm.run_benchmarks(
+                    fixtures_dir=Path("."),
+                    iterations=1,
+                    warmup=1,
+                    headless=True,
+                    backend="patchright",
+                    timeout_s=30,
+                )
+
+            mock_server.shutdown.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_server_shutdown_on_success(self) -> None:
+        """Server should also be shut down on normal completion."""
+        mock_server = MagicMock()
+
+        async def fast_bench(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            return bm._summarize("fast", "ms", [10.0])
+
+        async def fast_memory(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            return {"unit": "mb", "note": "test"}
+
+        with (
+            patch.object(bm, "_start_fixture_server", return_value=mock_server),
+            patch.object(bm, "_bench_launch", side_effect=fast_bench),
+            patch.object(bm, "_bench_new_page", side_effect=fast_bench),
+            patch.object(bm, "_bench_navigate", side_effect=fast_bench),
+            patch.object(bm, "_bench_dom_query", side_effect=fast_bench),
+            patch.object(bm, "_bench_click_fill", side_effect=fast_bench),
+            patch.object(bm, "_bench_screenshot", side_effect=fast_bench),
+            patch.object(bm, "_bench_memory", side_effect=fast_memory),
+        ):
+            await bm.run_benchmarks(
+                fixtures_dir=Path("."),
+                iterations=1,
+                warmup=0,
+                headless=True,
+                backend="patchright",
+                timeout_s=60,
+            )
+
+            mock_server.shutdown.assert_called_once()

@@ -316,45 +316,47 @@ async def run_benchmarks(
     _headed = not headless
 
     server = _start_fixture_server(fixtures_dir, DEFAULT_PORT)
-    base_url = f"http://127.0.0.1:{DEFAULT_PORT}"
+    to = timeout_s
+    try:
+        base_url = f"http://127.0.0.1:{DEFAULT_PORT}"
 
-    # Warmup (not measured)
-    if warmup > 0:
-        print(f"Warming up ({warmup} iteration)...\n")
-        await _bench_launch(backend, warmup)
+        # Warmup (not measured)
+        if warmup > 0:
+            print(f"Warming up ({warmup} iteration)...\n")
+            await asyncio.wait_for(_bench_launch(backend, warmup), timeout=to)
 
-    metrics: list[dict[str, Any]] = []
+        metrics: list[dict[str, Any]] = []
 
-    print(f"Running {iterations} iterations per metric...\n")
+        print(f"Running {iterations} iterations per metric...\n")
 
-    print("  browser_launch...")
-    metrics.append(await _bench_launch(backend, iterations))
+        print("  browser_launch...")
+        metrics.append(await asyncio.wait_for(_bench_launch(backend, iterations), timeout=to))
 
-    print("  new_page...")
-    metrics.append(await _bench_new_page(base_url, iterations))
+        print("  new_page...")
+        metrics.append(await asyncio.wait_for(_bench_new_page(base_url, iterations), timeout=to))
 
-    print("  navigate_simple...")
-    metrics.append(await _bench_navigate(base_url, "simple.html", iterations, "simple"))
+        print("  navigate_simple...")
+        metrics.append(await asyncio.wait_for(_bench_navigate(base_url, "simple.html", iterations, "simple"), timeout=to))
 
-    print("  navigate_form...")
-    metrics.append(await _bench_navigate(base_url, "form.html", iterations, "form"))
+        print("  navigate_form...")
+        metrics.append(await asyncio.wait_for(_bench_navigate(base_url, "form.html", iterations, "form"), timeout=to))
 
-    print("  navigate_dom_heavy...")
-    metrics.append(await _bench_navigate(base_url, "dom-heavy.html", iterations, "dom_heavy"))
+        print("  navigate_dom_heavy...")
+        metrics.append(await asyncio.wait_for(_bench_navigate(base_url, "dom-heavy.html", iterations, "dom_heavy"), timeout=to))
 
-    print("  dom_query...")
-    metrics.append(await _bench_dom_query(base_url, iterations))
+        print("  dom_query...")
+        metrics.append(await asyncio.wait_for(_bench_dom_query(base_url, iterations), timeout=to))
 
-    print("  click_fill...")
-    metrics.append(await _bench_click_fill(base_url, iterations))
+        print("  click_fill...")
+        metrics.append(await asyncio.wait_for(_bench_click_fill(base_url, iterations), timeout=to))
 
-    print("  screenshot...")
-    metrics.append(await _bench_screenshot(base_url, iterations))
+        print("  screenshot...")
+        metrics.append(await asyncio.wait_for(_bench_screenshot(base_url, iterations), timeout=to))
 
-    print("  memory_delta...")
-    memory = await _bench_memory(base_url, iterations)
-
-    server.shutdown()
+        print("  memory_delta...")
+        memory = await asyncio.wait_for(_bench_memory(base_url, iterations), timeout=to)
+    finally:
+        server.shutdown()
 
     return {
         "schema_version": 1,
@@ -440,16 +442,23 @@ def main() -> None:
     print(f"Iterations: {args.iterations}, Warmup: {args.warmup}")
     print()
 
-    report = asyncio.run(
-        run_benchmarks(
-            fixtures_dir=fixtures,
-            iterations=args.iterations,
-            warmup=args.warmup,
-            headless=bool(args.headless),
-            backend=args.backend,
-            timeout_s=args.timeout_s,
+    try:
+        report = asyncio.run(
+            run_benchmarks(
+                fixtures_dir=fixtures,
+                iterations=args.iterations,
+                warmup=args.warmup,
+                headless=bool(args.headless),
+                backend=args.backend,
+                timeout_s=args.timeout_s,
+            )
         )
-    )
+    except TimeoutError:
+        print(
+            f"\nError: benchmark operation exceeded {args.timeout_s}s timeout",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     md = format_markdown(report)
     print("\n" + md)
