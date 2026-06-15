@@ -75,6 +75,38 @@ class NetworkConfig:
 
 
 @dataclass(frozen=True)
+class NetworkStealthConfig:
+    """Configuration for Track B network stealth features (v2.0-alpha.2).
+
+    All fields default to offline-first values. No provider URLs,
+    no live checks, no network calls unless explicitly configured.
+    """
+
+    # ProxyPool
+    proxy_entries: tuple = ()  # tuple[ProxyEntry, ...] but ProxyEntry
+                                # is not frozen-import-safe here due to
+                                # circular dep; validated at runtime
+    proxy_rotation_strategy: str = "round_robin"
+    proxy_health_check_url: Optional[str] = None
+    proxy_health_check_interval: float = 300.0
+    proxy_max_failures: int = 3
+    proxy_cooldown_seconds: float = 60.0
+    proxy_sticky_ttl: float = 1800.0
+
+    # IP Reputation
+    ip_reputation_provider_url: Optional[str] = None
+    ip_reputation_api_key: Optional[str] = None
+    ip_reputation_timeout: float = 10.0
+    ip_reputation_cache_ttl: float = 3600.0
+
+    # TLS Fingerprint (Wave 20 — fields reserved, not yet used)
+    tls_echo_url: str = "https://tls.peet.ws/api/all"
+    tls_expected_profile: str = "chrome143_macos"
+    tls_check_timeout: float = 15.0
+    tls_check_enabled: bool = False  # opt-in, requires live browser
+
+
+@dataclass(frozen=True)
 class MemoryConfig:
     """Memory sub-config — per-domain agent memory."""
 
@@ -147,6 +179,7 @@ class Config:
     cloak: CloakConfig = field(default_factory=CloakConfig)
     consistency: ConsistencyConfig = field(default_factory=ConsistencyConfig)
     network: NetworkConfig = field(default_factory=NetworkConfig)
+    network_stealth: NetworkStealthConfig = field(default_factory=NetworkStealthConfig)
 
     # ------------------------------------------------------------------
     # from_env
@@ -224,6 +257,19 @@ class Config:
         _env_bool(network_kw, "SB_BROWSER_FETCH", "browser_fetch")
         _env_bool(network_kw, "SB_LLM_VIA_BROWSER", "llm_via_browser")
 
+        # -- Network Stealth (Track B) ------------------------------
+        ns_kw: dict = {}
+        _env_str(ns_kw, "SB_PROXY_HEALTH_CHECK_URL", "proxy_health_check_url")
+        _env_str(ns_kw, "SB_PROXY_ROTATION_STRATEGY", "proxy_rotation_strategy")
+        _env_float(ns_kw, "SB_PROXY_HEALTH_CHECK_INTERVAL", "proxy_health_check_interval")
+        _env_int(ns_kw, "SB_PROXY_MAX_FAILURES", "proxy_max_failures")
+        _env_float(ns_kw, "SB_PROXY_COOLDOWN", "proxy_cooldown_seconds")
+        _env_float(ns_kw, "SB_PROXY_STICKY_TTL", "proxy_sticky_ttl")
+        _env_str(ns_kw, "SB_IP_REP_PROVIDER_URL", "ip_reputation_provider_url")
+        _env_str(ns_kw, "SB_IP_REP_API_KEY", "ip_reputation_api_key")
+        _env_float(ns_kw, "SB_IP_REP_TIMEOUT", "ip_reputation_timeout")
+        _env_float(ns_kw, "SB_IP_REP_CACHE_TTL", "ip_reputation_cache_ttl")
+
         return cls(
             browser=SessionConfig(**browser_kw),
             agent=AgentConfig(**agent_kw),
@@ -235,6 +281,7 @@ class Config:
             cloak=CloakConfig(**cloak_kw),
             consistency=ConsistencyConfig(**consistency_kw),
             network=NetworkConfig(**network_kw),
+            network_stealth=NetworkStealthConfig(**ns_kw),
         )
 
     # ------------------------------------------------------------------
@@ -300,6 +347,7 @@ class Config:
             cloak=_build_sub(CloakConfig, d.get("cloak", {})),
             consistency=_build_sub(ConsistencyConfig, d.get("consistency", {})),
             network=_build_sub(NetworkConfig, d.get("network", {})),
+            network_stealth=_build_sub(NetworkStealthConfig, d.get("network_stealth", {})),
         )
 
     # ------------------------------------------------------------------
