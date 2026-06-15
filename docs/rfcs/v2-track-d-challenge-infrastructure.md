@@ -1,6 +1,6 @@
 # RFC: v2.0 Track D — Challenge Infrastructure
 
-**Status:** Draft
+**Status:** Implemented
 **Wave:** 24
 **Track:** D (Challenge Infrastructure)
 **Target version:** v2.0-alpha.4

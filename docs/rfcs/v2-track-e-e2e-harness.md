@@ -1,6 +1,6 @@
 # RFC: v2.0 Track E — E2E Harness
 
-**Status:** Draft
+**Status:** Implemented
 **Wave:** 27
 **Track:** E (E2E Harness / Real-Browser Benchmark)
 **Target version:** v2.0-alpha.5

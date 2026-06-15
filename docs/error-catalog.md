@@ -1,6 +1,6 @@
 # Error Catalog
 
-> **Super Browser** v2.0.0a1 — Complete failure taxonomy, causes, and recovery guidance.
+> **Super Browser** v2.0.0 — Complete failure taxonomy, causes, and recovery guidance.
 
 Every `ActionResult` carries structured error information. This catalog maps each error category to its typical causes and recommended recovery strategy.
 
