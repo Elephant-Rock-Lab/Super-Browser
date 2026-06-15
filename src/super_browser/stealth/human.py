@@ -79,29 +79,79 @@ class HumanBehaviorAdapter:
     # Public API
     # ------------------------------------------------------------------
 
-    async def humanize_click(self, page: Any, selector: str) -> None:
-        """Click ``selector`` with human-like mouse movement and hold time."""
+    async def humanize_click(
+        self,
+        page: Any,
+        selector: str,
+        *,
+        seed: str | None = None,
+    ) -> None:
+        """Click ``selector`` with human-like mouse movement and hold time.
+
+        Parameters
+        ----------
+        page:
+            Browser page object.
+        selector:
+            CSS selector for the element to click.
+        seed:
+            Optional deterministic seed for this action. When ``None``,
+            the adapter derives a non-deterministic seed internally
+            (using ``time.monotonic_ns()``). Pass a seed for reproducible
+            behavioral output.
+        """
         if self._backend == "cloak":
             await self._cloak_click(page, selector)
         else:
-            await self._patchright_click(page, selector)
+            await self._patchright_click(page, selector, seed=seed)
 
     async def humanize_type(
-        self, page: Any, selector: str, text: str
+        self,
+        page: Any,
+        selector: str,
+        text: str,
+        *,
+        seed: str | None = None,
     ) -> None:
-        """Type ``text`` into ``selector`` with per-character delays."""
+        """Type ``text`` into ``selector`` with per-character delays.
+
+        Parameters
+        ----------
+        page:
+            Browser page object.
+        selector:
+            CSS selector for the input element.
+        text:
+            Text to type.
+        seed:
+            Optional deterministic seed for this action.
+        """
         if self._backend == "cloak":
             await self._cloak_type(page, selector, text)
         else:
-            await self._patchright_type(page, selector, text)
+            await self._patchright_type(page, selector, text, seed=seed)
 
     async def humanize_scroll(
         self,
         page: Any,
         direction: str = "down",
         amount: int = 1,
+        *,
+        seed: str | None = None,
     ) -> None:
-        """Scroll the page with human-like behaviour."""
+        """Scroll the page with human-like behaviour.
+
+        Parameters
+        ----------
+        page:
+            Browser page object.
+        direction:
+            ``"down"`` or ``"up"``.
+        amount:
+            Scroll amount multiplier.
+        seed:
+            Optional deterministic seed for this action.
+        """
         if self._backend == "cloak":
             # CloakBrowser: basic scroll, unchanged.
             delta = self._config.scroll_step_px * amount
@@ -110,7 +160,7 @@ class HumanBehaviorAdapter:
             await page.mouse.wheel(0, delta)
             await self.random_pause()
         else:
-            await self._patchright_scroll(page, direction, amount)
+            await self._patchright_scroll(page, direction, amount, seed=seed)
 
     async def random_pause(self) -> None:
         """Sleep for a random duration within the configured range."""
@@ -163,9 +213,15 @@ class HumanBehaviorAdapter:
     # Patchright — behavioral v2 synthesis
     # ------------------------------------------------------------------
 
-    async def _patchright_click(self, page: Any, selector: str) -> None:
+    async def _patchright_click(
+        self,
+        page: Any,
+        selector: str,
+        *,
+        seed: str | None = None,
+    ) -> None:
         """Synthesize a human click with behavioral mouse trajectory."""
-        seed = self._action_seed("click", selector)
+        seed = seed or self._action_seed("click", selector)
         profile = self._config.to_behavior_profile()
 
         el = await page.query_selector(selector)
@@ -212,10 +268,15 @@ class HumanBehaviorAdapter:
         await self.random_pause()
 
     async def _patchright_type(
-        self, page: Any, selector: str, text: str
+        self,
+        page: Any,
+        selector: str,
+        text: str,
+        *,
+        seed: str | None = None,
     ) -> None:
         """Synthesize keystrokes with behavioral timing."""
-        seed = self._action_seed("type", selector)
+        seed = seed or self._action_seed("type", selector)
         profile = self._config.to_behavior_profile()
 
         await page.click(selector)
@@ -235,9 +296,11 @@ class HumanBehaviorAdapter:
         page: Any,
         direction: str = "down",
         amount: int = 1,
+        *,
+        seed: str | None = None,
     ) -> None:
         """Synthesize inertial scroll with behavioral timing."""
-        seed = self._action_seed("scroll", f"{direction}:{amount}")
+        seed = seed or self._action_seed("scroll", f"{direction}:{amount}")
         profile = self._config.to_behavior_profile()
 
         from_pos = 0.0
