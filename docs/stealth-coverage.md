@@ -153,3 +153,21 @@ Non-fatal: all failures degrade to `UNKNOWN` verdict.
 
 Observe/compare/report only. The SDK cannot alter the TLS handshake
 (Chromium owns BoringSSL). Baselines are curated, not scraped at runtime.
+
+### TLS Fingerprint Reporting (Wave 20 — implemented)
+
+The `TLSFingerprintChecker` class (`stealth/tls_fingerprint.py`) provides
+diagnostic TLS fingerprint observation, comparison, and reporting:
+
+| Feature | Status |
+|:--------|:-------|
+| Offline stub mode | ✅ (returns stub with `matches=True`, no false alarm) |
+| Online observation | ✅ (via TLS echo service, duck-typed page) |
+| Baseline comparison | ✅ (JA4 string, JA3 hash, TLS version) |
+| Curated baselines | ✅ (`tls_baselines.json`, version-controlled) |
+| Mismatch reporting | ✅ (detailed mismatch list + backend recommendation) |
+| `NetworkStealthReport` | ✅ (aggregates proxy + IP reputation + TLS) |
+
+**Honesty boundary**: The SDK can only observe, compare, report, and
+recommend — it cannot alter the TLS ClientHello. Chromium's BoringSSL
+owns the handshake.

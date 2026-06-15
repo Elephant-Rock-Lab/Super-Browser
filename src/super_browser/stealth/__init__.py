@@ -25,6 +25,14 @@ from super_browser.stealth.manager import (
 )
 from super_browser.stealth.proxy import ProxyEscalator
 from super_browser.stealth.proxy_pool import ProxyEntry, ProxyHealth, ProxyPool, RotationStrategy
+from super_browser.stealth.tls_fingerprint import (
+    NetworkStealthReport,
+    NetworkStealthStatus,
+    TLSFingerprintChecker,
+    TLSFingerprintObservation,
+    TLSFingerprintReport,
+    build_network_stealth_report,
+)
 from super_browser.stealth.types import (
     CAPTCHADetection,
     CAPTCHAProvider,
@@ -60,8 +68,14 @@ __all__ = [
     "ProxyTier",
     "IPReputationClient",
     "IPReputationResult",
+    "NetworkStealthReport",
+    "NetworkStealthStatus",
     "ReputationVerdict",
     "RotationStrategy",
+    "TLSFingerprintChecker",
+    "TLSFingerprintObservation",
+    "TLSFingerprintReport",
+    "build_network_stealth_report",
     "StealthActionPolicy",
     "StealthConfig",
     "StealthDiagnostic",
