@@ -70,7 +70,7 @@ def memory_handler(args: argparse.Namespace) -> None:
         print(f"Pruned {removed} expired entries.")
         return
 
-    print("Usage: super-browser memory {list|show|clear|prune}")
+    print("Usage: superbrowser memory {list|show|clear|prune}")
 
 
 def stealth_validate_handler(args: argparse.Namespace) -> None:
@@ -179,7 +179,7 @@ def _result_demo_handler(args: argparse.Namespace) -> None:
 def main() -> None:
     """Entry point for ``super-browser`` CLI."""
     parser = argparse.ArgumentParser(
-        prog="super-browser",
+        prog="superbrowser",
         description="Super Browser CLI",
     )
     sub = parser.add_subparsers(dest="command")

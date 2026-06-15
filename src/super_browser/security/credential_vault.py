@@ -115,7 +115,7 @@ class CredentialVault:
         if Fernet is None:
             raise ImportError(
                 "cryptography is required for CredentialVault. "
-                "Install it with: pip install super-browser[security]"
+                "Install it with: pip install superbrowser-sdk[security]"
             )
         if self._fernet is None:
             key = _load_or_create_key(self._key_file)

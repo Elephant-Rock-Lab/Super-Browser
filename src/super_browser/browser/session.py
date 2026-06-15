@@ -65,7 +65,7 @@ class BrowserSession:
         if async_playwright is None:
             raise ImportError(
                 "patchright is required for browser sessions. "
-                "Install with: pip install super-browser[browser]"
+                "Install with: pip install superbrowser-sdk[browser]"
             )
 
         # -- CloakBrowser path ----------------------------------------

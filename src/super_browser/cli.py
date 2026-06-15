@@ -11,7 +11,7 @@ import sys
 def main() -> None:
     """Entry point for the ``super-browser`` CLI."""
     parser = argparse.ArgumentParser(
-        prog="super-browser",
+        prog="superbrowser",
         description="Super Browser — AI browser automation CLI",
     )
     sub = parser.add_subparsers(dest="command")
@@ -76,7 +76,7 @@ def main() -> None:
 
     if args.command == "version" or args.command is None:
         from super_browser import __version__
-        print(f"super-browser {__version__}")
+        print(f"superbrowser {__version__}")
         return
 
     if args.command == "info":
@@ -118,7 +118,7 @@ def _print_info() -> None:
     """Print system and dependency info."""
     from super_browser import __version__
 
-    print(f"super-browser: {__version__}")
+    print(f"superbrowser: {__version__}")
     print(f"python: {sys.version}")
 
     # Check optional deps
@@ -136,7 +136,7 @@ def _print_info() -> None:
             __import__(mod)
             print(f"  {mod}: installed [{extra}]")
         except ImportError:
-            print(f"  {mod}: not installed (pip install super-browser[{extra}])")
+            print(f"  {mod}: not installed (pip install superbrowser-sdk[{extra}])")
 
 
 async def _run(args: argparse.Namespace) -> None:
@@ -252,7 +252,7 @@ def _memory(args: argparse.Namespace) -> None:
         return
 
     # No subcommand given
-    print("Usage: super-browser memory {list|show|clear|prune}")
+    print("Usage: superbrowser memory {list|show|clear|prune}")
 
 
 async def _stealth_check(args: argparse.Namespace) -> int:

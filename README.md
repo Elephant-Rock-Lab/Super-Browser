@@ -1,31 +1,41 @@
 ![Super-Browser — Anti-detection agent browser SDK, stealth, budget governance, security guardrails, and structured error recovery behind one async facade](https://github.com/Octo-Lex/Super-Browser/blob/1ce1633ff586c28cfa7c2b0c50db82f2f1cb9fac/Banner.png)
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Octo-Lex/Super-Browser/test.yml?branch=main)](https://github.com/Octo-Lex/Super-Browser/actions)
-[![PyPI](https://img.shields.io/pypi/v/super-browser?color=blue)](https://pypi.org/project/super-browser/)
+[![PyPI](https://img.shields.io/pypi/v/superbrowser-sdk?color=blue)](https://pypi.org/project/superbrowser-sdk/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](https://github.com/Octo-Lex/Super-Browser/blob/main/LICENSE)
 
 **Super Browser** is an anti-detection agent browser SDK. It wraps browser automation (Patchright, Playwright, Selenium, or raw CDP) in an agent-first API with stealth, budget governance, security guardrails, and structured error recovery. MCP is a transport, the agent SDK is the user-facing layer, and stealth is the foundation.
 
 ## Installation
 
+> **Package naming:** The distribution name is `superbrowser-sdk`. The
+> Python import name is `super_browser`.
+>
+> ```bash
+> pip install superbrowser-sdk
+> ```
+> ```python
+> import super_browser
+> ```
+
 ```bash
 # Default — Patchright (full stealth)
-pip install super-browser[patchright]
+pip install superbrowser-sdk[patchright]
 python -m patchright install chromium
 
 # Alternative backends
-pip install super-browser[playwright]      # Standard Playwright
-pip install super-browser[selenium]        # Enterprise CI
+pip install superbrowser-sdk[playwright]      # Standard Playwright
+pip install superbrowser-sdk[selenium]        # Enterprise CI
 
 # Or everything
-pip install super-browser[all]
+pip install superbrowser-sdk[all]
 ```
 
 For specific LLM providers:
 
 ```bash
-pip install super-browser[patchright,anthropic]   # Anthropic Claude
-pip install super-browser[patchright,openai]       # OpenAI GPT
+pip install superbrowser-sdk[patchright,anthropic]   # Anthropic Claude
+pip install superbrowser-sdk[patchright,openai]       # OpenAI GPT
 ```
 
 ## Quickstart

@@ -49,7 +49,7 @@ class AnthropicLLMClient:
         except ImportError as exc:
             raise ImportError(
                 "The 'anthropic' package is required for AnthropicLLMClient. "
-                "Install it with:  pip install super-browser[anthropic]"
+                "Install it with:  pip install superbrowser-sdk[anthropic]"
             ) from exc
 
         self._client = anthropic.AsyncAnthropic(api_key=api_key)
