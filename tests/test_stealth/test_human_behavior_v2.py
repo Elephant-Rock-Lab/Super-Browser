@@ -167,6 +167,63 @@ class TestDispatchTrajectoryPacing:
         assert page.mouse.move.call_count >= len(events)
 
 
+# -- Track C: Explicit seed override --------------------------------------
+
+
+class TestExplicitSeedOverride:
+    """Track C: explicit ``seed=`` kwarg overrides internal seed derivation."""
+
+    @pytest.mark.asyncio
+    async def test_explicit_seed_produces_deterministic_click(self) -> None:
+        """Same explicit seed + same starting cursor → same trajectory events."""
+        el = _make_el({"x": 100.0, "y": 200.0, "width": 80.0, "height": 30.0})
+
+        results: list[int] = []
+        for _ in range(2):
+            cfg = HumanConfig()  # No session_seed
+            adapter = HumanBehaviorAdapter(config=cfg, backend="patchright")
+            page = _make_page()
+            page.query_selector.return_value = el
+            with patch.object(adapter, "random_pause", new_callable=AsyncMock):
+                await adapter.humanize_click(page, "#btn", seed="fixed-seed-123")
+            results.append(page.mouse.move.call_count)
+
+        # Same seed → same number of trajectory events
+        assert results[0] == results[1]
+
+    @pytest.mark.asyncio
+    async def test_no_seed_falls_back_to_internal(self) -> None:
+        """Without explicit seed, adapter uses internal _action_seed()."""
+        adapter = HumanBehaviorAdapter(backend="patchright")
+        page = _make_page()
+        page.query_selector.return_value = _make_el(
+            {"x": 50.0, "y": 50.0, "width": 40.0, "height": 20.0}
+        )
+
+        with patch.object(adapter, "random_pause", new_callable=AsyncMock):
+            await adapter.humanize_click(page, "#btn")  # no seed kwarg
+
+        # Should work fine — just verify it doesn't crash
+        page.mouse.move.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_explicit_seed_scroll_deterministic(self) -> None:
+        """Same explicit seed → same scroll events."""
+        cfg = HumanConfig(scroll_step_px=500)
+        adapter = HumanBehaviorAdapter(config=cfg, backend="patchright")
+
+        results: list[int] = []
+        for _ in range(2):
+            page = _make_page()
+            with patch.object(adapter, "random_pause", new_callable=AsyncMock):
+                await adapter.humanize_scroll(
+                    page, direction="down", amount=2, seed="scroll-fixed",
+                )
+            results.append(page.mouse.wheel.call_count)
+
+        assert results[0] == results[1]
+
+
 # -- TEST-32-02-06: Cross-click chaining tracks cursor position ------------
 
 

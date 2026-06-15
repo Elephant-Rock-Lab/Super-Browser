@@ -171,13 +171,14 @@ class BehaviorOrchestrator:
         """Click with dwell timing and session seed.
 
         1. Pre-action dwell delay
-        2. Delegate to adapter.humanize_click() with session seed
+        2. Delegate to adapter.humanize_click() with derived session seed
         3. Post-action dwell delay
         """
         delay = self._dwell.pre_action_delay("click")
         await asyncio.sleep(delay)
 
-        await self._adapter.humanize_click(page, selector)
+        seed = self._session_seed.derive("click", selector)
+        await self._adapter.humanize_click(page, selector, seed=seed)
 
         delay = self._dwell.post_action_delay("click")
         await asyncio.sleep(delay)
@@ -186,13 +187,14 @@ class BehaviorOrchestrator:
         """Type with dwell timing and session seed.
 
         1. Pre-action dwell delay
-        2. Delegate to adapter.humanize_type() with session seed
+        2. Delegate to adapter.humanize_type() with derived session seed
         3. Post-action dwell delay
         """
         delay = self._dwell.pre_action_delay("type")
         await asyncio.sleep(delay)
 
-        await self._adapter.humanize_type(page, selector, text)
+        seed = self._session_seed.derive("type", selector)
+        await self._adapter.humanize_type(page, selector, text, seed=seed)
 
         delay = self._dwell.post_action_delay("type")
         await asyncio.sleep(delay)
@@ -203,16 +205,17 @@ class BehaviorOrchestrator:
         direction: str = "down",
         amount: int = 1,
     ) -> None:
-        """Scroll with dwell timing.
+        """Scroll with dwell timing and session seed.
 
         1. Pre-action dwell delay
-        2. Delegate to adapter.humanize_scroll()
+        2. Delegate to adapter.humanize_scroll() with derived session seed
         3. Post-action dwell delay
         """
         delay = self._dwell.pre_action_delay("scroll")
         await asyncio.sleep(delay)
 
-        await self._adapter.humanize_scroll(page, direction, amount)
+        seed = self._session_seed.derive("scroll", f"{direction}:{amount}")
+        await self._adapter.humanize_scroll(page, direction, amount, seed=seed)
 
         delay = self._dwell.post_action_delay("scroll")
         await asyncio.sleep(delay)
