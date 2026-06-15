@@ -24,8 +24,11 @@ jobs:
       - name: Build package
         run: python -m build
 
-      - name: Verify package
+      - name: Verify package (twine)
         run: twine check dist/*
+
+      - name: Verify release artifact (guard)
+        run: python scripts/verify_release_artifact.py dist/superbrowser_sdk-*.whl README.md docs/
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
