@@ -40,9 +40,9 @@ class TestV194APIReference:
     def test_api_reference_version_header(self) -> None:
         first_lines = Path("./docs/api-reference.md").read_text(encoding="utf-8").split("\n")[:5]
         joined = "\n".join(first_lines)
-        assert "v2.0.0a1" in joined
+        assert "v2.0.2" in joined
 
     def test_architecture_version_header(self) -> None:
         first_lines = Path("./docs/architecture.md").read_text(encoding="utf-8").split("\n")[:5]
         joined = "\n".join(first_lines)
-        assert "v2.0.0a1" in joined
+        assert "v2.0.2" in joined

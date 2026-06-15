@@ -172,13 +172,13 @@ The `stealth-check` CLI command provides quick fingerprint assessment:
 
 ```bash
 # Offline check (default) — no browser needed
-super-browser stealth-check
+superbrowser stealth-check
 
 # With options
-super-browser stealth-check --format html --threshold 80
+superbrowser stealth-check --format html --threshold 80
 
 # Online check — requires live browser
-super-browser stealth-check --online
+superbrowser stealth-check --online
 ```
 
 ### Options

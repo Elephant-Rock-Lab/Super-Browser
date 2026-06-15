@@ -224,16 +224,16 @@ Memory can be managed from the command line:
 
 ```bash
 # List all domains with stored memory
-super-browser memory list
+superbrowser memory list
 
 # Show memory for a specific domain
-super-browser memory show shop.example.com
+superbrowser memory show shop.example.com
 
 # Clear memory for a domain
-super-browser memory clear shop.example.com
+superbrowser memory clear shop.example.com
 
 # Prune expired entries
-super-browser memory prune
+superbrowser memory prune
 ```
 
 ---

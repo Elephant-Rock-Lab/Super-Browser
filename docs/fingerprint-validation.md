@@ -30,13 +30,13 @@ The fingerprint validation suite provides 8 cross-surface consistency checks tha
 
 ```bash
 # Capture baseline for current profile
-super-browser stealth-validate --capture-baseline
+superbrowser stealth-validate --capture-baseline
 
 # Run validation against baseline
-super-browser stealth-validate --profile windows-chrome-stable --seed my-session
+superbrowser stealth-validate --profile windows-chrome-stable --seed my-session
 
 # CI mode: exit code 1 on any regression
-super-browser stealth-validate --ci
+superbrowser stealth-validate --ci
 ```
 
 ## Programmatic Usage
@@ -62,8 +62,8 @@ for check in report.checks:
 
 The `--ci` flag compares current results against a saved baseline:
 
-1. First run: `super-browser stealth-validate --capture-baseline` saves baseline JSON
-2. CI run: `super-browser stealth-validate --ci` compares and exits 1 on regression
+1. First run: `superbrowser stealth-validate --capture-baseline` saves baseline JSON
+2. CI run: `superbrowser stealth-validate --ci` compares and exits 1 on regression
 3. Baselines stored in `~/.config/super-browser/baselines/{profile_id}.json`
 
 A check is a **regression** if it passed in the baseline but fails now. Checks that were already failing are not flagged as regressions.
