@@ -61,3 +61,6 @@ NUL
 sessions/
 sources/
 events.jsonl
+
+# E2E test artifacts
+tests/e2e/artifacts/
