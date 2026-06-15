@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
-"""Real Browser Benchmark — Patchright baseline metrics.
+"""Real Browser Benchmark — offline fixture-backed performance measurement.
 
 Launches a real Patchright browser and measures operations against local
-fixture pages served via a built-in HTTP server.
+fixture pages served via a built-in HTTP server. No network dependency.
 
-Usage:
-    python scripts/browser_benchmark.py [--live] [--json PATH] [--md PATH] [--runs N]
+Usage::
 
-Offline by default.  Use --live to include external navigation metrics.
+    python scripts/browser_benchmark.py \\
+        --fixtures benchmarks/fixtures \\
+        --out-dir benchmarks/results \\
+        --iterations 5 \\
+        --warmup 1
+
+Optional flags::
+
+    --headless 0       Visible browser (default: headless)
+    --backend patchright   Browser backend (default: patchright)
+    --json PATH        Write JSON to custom path
+    --markdown PATH    Write Markdown to custom path
+    --timeout-s 30     Per-operation timeout
+
+Offline by default. All fixtures are served locally.
 """
 
 from __future__ import annotations
@@ -25,13 +38,10 @@ from pathlib import Path
 from threading import Thread
 from typing import Any
 
-# Ensure local super_browser is preferred.
 _THIS_SRC = str(Path(__file__).resolve().parent.parent / "src")
 if _THIS_SRC in sys.path:
     sys.path.remove(_THIS_SRC)
 sys.path.insert(0, _THIS_SRC)
-
-import psutil  # noqa: E402
 
 from super_browser import __version__ as sb_version  # noqa: E402
 
@@ -39,19 +49,25 @@ from super_browser import __version__ as sb_version  # noqa: E402
 # Constants
 # ---------------------------------------------------------------------------
 
-FIXTURES_DIR = Path(__file__).resolve().parent.parent / "benchmarks" / "fixtures"
-DEFAULT_RUNS = 3
+DEFAULT_FIXTURES = Path(__file__).resolve().parent.parent / "benchmarks" / "fixtures"
+DEFAULT_ITERATIONS = 5
+DEFAULT_WARMUP = 1
 DEFAULT_PORT = 18221
-
+DEFAULT_TIMEOUT_S = 30
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _process_tree_rss() -> int:
-    """Sum RSS of the current process and all recursive children (bytes)."""
+def _process_tree_rss() -> float:
+    """Sum RSS of the current process and all recursive children (bytes).
+
+    Returns 0.0 if psutil is unavailable.
+    """
     try:
+        import psutil
+
         parent = psutil.Process(os.getpid())
         rss = parent.memory_info().rss
         for child in parent.children(recursive=True):
@@ -59,83 +75,88 @@ def _process_tree_rss() -> int:
                 rss += child.memory_info().rss
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
-        return rss
+        return float(rss)
+    except ImportError:
+        return 0.0
     except Exception:
-        return 0
+        return 0.0
 
 
 def _summarize(name: str, unit: str, samples: list[float]) -> dict[str, Any]:
-    """Build a result dict with raw samples, mean, median, min, max."""
-    return {
+    """Build a metric dict with raw samples and statistics."""
+    result: dict[str, Any] = {
         "name": name,
         "unit": unit,
         "samples": samples,
-        "mean": round(statistics.mean(samples), 3),
-        "median": round(statistics.median(samples), 3),
-        "min": round(min(samples), 3),
-        "max": round(max(samples), 3),
+        "mean": round(statistics.mean(samples), 3) if samples else 0,
+        "median": round(statistics.median(samples), 3) if samples else 0,
+        "min": round(min(samples), 3) if samples else 0,
+        "max": round(max(samples), 3) if samples else 0,
     }
+    result["stdev"] = round(statistics.stdev(samples), 3) if len(samples) >= 2 else 0.0
+    return result
 
 
-def _start_fixture_server(port: int) -> HTTPServer:
+def _start_fixture_server(fixtures_dir: Path, port: int) -> HTTPServer:
     """Start a background HTTP server serving fixture pages."""
-    handler = type(
-        "FixtureHandler",
-        (SimpleHTTPRequestHandler,),
-        {"__init__": lambda self, *a, **kw: SimpleHTTPRequestHandler.__init__(
-            self, *a, directory=str(FIXTURES_DIR), **kw
-        )},
-    )
-    server = HTTPServer(("127.0.0.1", port), handler)
+
+    class FixtureHandler(SimpleHTTPRequestHandler):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, directory=str(fixtures_dir), **kwargs)
+
+        def log_message(self, *args: Any) -> None:  # type: ignore[override]
+            pass  # suppress stderr noise
+
+    server = HTTPServer(("127.0.0.1", port), FixtureHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server
 
 
-def _metadata() -> dict[str, Any]:
+def _environment(headless: bool, backend: str) -> dict[str, Any]:
     return {
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "python_version": platform.python_version(),
+        "python": platform.python_version(),
         "platform": platform.platform(),
-        "cpu_count": os.cpu_count(),
+        "browser_backend": backend,
+        "headless": headless,
         "super_browser_version": sb_version,
     }
+
+
+def discover_fixtures(fixtures_dir: Path) -> list[str]:
+    """Return sorted list of fixture HTML filenames."""
+    if not fixtures_dir.is_dir():
+        return []
+    return sorted(f.name for f in fixtures_dir.glob("*.html"))
 
 
 # ---------------------------------------------------------------------------
 # Benchmark functions
 # ---------------------------------------------------------------------------
 
-_headed = False  # Global; set by CLI --headed flag
+_headed = False  # set by CLI
 
 
-def _config() -> "SessionConfig":
-    return SessionConfig(backend="patchright", headless=not _headed)
-
-
-async def bench_browser_launch(base_url: str, runs: int) -> dict[str, Any]:
-    """Measure browser engine start + stop cycle time."""
+async def _bench_launch(backend: str, runs: int) -> dict[str, Any]:
+    """Measure browser engine start + stop cycle."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
 
     samples: list[float] = []
-    config = _config()
     for _ in range(runs):
-        engine = PatchrightEngine(config)
+        engine = PatchrightEngine(type("C", (), {"backend": backend, "headless": not _headed})())
         t0 = time.monotonic()
         await engine.start()
         elapsed = (time.monotonic() - t0) * 1000
         await engine.stop()
         samples.append(round(elapsed, 3))
+    return _summarize("browser_launch", "ms", samples)
 
-    return _summarize("browser_launch_time", "ms", samples)
 
-
-async def bench_new_page(base_url: str, runs: int) -> dict[str, Any]:
-    """Measure new page creation time on an already-running engine."""
+async def _bench_new_page(base_url: str, runs: int) -> dict[str, Any]:
+    """Measure new page creation time."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
 
-    config = _config()
-    engine = PatchrightEngine(config)
+    engine = PatchrightEngine(type("C", (), {"backend": "patchright", "headless": not _headed})())
     await engine.start()
     try:
         samples: list[float] = []
@@ -147,20 +168,18 @@ async def bench_new_page(base_url: str, runs: int) -> dict[str, Any]:
             samples.append(round(elapsed, 3))
     finally:
         await engine.stop()
+    return _summarize("new_page", "ms", samples)
 
-    return _summarize("new_page_time", "ms", samples)
 
-
-async def bench_local_navigation(base_url: str, runs: int) -> dict[str, Any]:
-    """Measure navigation to a local fixture page."""
+async def _bench_navigate(base_url: str, fixture: str, runs: int, label: str) -> dict[str, Any]:
+    """Measure navigation to a specific fixture page."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
 
-    config = _config()
-    engine = PatchrightEngine(config)
+    engine = PatchrightEngine(type("C", (), {"backend": "patchright", "headless": not _headed})())
     await engine.start()
     try:
         page = await engine.new_page()
-        url = f"{base_url}/simple.html"
+        url = f"{base_url}/{fixture}"
         samples: list[float] = []
         for _ in range(runs):
             t0 = time.monotonic()
@@ -170,65 +189,35 @@ async def bench_local_navigation(base_url: str, runs: int) -> dict[str, Any]:
         await page.close()
     finally:
         await engine.stop()
+    return _summarize(f"navigate_{label}", "ms", samples)
 
-    return _summarize("local_navigation_time", "ms", samples)
 
-
-async def bench_external_navigation(base_url: str, runs: int) -> dict[str, Any]:
-    """Measure navigation to an external page (requires --live)."""
+async def _bench_dom_query(base_url: str, runs: int) -> dict[str, Any]:
+    """Measure DOM query (selector resolution + count)."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
 
-    config = _config()
-    engine = PatchrightEngine(config)
+    engine = PatchrightEngine(type("C", (), {"backend": "patchright", "headless": not _headed})())
     await engine.start()
     try:
         page = await engine.new_page()
-        url = "https://example.com"
+        await page.goto(f"{base_url}/dom-heavy.html", wait_until="load")
         samples: list[float] = []
         for _ in range(runs):
             t0 = time.monotonic()
-            await page.goto(url, wait_until="load", timeout=15_000)
-            elapsed = (time.monotonic() - t0) * 1000
-            samples.append(round(elapsed, 3))
-        await page.close()
-    except Exception as exc:
-        return {"name": "external_navigation_time", "unit": "ms",
-                "error": str(exc), "samples": []}
-    finally:
-        await engine.stop()
-
-    return _summarize("external_navigation_time", "ms", samples)
-
-
-async def bench_click(base_url: str, runs: int) -> dict[str, Any]:
-    """Measure click latency on the submit button (non-navigating)."""
-    from super_browser.browser.backends.patchright_backend import PatchrightEngine
-
-    config = _config()
-    engine = PatchrightEngine(config)
-    await engine.start()
-    try:
-        page = await engine.new_page()
-        await page.goto(f"{base_url}/form.html", wait_until="load")
-        samples: list[float] = []
-        for _ in range(runs):
-            t0 = time.monotonic()
-            await page.click("#submit-button")
+            await page.query_selector_all("div")
             elapsed = (time.monotonic() - t0) * 1000
             samples.append(round(elapsed, 3))
         await page.close()
     finally:
         await engine.stop()
+    return _summarize("dom_query", "ms", samples)
 
-    return _summarize("click_latency", "ms", samples)
 
-
-async def bench_fill(base_url: str, runs: int) -> dict[str, Any]:
-    """Measure fill latency on a text input."""
+async def _bench_click_fill(base_url: str, runs: int) -> dict[str, Any]:
+    """Measure click + fill combined interaction latency."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
 
-    config = _config()
-    engine = PatchrightEngine(config)
+    engine = PatchrightEngine(type("C", (), {"backend": "patchright", "headless": not _headed})())
     await engine.start()
     try:
         page = await engine.new_page()
@@ -237,21 +226,20 @@ async def bench_fill(base_url: str, runs: int) -> dict[str, Any]:
         for _ in range(runs):
             t0 = time.monotonic()
             await page.fill("#input-1", "benchmark test value")
+            await page.click("#submit-button")
             elapsed = (time.monotonic() - t0) * 1000
             samples.append(round(elapsed, 3))
         await page.close()
     finally:
         await engine.stop()
+    return _summarize("click_fill", "ms", samples)
 
-    return _summarize("fill_latency", "ms", samples)
 
-
-async def bench_screenshot(base_url: str, runs: int) -> dict[str, Any]:
+async def _bench_screenshot(base_url: str, runs: int) -> dict[str, Any]:
     """Measure screenshot capture time."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
 
-    config = _config()
-    engine = PatchrightEngine(config)
+    engine = PatchrightEngine(type("C", (), {"backend": "patchright", "headless": not _headed})())
     await engine.start()
     try:
         page = await engine.new_page()
@@ -266,289 +254,220 @@ async def bench_screenshot(base_url: str, runs: int) -> dict[str, Any]:
         await page.close()
     finally:
         await engine.stop()
+    return _summarize("screenshot", "ms", samples)
 
-    return _summarize("screenshot_latency", "ms", samples)
 
-
-async def bench_cdp_roundtrip(base_url: str, runs: int) -> dict[str, Any]:
-    """Measure CDP round-trip time for Runtime.evaluate."""
+async def _bench_memory(base_url: str, runs: int) -> dict[str, Any]:
+    """Measure process-tree RSS delta after launch + page load."""
     from super_browser.browser.backends.patchright_backend import PatchrightEngine
 
-    config = _config()
-    engine = PatchrightEngine(config)
-    await engine.start()
-    try:
-        page = await engine.new_page()
-        await page.goto(f"{base_url}/simple.html", wait_until="load")
-        cdp = await page.raw_page.context.new_cdp_session(page.raw_page)
-        samples: list[float] = []
-        for _ in range(runs):
-            t0 = time.monotonic()
-            await cdp.send("Runtime.evaluate", {"expression": "1+1"})
-            elapsed = (time.monotonic() - t0) * 1000
-            samples.append(round(elapsed, 3))
-        await page.close()
-    finally:
-        await engine.stop()
-
-    return _summarize("cdp_roundtrip_latency", "ms", samples)
-
-
-async def bench_stealth_overhead(base_url: str, runs: int) -> dict[str, Any]:
-    """Paired benchmark: launch with stealth minus launch without stealth.
-
-    Measures the overhead of stealth injection at the new_page level,
-    which is where the inject script is applied.
-    """
-    from super_browser.browser.backends.patchright_backend import PatchrightEngine
-
-    config = _config()
-    plain_samples: list[float] = []
-    stealth_samples: list[float] = []
-
-    for _ in range(runs):
-        # Plain launch + new_page
-        engine = PatchrightEngine(config)
-        await engine.start()
-        t0 = time.monotonic()
-        page = await engine.new_page()
-        plain_elapsed = (time.monotonic() - t0) * 1000
-        await page.close()
-        await engine.stop()
-        plain_samples.append(round(plain_elapsed, 3))
-
-    # Stealth launch — inject a minimal payload via add_init_script
-    stealth_js = "(function(){ window.__bench_stealth_marker = true; })();"
-
-    for _ in range(runs):
-        engine = PatchrightEngine(config)
-        await engine.start()
-        ctx = engine._browser_context if hasattr(engine, "_browser_context") else None
-        if ctx:
-            await ctx.add_init_script(stealth_js)
-        t0 = time.monotonic()
-        page = await engine.new_page()
-        stealth_elapsed = (time.monotonic() - t0) * 1000
-        await page.close()
-        await engine.stop()
-        stealth_samples.append(round(stealth_elapsed, 3))
-
-    overhead_samples = [s - p for s, p in zip(stealth_samples, plain_samples)]
-
-    return {
-        "name": "stealth_injection_overhead",
-        "unit": "ms",
-        "samples": overhead_samples,
-        "mean": round(statistics.mean(overhead_samples), 3) if overhead_samples else 0,
-        "median": round(statistics.median(overhead_samples), 3) if overhead_samples else 0,
-        "min": round(min(overhead_samples), 3) if overhead_samples else 0,
-        "max": round(max(overhead_samples), 3) if overhead_samples else 0,
-        "paired_plain_samples": plain_samples,
-        "paired_stealth_samples": stealth_samples,
-    }
-
-
-async def bench_session_save_load(base_url: str, runs: int) -> dict[str, Any]:
-    """Measure session save and load time."""
-    import tempfile
-
-    from super_browser.browser.backends.patchright_backend import PatchrightEngine
-
-    config = _config()
-    save_samples: list[float] = []
-    load_samples: list[float] = []
-
-    for _ in range(runs):
-        # Save
-        engine = PatchrightEngine(config)
-        await engine.start()
-        page = await engine.new_page()
-        await page.goto(f"{base_url}/simple.html", wait_until="load")
-        cookies = await page.raw_page.context.cookies()
-
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
-            path = f.name
-            t0 = time.monotonic()
-            json.dump(cookies, f)
-            save_elapsed = (time.monotonic() - t0) * 1000
-            save_samples.append(round(save_elapsed, 3))
-
-        await page.close()
-        await engine.stop()
-
-        # Load
-        engine2 = PatchrightEngine(config)
-        await engine2.start()
-        page2 = await engine2.new_page()
-        t0 = time.monotonic()
-        with open(path) as f:
-            loaded = json.load(f)
-        await page2.raw_page.context.add_cookies(loaded)
-        load_elapsed = (time.monotonic() - t0) * 1000
-        load_samples.append(round(load_elapsed, 3))
-
-        await page2.close()
-        await engine2.stop()
-        os.unlink(path)
-
-    return {
-        "save": _summarize("session_save_time", "ms", save_samples),
-        "load": _summarize("session_load_time", "ms", load_samples),
-    }
-
-
-async def bench_memory(base_url: str, runs: int) -> dict[str, Any]:
-    """Measure process-tree RSS after launch and after 5 tabs."""
-    from super_browser.browser.backends.patchright_backend import PatchrightEngine
-
-    config = _config()
-    launch_samples: list[float] = []
-    tabs_samples: list[float] = []
+    samples: list[float] = []
+    rss_before_total = 0.0
+    rss_after_total = 0.0
 
     for _ in range(runs):
         rss_before = _process_tree_rss()
-        engine = PatchrightEngine(config)
+        engine = PatchrightEngine(type("C", (), {"backend": "patchright", "headless": not _headed})())
         await engine.start()
         page = await engine.new_page()
         await page.goto(f"{base_url}/simple.html", wait_until="load")
-        rss_after_launch = _process_tree_rss()
-        launch_samples.append(round((rss_after_launch - rss_before) / 1024 / 1024, 3))
-
-        # Open 4 more tabs
-        for __ in range(4):
-            p = await engine.new_page()
-            await p.goto(f"{base_url}/dom-heavy.html", wait_until="load")
-
-        rss_after_5 = _process_tree_rss()
-        tabs_samples.append(round((rss_after_5 - rss_before) / 1024 / 1024, 3))
-
+        rss_after = _process_tree_rss()
         await engine.stop()
 
+        if rss_before > 0 and rss_after > 0:
+            delta_mb = round((rss_after - rss_before) / 1024 / 1024, 3)
+            samples.append(delta_mb)
+            rss_before_total = rss_before
+            rss_after_total = rss_after
+
+    if not samples:
+        return {
+            "unit": "mb",
+            "rss_before_mb": None,
+            "rss_after_mb": None,
+            "delta_mb": None,
+            "note": "psutil unavailable — memory metrics skipped",
+        }
+
     return {
-        "after_launch": _summarize("memory_delta_after_launch", "MB", launch_samples),
-        "after_5_tabs": _summarize("memory_delta_after_5_tabs", "MB", tabs_samples),
+        "unit": "mb",
+        "rss_before_mb": round(rss_before_total / 1024 / 1024, 3),
+        "rss_after_mb": round(rss_after_total / 1024 / 1024, 3),
+        "delta_mb": _summarize("memory_delta", "MB", samples),
     }
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Orchestrator
 # ---------------------------------------------------------------------------
 
 
-async def run_all(*, live: bool, runs: int) -> dict[str, Any]:
-    """Run all benchmarks and return the full result dict."""
-    server = _start_fixture_server(DEFAULT_PORT)
+async def run_benchmarks(
+    *,
+    fixtures_dir: Path,
+    iterations: int,
+    warmup: int,
+    headless: bool,
+    backend: str,
+    timeout_s: int,
+) -> dict[str, Any]:
+    """Run all benchmarks and return the full report dict."""
+    global _headed
+    _headed = not headless
+
+    server = _start_fixture_server(fixtures_dir, DEFAULT_PORT)
     base_url = f"http://127.0.0.1:{DEFAULT_PORT}"
 
-    results: list[dict[str, Any]] = []
+    # Warmup (not measured)
+    if warmup > 0:
+        print(f"Warming up ({warmup} iteration)...\n")
+        await _bench_launch(backend, warmup)
 
-    print(f"Running {runs} iteration(s) per metric...\n")
+    metrics: list[dict[str, Any]] = []
 
-    print("  browser_launch_time...")
-    results.append(await bench_browser_launch(base_url, runs))
+    print(f"Running {iterations} iterations per metric...\n")
 
-    print("  new_page_time...")
-    results.append(await bench_new_page(base_url, runs))
+    print("  browser_launch...")
+    metrics.append(await _bench_launch(backend, iterations))
 
-    print("  local_navigation_time...")
-    results.append(await bench_local_navigation(base_url, runs))
+    print("  new_page...")
+    metrics.append(await _bench_new_page(base_url, iterations))
 
-    if live:
-        print("  external_navigation_time (live)...")
-        results.append(await bench_external_navigation(base_url, runs))
+    print("  navigate_simple...")
+    metrics.append(await _bench_navigate(base_url, "simple.html", iterations, "simple"))
 
-    print("  click_latency...")
-    results.append(await bench_click(base_url, runs))
+    print("  navigate_form...")
+    metrics.append(await _bench_navigate(base_url, "form.html", iterations, "form"))
 
-    print("  fill_latency...")
-    results.append(await bench_fill(base_url, runs))
+    print("  navigate_dom_heavy...")
+    metrics.append(await _bench_navigate(base_url, "dom-heavy.html", iterations, "dom_heavy"))
 
-    print("  screenshot_latency...")
-    results.append(await bench_screenshot(base_url, runs))
+    print("  dom_query...")
+    metrics.append(await _bench_dom_query(base_url, iterations))
 
-    print("  cdp_roundtrip_latency...")
-    results.append(await bench_cdp_roundtrip(base_url, runs))
+    print("  click_fill...")
+    metrics.append(await _bench_click_fill(base_url, iterations))
 
-    print("  stealth_injection_overhead (paired)...")
-    results.append(await bench_stealth_overhead(base_url, runs))
+    print("  screenshot...")
+    metrics.append(await _bench_screenshot(base_url, iterations))
 
-    print("  session_save_load...")
-    save_load = await bench_session_save_load(base_url, runs)
-    results.append(save_load["save"])
-    results.append(save_load["load"])
-
-    print("  memory_metrics...")
-    mem = await bench_memory(base_url, runs)
-    results.append(mem["after_launch"])
-    results.append(mem["after_5_tabs"])
+    print("  memory_delta...")
+    memory = await _bench_memory(base_url, iterations)
 
     server.shutdown()
 
     return {
         "schema_version": 1,
-        "benchmark_name": "real-browser-baseline",
-        "backend": "patchright",
-        "live": live,
-        "runs": runs,
-        "metadata": _metadata(),
-        "results": results,
+        "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "environment": _environment(headless, backend),
+        "config": {
+            "iterations": iterations,
+            "warmup": warmup,
+            "fixtures_dir": str(fixtures_dir),
+            "timeout_s": timeout_s,
+        },
+        "metrics": metrics,
+        "memory": memory,
     }
 
 
 def format_markdown(report: dict[str, Any]) -> str:
     """Format the report as a Markdown table."""
+    env = report["environment"]
+    cfg = report["config"]
     lines = [
-        f"# Browser Benchmark: {report['backend']}",
-        f"",
-        f"- **Date:** {report['metadata']['timestamp']}",
-        f"- **Super Browser:** v{report['metadata']['super_browser_version']}",
-        f"- **Python:** {report['metadata']['python_version']}",
-        f"- **Platform:** {report['metadata']['platform']}",
-        f"- **Runs:** {report['runs']}",
-        f"- **Live:** {report['live']}",
-        f"",
-        f"| Metric | Mean | Median | Min | Max | Unit |",
-        f"|:-------|-----:|-------:|----:|----:|:-----|",
+        "# Benchmark Results",
+        "",
+        f"- **Timestamp:** {report['timestamp_utc']}",
+        f"- **Super Browser:** v{env['super_browser_version']}",
+        f"- **Backend:** {env['browser_backend']}",
+        f"- **Headless:** {env['headless']}",
+        f"- **Python:** {env['python']}",
+        f"- **Platform:** {env['platform']}",
+        f"- **Iterations:** {cfg['iterations']}",
+        f"- **Warmup:** {cfg['warmup']}",
+        "",
+        "| Metric | Mean | Median | Min | Max | Stdev | Unit |",
+        "|:-------|-----:|-------:|----:|----:|------:|:-----|",
     ]
-    for r in report["results"]:
-        if "error" in r:
-            lines.append(f"| {r['name']} | ERROR | — | — | — | {r.get('unit', '?')} |")
-        else:
-            lines.append(
-                f"| {r['name']} | {r['mean']:.1f} | {r['median']:.1f} | "
-                f"{r['min']:.1f} | {r['max']:.1f} | {r['unit']} |"
-            )
+
+    for m in report["metrics"]:
+        lines.append(
+            f"| {m['name']} | {m['mean']:.1f} | {m['median']:.1f} | "
+            f"{m['min']:.1f} | {m['max']:.1f} | {m['stdev']:.1f} | {m['unit']} |"
+        )
+
+    mem = report.get("memory", {})
+    if mem.get("delta_mb") and isinstance(mem["delta_mb"], dict):
+        d = mem["delta_mb"]
+        lines.append(
+            f"| {d['name']} | {d['mean']:.1f} | {d['median']:.1f} | "
+            f"{d['min']:.1f} | {d['max']:.1f} | {d['stdev']:.1f} | {d['unit']} |"
+        )
+    elif mem.get("note"):
+        lines.append("| memory_delta | — | — | — | — | — | skipped |")
+
     return "\n".join(lines) + "\n"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Real Browser Benchmark")
-    parser.add_argument("--live", action="store_true", help="Include external navigation")
-    parser.add_argument("--json", type=str, help="Write JSON results to file")
-    parser.add_argument("--md", type=str, help="Write Markdown report to file")
-    parser.add_argument("--runs", type=int, default=DEFAULT_RUNS, help="Iterations per metric")
-    parser.add_argument("--headed", action="store_true", help="Run with visible browser (default is headless)")
+    parser = argparse.ArgumentParser(
+        prog="browser_benchmark",
+        description="Real Browser Benchmark — offline fixture-backed measurement",
+    )
+    parser.add_argument("--fixtures", type=Path, default=DEFAULT_FIXTURES, help="Fixtures directory")
+    parser.add_argument("--out-dir", type=Path, default=Path("benchmarks/results"), help="Output directory")
+    parser.add_argument("--iterations", type=int, default=DEFAULT_ITERATIONS, help="Iterations per metric")
+    parser.add_argument("--warmup", type=int, default=DEFAULT_WARMUP, help="Warmup iterations (not measured)")
+    parser.add_argument("--headless", type=int, default=1, help="1=headless (default), 0=headed")
+    parser.add_argument("--backend", type=str, default="patchright", help="Browser backend")
+    parser.add_argument("--json", type=Path, default=None, help="Custom JSON output path")
+    parser.add_argument("--markdown", type=Path, default=None, help="Custom Markdown output path")
+    parser.add_argument("--timeout-s", type=int, default=DEFAULT_TIMEOUT_S, help="Per-operation timeout")
     args = parser.parse_args()
 
-    global _headed
-    _headed = args.headed
+    fixtures = args.fixtures.resolve()
+    if not fixtures.is_dir():
+        print(f"Error: fixtures directory not found: {fixtures}", file=sys.stderr)
+        sys.exit(1)
 
-    report = asyncio.run(run_all(live=args.live, runs=args.runs))
+    discovered = discover_fixtures(fixtures)
+    if not discovered:
+        print(f"Error: no HTML fixtures found in {fixtures}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Fixtures discovered: {', '.join(discovered)}")
+    print(f"Iterations: {args.iterations}, Warmup: {args.warmup}")
+    print()
+
+    report = asyncio.run(
+        run_benchmarks(
+            fixtures_dir=fixtures,
+            iterations=args.iterations,
+            warmup=args.warmup,
+            headless=bool(args.headless),
+            backend=args.backend,
+            timeout_s=args.timeout_s,
+        )
+    )
 
     md = format_markdown(report)
     print("\n" + md)
 
-    if args.json:
-        Path(args.json).parent.mkdir(parents=True, exist_ok=True)
-        with open(args.json, "w", encoding="utf-8") as f:
-            json.dump(report, f, indent=2)
-        print(f"JSON written to {args.json}")
+    # Determine output paths
+    json_path = args.json or (args.out_dir / "benchmark-results.json")
+    md_path = args.markdown or (args.out_dir / "benchmark-results.md")
 
-    if args.md:
-        Path(args.md).parent.mkdir(parents=True, exist_ok=True)
-        with open(args.md, "w", encoding="utf-8") as f:
-            f.write(md)
-        print(f"Markdown written to {args.md}")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    md_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2)
+    print(f"JSON written to {json_path}")
+
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(md)
+    print(f"Markdown written to {md_path}")
 
 
 if __name__ == "__main__":
