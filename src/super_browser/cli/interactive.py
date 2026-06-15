@@ -10,7 +10,7 @@ Usage::
 
 Or from the command line::
 
-    super-browser interactive
+    superbrowser interactive
 """
 
 from __future__ import annotations
