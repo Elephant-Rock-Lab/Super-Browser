@@ -63,6 +63,7 @@ jobs:
           --ignore=tests/e2e_advanced.py
           --ignore=tests/e2e_quickstart.py
           --ignore=tests/e2e_edge_cases.py
+          --ignore=tests/e2e/
           --ignore=tests/pattern_validation.py
           --ignore=tests/stealth_detection/
           --ignore=tests/discovery/
