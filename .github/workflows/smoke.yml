@@ -1,0 +1,74 @@
+name: Post-Release Smoke
+
+on:
+  schedule:
+    # Run daily at 08:00 UTC to catch PyPI-side breakages early
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Specific version to smoke test (default: latest)"
+        required: false
+        default: ""
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run smoke test
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            ARGS="--version ${{ github.event.inputs.version }}"
+          fi
+          python scripts/smoke_published.py \
+            --out smoke-results/smoke-report.json \
+            --md smoke-results/smoke-report.md \
+            $ARGS
+
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: smoke-results/
+          retention-days: 30
+
+      - name: Open issue on failure
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report;
+            try {
+              report = JSON.parse(fs.readFileSync('smoke-results/smoke-report.json', 'utf-8'));
+            } catch (e) {
+              report = { summary: { failed: 'unknown' } };
+            }
+            const body = [
+              `## Automated Post-Release Smoke Failure`,
+              ``,
+              `**Trigger:** ${{ github.event_name }}`,
+              `**Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+              `**Failed checks:** ${report.summary?.failed ?? 'unknown'}`,
+              ``,
+              `See the [smoke report artifact](../actions/runs/${{ github.run_id }}) for details.`,
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Post-release smoke failure (${new Date().toISOString().split('T')[0]})`,
+              body,
+              labels: ['bug', 'release'],
+            });

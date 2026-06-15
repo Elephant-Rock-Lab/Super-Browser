@@ -67,3 +67,6 @@ tests/e2e/artifacts/
 
 # Benchmark results
 benchmarks/results/
+
+# Smoke test results
+smoke-results/
