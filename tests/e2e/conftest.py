@@ -262,6 +262,27 @@ def pytest_sessionfinish(
     json_path = report_dir / "e2e-report.json"
     md_path = report_dir / "e2e-report.md"
 
+    # Update artifacts in the report
+    json_report["artifacts"] = {
+        "json_path": str(json_path),
+        "markdown_path": str(md_path),
+    }
+
     import json
     json_path.write_text(json.dumps(json_report, indent=2), encoding="utf-8")
     md_path.write_text(md_report, encoding="utf-8")
+
+    # Validate the generated report against schema v3
+    import sys as _sys
+    _scripts_dir = str(Path(__file__).resolve().parent.parent.parent / "scripts")
+    if _scripts_dir not in _sys.path:
+        _sys.path.insert(0, _scripts_dir)
+    try:
+        from validate_e2e_report import validate_report
+        errors = validate_report(json_report)
+        if errors:
+            print(f"\n⚠ E2E report schema validation failed ({len(errors)} errors):", file=_sys.stderr)
+            for err in errors:
+                print(f"  - {err}", file=_sys.stderr)
+    except ImportError:
+        pass  # validator not available, skip silently
