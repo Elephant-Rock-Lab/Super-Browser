@@ -400,3 +400,58 @@ Ensure you have a Chromium-based browser installed:
 pip install superbrowser-sdk[patchright]
 python -m patchright install chromium
 ```
+
+## E2E Tests (Real-Browser)
+
+Super Browser ships with an opt-in E2E test suite that exercises real
+browser interactions against local fixture pages. These tests are **not**
+run in default CI — you enable them explicitly.
+
+### Prerequisites
+
+```bash
+pip install superbrowser-sdk[patchright]
+python -m patchright install chromium
+```
+
+### Running locally
+
+```bash
+# Run all local E2E tests (headless)
+SB_E2E=1 pytest tests/e2e/
+
+# Run with visible browser (debugging)
+SB_E2E=1 SB_HEADLESS=0 pytest tests/e2e/
+
+# Include live navigation tests (requires network)
+SB_E2E=1 SB_E2E_LIVE=1 pytest tests/e2e/
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|:---------|:--------|:-------------|
+| `SB_E2E` | unset | Enables E2E tests. If unset, all tests skip. |
+| `SB_E2E_LIVE` | unset | Enables live navigation tests (external network). |
+| `SB_HEADLESS` | `1` | Set to `0` for headed browser mode (debugging). |
+| `SB_BACKEND` | `patchright` | Browser backend. |
+| `SB_E2E_BUDGET_S` | `120` | Suite-level time budget in seconds. |
+| `SB_E2E_REPORT_DIR` | `tests/e2e/artifacts/` | Report output directory. |
+
+### Reports
+
+After a run, JSON and Markdown reports are written to
+`tests/e2e/artifacts/`:
+
+- `e2e-report.json` — structured results (schema v2)
+- `e2e-report.md` — human-readable summary
+- `{test_name}-failure.png` — screenshots on failure (best-effort)
+
+### CI integration
+
+E2E tests can be triggered manually via GitHub Actions:
+
+1. Go to **Actions** → **E2E Real-Browser Tests**
+2. Click **Run workflow**
+3. Optionally enable live tests
+4. Reports are uploaded as workflow artifacts (30-day retention)
