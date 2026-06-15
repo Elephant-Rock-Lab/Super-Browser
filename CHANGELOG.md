@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-06-15
+
+### Fixed — Hotfix: PyPI distribution naming
+
+- **`[all]` extra broken on published v2.0.0**: The self-reference in
+  `pyproject.toml` `[all]` extra still pointed to `super-browser` instead of
+  `superbrowser-sdk`. Fixed in PR #146 but never republished.
+- **CLI entry point name**: Published v2.0.0 had `super-browser` as the
+  console script name instead of `superbrowser`.
+- **Doc version headers**: Updated to v2.0.1.
+
+No code changes — packaging fix only. All 2,758 tests unchanged.
+
 ## [2.0.0] — 2026-06-15
 
 ### Overview

@@ -28,11 +28,11 @@ class TestV195DocNormalization:
 
     def test_api_stability_version_header(self) -> None:
         header = (DOCS_DIR / "api-stability.md").read_text(encoding="utf-8").split("\n")[:5]
-        assert "v2.0.0" in "\n".join(header)
+        assert "v2.0.1" in "\n".join(header)
 
     def test_error_catalog_version_header(self) -> None:
         header = (DOCS_DIR / "error-catalog.md").read_text(encoding="utf-8").split("\n")[:5]
-        assert "v2.0.0" in "\n".join(header)
+        assert "v2.0.1" in "\n".join(header)
 
     def test_no_config_browser_alias_in_examples(self) -> None:
         for f in EXAMPLES_DIR.glob("*.py"):
