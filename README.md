@@ -465,7 +465,7 @@ See [docs/memory.md](docs/memory.md).
 Super Browser supports **CloakBrowser** as an optional stealth backend — a hardened Chromium with 57 C++ anti-detection patches:
 
 ```bash
-pip install super-browser[patchright,cloak]
+pip install superbrowser-sdk[patchright,cloak]
 ```
 
 When installed, CloakBrowser is automatically detected and used. No code changes required:
