@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-06-16
+
+### Overview
+
+**v2.1.0 — Operational Maturity**
+
+v2.1 makes Super Browser easier to operate, validate, benchmark, and
+monitor after release. No new stealth features, no API redesigns —
+this release adds the operational infrastructure needed to trust the
+E2E signal, catch packaging regressions before users do, and track
+performance over time.
+
+### Added — Benchmarking (Track A)
+
+- Offline real-browser benchmark harness (`scripts/browser_benchmark.py`)
+  measuring 9 metrics: browser launch, new page, navigation (simple/form/
+  DOM-heavy), DOM query, click+fill, screenshot, and memory delta.
+- Local fixture-backed pages only — no network dependency.
+- JSON schema v1 output with mean/median/min/max/stdev per metric.
+- Markdown report for human-readable consumption.
+- Configurable iterations, warmup, headless mode, backend selection.
+- `timeout_s` enforcement via `asyncio.wait_for` on all operations.
+- Fixture HTTP server cleanup in `try/finally`.
+- Manual `benchmark.yml` workflow (`workflow_dispatch` only, 90-day artifacts).
+
+### Added — Release Observability (Track B)
+
+- Post-release PyPI smoke workflow (`scripts/smoke_published.py`).
+- Fresh-venv install validation: `[all]`, `[patchright]`, `[playwright]`,
+  `import super_browser`, `superbrowser version`, `superbrowser info`.
+- Version match check when `--version` specified.
+- JSON + Markdown smoke report output.
+- Daily scheduled run at 08:00 UTC + manual `workflow_dispatch`.
+- Automatic GitHub issue creation on scheduled failures.
+- Report always written, even on early failures (venv creation, install).
+- Explicit `issues: write` permission for auto-issue behavior.
+
+### Added — E2E Reporting (Track C)
+
+- **Schema v3**: Formalized E2E report contract with stdlib validator
+  (`scripts/validate_e2e_report.py`). Required: `schema_version`,
+  `timestamp_utc`, `environment`, `config`, `summary`, `tests`, `artifacts`.
+  Per-test entries: `name`, `status`, `duration_s`, `file`, `error`,
+  `screenshot`.
+- **Failure metadata**: `error` field populated from `call.excinfo` /
+  `report.longrepr`. `screenshot` field populated on failure, attached by
+  `nodeid` match. Both nullable for passed/skipped tests.
+- **Historical trend artifacts** (`scripts/e2e_trend.py`): Archives
+  validated reports into `e2e-history.json` (max 30 runs, dedup by
+  timestamp). Renders `e2e-trend.md` with pass-rate, duration, budget, and
+  failure trends.
+- **Lifecycle integration**: Report validation, failure metadata capture,
+  and trend generation all wired into `pytest_sessionfinish`.
+
+### Operational Safety
+
+- No benchmark performance thresholds (measurement only).
+- No E2E regression gates (observational trends).
+- No live tests enabled by default.
+- Default CI unaffected by any new workflow.
+
 ## [2.0.2] — 2026-06-15
 
 ### Fixed — CLI entry point (#148)
