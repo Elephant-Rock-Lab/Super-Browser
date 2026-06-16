@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] — 2026-06-16
+
+### Fixed — Smoke workflow install spec format
+
+- **Smoke install specs were malformed** (`dist==version[extra]` instead
+  of `dist[extra]==version`), causing the post-release smoke workflow
+  to fail for any version-targeted run.
+- Affects `[all]`, `[patchright]`, and `[playwright]` install checks in
+  `scripts/smoke_published.py`.
+- Found by the v2.1.0 post-release smoke run — exactly the kind of
+  packaging bug the workflow was designed to catch.
+- Added `TestInstallSpecFormat` regression test verifying PEP 508
+  extras-before-version ordering.
+
+### Fixed — Benchmark deprecated API usage
+
+- `scripts/browser_benchmark.py` used the deprecated `raw_page` attribute,
+  producing `DeprecationWarning` on every run.
+- Replaced `page.raw_page.query_selector_all` → `page.backend_page`
+- Replaced `page.raw_page.set_viewport_size` → `page.backend_page`
+
+### Version metadata
+
+- `pyproject.toml`, `__init__.py`, doc headers, test assertions bumped
+  to `2.1.1`.
+
 ## [2.1.0] — 2026-06-16
 
 ### Overview
