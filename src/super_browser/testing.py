@@ -311,7 +311,7 @@ class E2EContext:
 
 
 # ---------------------------------------------------------------------------
-# JSON/Markdown reporting (schema v2)
+# JSON/Markdown reporting (schema v3)
 # ---------------------------------------------------------------------------
 
 
@@ -321,49 +321,76 @@ def build_e2e_json_report(
     environment: dict[str, Any],
     suite_duration_ms: float,
     budget_seconds: float,
+    *,
+    artifacts: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a versioned JSON report from E2E test results.
+
+    Schema v3 contract — see ``scripts/validate_e2e_report.py`` for the
+    formal validator.
 
     Parameters
     ----------
     suite_name:
         Name of the test suite (e.g., ``"e2e-real-browser"``).
     results:
-        List of per-test result dicts with keys: ``test_name``,
-        ``status``, ``duration_ms``, ``budget_ms``, ``budget_exceeded``.
+        List of per-test result dicts. Each may contain: ``test_name``,
+        ``status``, ``duration_ms``, ``budget_ms``, ``budget_exceeded``,
+        ``nodeid``, ``error``, ``screenshot``.
     environment:
         Environment metadata (from ``E2EContext.environment_info``).
     suite_duration_ms:
         Total suite execution time in milliseconds.
     budget_seconds:
         Configured suite budget in seconds.
+    artifacts:
+        Optional artifact paths dict (``json_path``, ``markdown_path``).
 
     Returns
     -------
     dict
-        JSON-serializable dict with schema_version=2.
+        JSON-serializable dict with schema_version=3.
     """
     total = len(results)
-    passed = sum(1 for r in results if r.get("status") == "passed")
-    failed = sum(1 for r in results if r.get("status") == "failed")
-    skipped = sum(1 for r in results if r.get("status") == "skipped")
+    passed_count = sum(1 for r in results if r.get("status") == "passed")
+    failed_count = sum(1 for r in results if r.get("status") == "failed")
+    skipped_count = sum(1 for r in results if r.get("status") == "skipped")
+    budget_exceeded = any(r.get("budget_exceeded", False) for r in results)
 
     import datetime
 
+    # Transform results into tests[] format (schema v3)
+    tests: list[dict[str, Any]] = []
+    for r in results:
+        nodeid = r.get("nodeid", "")
+        file_path = nodeid.split("::")[0] if nodeid else None
+        tests.append({
+            "name": r.get("test_name", "unknown"),
+            "status": r.get("status", "unknown"),
+            "duration_s": round(r.get("duration_ms", 0.0) / 1000.0, 6),
+            "file": file_path,
+            "error": r.get("error"),
+            "screenshot": r.get("screenshot"),
+        })
+
     return {
-        "schema_version": 2,
-        "suite_name": suite_name,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "schema_version": 3,
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "environment": environment,
-        "results": results,
-        "summary": {
-            "total": total,
-            "passed": passed,
-            "failed": failed,
-            "skipped": skipped,
-            "suite_duration_ms": suite_duration_ms,
+        "config": {
+            "suite_name": suite_name,
             "budget_seconds": budget_seconds,
         },
+        "summary": {
+            "total": total,
+            "passed": passed_count,
+            "failed": failed_count,
+            "skipped": skipped_count,
+            "duration_s": round(suite_duration_ms / 1000.0, 6),
+            "budget_exceeded": budget_exceeded,
+        },
+        "tests": tests,
+        "artifacts": artifacts or {"json_path": None, "markdown_path": None},
     }
 
 
@@ -380,15 +407,16 @@ def render_e2e_markdown_report(json_report: dict[str, Any]) -> str:
     str
         Human-readable Markdown report.
     """
+    config = json_report.get("config", {})
     summary = json_report.get("summary", {})
     env = json_report.get("environment", {})
-    results = json_report.get("results", [])
+    tests = json_report.get("tests", [])
 
     lines: list[str] = []
-    lines.append(f"# E2E Report: {json_report.get('suite_name', 'unknown')}")
+    lines.append(f"# E2E Report: {config.get('suite_name', 'unknown')}")
     lines.append("")
     lines.append(f"**Schema version:** {json_report.get('schema_version', '?')}")
-    lines.append(f"**Timestamp:** {json_report.get('timestamp', 'N/A')}")
+    lines.append(f"**Timestamp:** {json_report.get('timestamp_utc', 'N/A')}")
     lines.append("")
     lines.append("## Summary")
     lines.append("")
@@ -396,8 +424,8 @@ def render_e2e_markdown_report(json_report: dict[str, Any]) -> str:
     lines.append(f"- **Passed:** {summary.get('passed', 0)}")
     lines.append(f"- **Failed:** {summary.get('failed', 0)}")
     lines.append(f"- **Skipped:** {summary.get('skipped', 0)}")
-    lines.append(f"- **Duration:** {summary.get('suite_duration_ms', 0):.0f}ms")
-    lines.append(f"- **Budget:** {summary.get('budget_seconds', 0):.0f}s")
+    lines.append(f"- **Duration:** {summary.get('duration_s', 0):.1f}s")
+    lines.append(f"- **Budget exceeded:** {summary.get('budget_exceeded', False)}")
     lines.append("")
     lines.append("## Environment")
     lines.append("")
@@ -407,16 +435,16 @@ def render_e2e_markdown_report(json_report: dict[str, Any]) -> str:
     lines.append(f"- **Platform:** {env.get('platform', 'N/A')}")
     lines.append(f"- **Live:** {env.get('live', 'N/A')}")
     lines.append("")
-    lines.append("## Results")
+    lines.append("## Tests")
     lines.append("")
-    lines.append("| Test | Status | Duration (ms) | Budget Exceeded |")
-    lines.append("|:-----|:-------|:-------------|:----------------|")
-    for r in results:
-        name = r.get("test_name", "?")
-        status = r.get("status", "?")
-        dur = r.get("duration_ms", 0.0)
-        exceeded = r.get("budget_exceeded", False)
+    lines.append("| Test | Status | Duration (s) | Error |")
+    lines.append("|:-----|:-------|:------------|:------|")
+    for t in tests:
+        name = t.get("name", "?")
+        status = t.get("status", "?")
+        dur = t.get("duration_s", 0.0)
+        error = t.get("error") or ""
         icon = "✅" if status == "passed" else ("❌" if status == "failed" else "⏭️")
-        lines.append(f"| {name} | {icon} {status} | {dur:.0f} | {exceeded} |")
+        lines.append(f"| {name} | {icon} {status} | {dur:.3f} | {error[:60]} |")
     lines.append("")
     return "\n".join(lines)

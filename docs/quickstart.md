@@ -443,9 +443,15 @@ SB_E2E=1 SB_E2E_LIVE=1 pytest tests/e2e/
 After a run, JSON and Markdown reports are written to
 `tests/e2e/artifacts/`:
 
-- `e2e-report.json` — structured results (schema v2)
+- `e2e-report.json` — structured results (schema v3, validated)
 - `e2e-report.md` — human-readable summary
 - `{test_name}-failure.png` — screenshots on failure (best-effort)
+
+The JSON report follows schema v3. You can validate any report file:
+
+```bash
+python scripts/validate_e2e_report.py tests/e2e/artifacts/e2e-report.json
+```
 
 ### CI integration
 

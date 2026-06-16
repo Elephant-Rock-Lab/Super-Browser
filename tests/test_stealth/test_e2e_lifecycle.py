@@ -172,11 +172,12 @@ class TestReportEmission:
         assert json_path.exists()
         assert md_path.exists()
 
-        # Verify JSON structure
+        # Verify JSON structure (schema v3)
         data = json.loads(json_path.read_text())
-        assert data["schema_version"] == 2
-        assert len(data["results"]) == 3
+        assert data["schema_version"] == 3
+        assert len(data["tests"]) == 3
         assert data["summary"]["passed"] == 3
+        assert data["config"]["suite_name"] == "e2e-real-browser"
 
         # Verify Markdown has content
         md = md_path.read_text()
