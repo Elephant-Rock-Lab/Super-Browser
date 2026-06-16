@@ -1,0 +1,64 @@
+name: Stress Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Quick or realistic"
+        required: true
+        default: "quick"
+        type: choice
+        options:
+          - quick
+          - realistic
+      sessions:
+        description: "Number of sessions (realistic mode)"
+        required: false
+        default: "3"
+      concurrency:
+        description: "Concurrency (realistic mode)"
+        required: false
+        default: "2"
+
+permissions:
+  contents: read
+
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Super Browser
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[patchright]"
+          python -m patchright install chromium
+
+      - name: Run stress test (quick)
+        if: inputs.mode == 'quick'
+        run: |
+          python scripts/stress_real_world.py --quick \
+            --output stress-results
+
+      - name: Run stress test (realistic)
+        if: inputs.mode == 'realistic'
+        run: |
+          python scripts/stress_real_world.py --realistic \
+            --sessions ${{ inputs.sessions }} \
+            --concurrency ${{ inputs.concurrency }} \
+            --output stress-results
+
+      - name: Upload stress report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-report
+          path: stress-results/
+          retention-days: 90
+          if-no-files-found: warn
