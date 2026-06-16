@@ -101,12 +101,12 @@ class TestValidReport:
         errors = validate_report(report)
         assert errors == []
 
-    def test_no_artifacts_key(self) -> None:
-        """artifacts is optional."""
+    def test_no_artifacts_key_errors(self) -> None:
+        """artifacts is now required — missing it must error."""
         report = _valid_report()
         del report["artifacts"]
         errors = validate_report(report)
-        assert errors == []
+        assert any("artifacts" in e for e in errors)
 
     def test_null_artifact_paths(self) -> None:
         report = _valid_report()
@@ -134,6 +134,7 @@ class TestMissingTopLevelFields:
         "config",
         "summary",
         "tests",
+        "artifacts",
     ])
     def test_missing_key(self, missing_key: str) -> None:
         report = _valid_report()
@@ -157,7 +158,7 @@ class TestWrongTypes:
         errors = validate_report(report)
         assert any("schema_version" in e and "3" in e for e in errors)
 
-    def tests_is_not_list(self) -> None:
+    def test_tests_is_not_list(self) -> None:
         report = _valid_report()
         report["tests"] = "not a list"
         errors = validate_report(report)
@@ -234,6 +235,13 @@ class TestTestEntryValidation:
         report["tests"][0]["duration_s"] = "0.05"
         errors = validate_report(report)
         assert any("duration_s" in e and "numeric" in e for e in errors)
+
+    def test_missing_duration_s(self) -> None:
+        """duration_s is required per test entry."""
+        report = _valid_report()
+        del report["tests"][0]["duration_s"]
+        errors = validate_report(report)
+        assert any("duration_s" in e and "missing" in e for e in errors)
 
     def test_file_not_string(self) -> None:
         report = _valid_report()

@@ -72,7 +72,7 @@ def validate_report(report: dict[str, Any]) -> list[str]:
     errors: list[str] = []
 
     # --- Top-level required keys ---
-    required_top = {"schema_version", "timestamp_utc", "environment", "config", "summary", "tests"}
+    required_top = {"schema_version", "timestamp_utc", "environment", "config", "summary", "tests", "artifacts"}
     for key in required_top:
         if key not in report:
             errors.append(f"Missing top-level key: '{key}'")
@@ -170,9 +170,10 @@ def validate_report(report: dict[str, Any]) -> list[str]:
                 )
 
             # duration_s (required)
-            dur = test.get("duration_s")
-            if dur is not None and not isinstance(dur, (int, float)):
-                errors.append(f"tests[{i}]: 'duration_s' must be numeric, got {type(dur).__name__}")
+            if "duration_s" not in test:
+                errors.append(f"tests[{i}]: missing required 'duration_s'")
+            elif not isinstance(test["duration_s"], (int, float)):
+                errors.append(f"tests[{i}]: 'duration_s' must be numeric, got {type(test['duration_s']).__name__}")
 
             # file (optional)
             if "file" in test and test["file"] is not None:
@@ -189,16 +190,15 @@ def validate_report(report: dict[str, Any]) -> list[str]:
                 if not isinstance(test["screenshot"], str):
                     errors.append(f"tests[{i}]: 'screenshot' must be string or null")
 
-    # --- artifacts (optional but recommended) ---
+    # --- artifacts (required, nullable paths) ---
     artifacts = report.get("artifacts")
-    if artifacts is not None:
-        if not isinstance(artifacts, dict):
-            errors.append(f"'artifacts' must be a dict, got {type(artifacts).__name__}")
-        else:
-            for key in ("json_path", "markdown_path"):
-                if key in artifacts and artifacts[key] is not None:
-                    if not isinstance(artifacts[key], str):
-                        errors.append(f"artifacts['{key}'] must be string or null")
+    if not isinstance(artifacts, dict):
+        errors.append(f"'artifacts' must be a dict, got {type(artifacts).__name__ if artifacts is not None else 'NoneType'}")
+    else:
+        for key in ("json_path", "markdown_path"):
+            if key in artifacts and artifacts[key] is not None:
+                if not isinstance(artifacts[key], str):
+                    errors.append(f"artifacts['{key}'] must be string or null")
 
     return errors
 
