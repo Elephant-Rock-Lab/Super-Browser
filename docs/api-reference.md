@@ -42,7 +42,7 @@ The primary entry point for all browser automation. Wraps the agent loop, stealt
 
 ```python
 class SuperBrowser(
-    config: Optional[SuperBrowserConfig] = None,
+    config: Optional[Config] = None,
     *,
     tool_registry: Optional[ToolRegistry] = None,
     llm_client: Optional[LLMClient] = None,
@@ -51,7 +51,7 @@ class SuperBrowser(
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `config` | `SuperBrowserConfig \| None` | `None` | Agent configuration. Uses defaults when `None`. |
+| `config` | `Config \| None` | `None` | Agent configuration. Uses defaults when `None`. |
 | `tool_registry` | `ToolRegistry \| None` | `None` | Custom tool registry. Creates a default registry when `None`. |
 | `llm_client` | `LLMClient \| None` | `None` | LLM client for `act()` calls. **Required** for `act()`. |
 
@@ -628,7 +628,7 @@ if errors:
 | `llm_provider` | `str` | `"anthropic"` | LLM provider: `"anthropic"` or `"openai"`. |
 | `llm_model` | `str` | `"claude-sonnet-4-20250514"` | Model identifier. |
 | `llm_api_key` | `str` | `""` | API key for the chosen provider. |
-| `core` | `SuperBrowserConfig` | defaults | Nested agent-level settings. |
+
 
 #### `TracingConfig`
 

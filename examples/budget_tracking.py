@@ -18,7 +18,7 @@ import asyncio
 import logging
 from pathlib import Path
 
-from super_browser.agent.facade import SuperBrowser
+from super_browser import SuperBrowser
 from super_browser.agent.llm.protocol import LLMClient
 from super_browser.budget.governor import TokenBudgetGovernor
 from super_browser.budget.types import (

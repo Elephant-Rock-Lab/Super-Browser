@@ -12,7 +12,7 @@ Run:
 import asyncio
 import logging
 
-from super_browser.agent.facade import SuperBrowser
+from super_browser import SuperBrowser
 from super_browser.results.types import FailureCategory
 
 logging.basicConfig(level=logging.INFO, format="%(name)s  %(levelname)s  %(message)s")

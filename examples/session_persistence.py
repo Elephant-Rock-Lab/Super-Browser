@@ -12,7 +12,7 @@ Run:
 import asyncio
 import logging
 
-from super_browser.agent.facade import SuperBrowser
+from super_browser import SuperBrowser
 
 logging.basicConfig(level=logging.INFO, format="%(name)s  %(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)

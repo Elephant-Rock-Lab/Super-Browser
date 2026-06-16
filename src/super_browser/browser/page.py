@@ -84,12 +84,12 @@ class PageHandle:
         """Deprecated alias for :attr:`backend_page`.
 
         .. deprecated:: 2.0
-            Use :attr:`backend_page` instead. Will be removed in v2.1.
+            Use :attr:`backend_page` instead. Will be removed in v3.0.
         """
         import warnings
         warnings.warn(
             "raw_page is deprecated, use backend_page instead. "
-            "Will be removed in v2.1.",
+            "Will be removed in v3.0.",
             DeprecationWarning,
             stacklevel=2,
         )
