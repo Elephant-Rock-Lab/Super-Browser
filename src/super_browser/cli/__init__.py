@@ -11,10 +11,10 @@ Commands:
   script          — Execute a YAML script file
   replay          — Replay a recording JSON file
   act             — Run a one-shot agent instruction
-  stealth-check   — Run stealth fingerprint check (offline or online)
-  stealth-validate — Fingerprint validation and regression harness
+  stealth-check   — Run offline fingerprint scoring and report
+  stealth-validate — Validate fingerprint against baselines (CI/regression mode)
   memory          — Manage per-domain agent memory
-  result-demo     — Demonstrate structured result categories
+  result-demo     — Internal: result-type demo (not a primary command)
 """
 
 from __future__ import annotations
@@ -77,13 +77,13 @@ def main() -> None:
     act_parser.add_argument("--max-steps", type=int, default=50, help="Max agent steps (default: 50)")
 
     # stealth-check
-    stealth_check = sub.add_parser("stealth-check", help="Run stealth fingerprint check (offline mode)")
+    stealth_check = sub.add_parser("stealth-check", help="Run offline fingerprint scoring and report")
     stealth_check.add_argument("--online", action="store_true", default=False, help="Run in online mode (requires browser)")
     stealth_check.add_argument("--format", default="markdown", choices=["markdown", "html"], help="Report format (default: markdown)")
     stealth_check.add_argument("--threshold", type=int, default=70, help="Pass threshold (default: 70)")
 
     # stealth-validate
-    sv_parser = sub.add_parser("stealth-validate", help="Fingerprint validation and regression harness")
+    sv_parser = sub.add_parser("stealth-validate", help="Validate fingerprint against baselines (CI/regression mode)")
     sv_parser.add_argument("--profile", default=None, help="Device profile ID")
     sv_parser.add_argument("--seed", default=None, help="Seed for matrix derivation")
     sv_parser.add_argument("--baseline-dir", default=None, help="Baseline directory")
@@ -105,8 +105,8 @@ def main() -> None:
     memory_prune.add_argument("--dir", default=None, help="Memory directory")
     memory_prune.add_argument("--ttl", type=int, default=30, help="TTL in days (default: 30)")
 
-    # result-demo
-    json_parser = sub.add_parser("result-demo", help="Demonstrate structured result categories")
+    # result-demo (internal — not a primary command, kept for backward compat)
+    json_parser = sub.add_parser("result-demo", help="internal: result-type demo")
     json_parser.add_argument("--json", action="store_true", help="Output as JSON")
     json_parser.add_argument("--fail", action="store_true", help="Generate a failure result")
     json_parser.add_argument("--stale", action="store_true", help="Generate a stale-ref failure")

@@ -118,3 +118,10 @@ class TestCLIEntryPoint:
         # The package __file__ should point to __init__.py, not cli.py
         assert cli.__file__.endswith("__init__.py")
         assert "cli.py" not in cli.__file__
+
+    def test_module_entry_point_exists(self) -> None:
+        """`python -m super_browser` works via `__main__.py`."""
+        import super_browser.__main__ as main_mod
+
+        assert hasattr(main_mod, "main")
+        assert callable(main_mod.main)

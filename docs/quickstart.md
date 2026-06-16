@@ -26,7 +26,7 @@ pip install superbrowser-sdk[patchright]
 Verify the installation:
 
 ```python
-python -c "from super_browser.agent.facade import SuperBrowser; print('OK')"
+python -c "from super_browser import SuperBrowser; print('OK')"
 # OK
 ```
 
@@ -68,7 +68,7 @@ Create `my_first_browser.py`:
 """5-minute Super Browser quickstart."""
 
 import asyncio
-from super_browser.agent.facade import SuperBrowser
+from super_browser import SuperBrowser
 
 
 class MockLLMClient:
@@ -151,7 +151,7 @@ export SB_DAILY_BUDGET=5.0
 > browser is less detectable than headless).
 
 ```python
-from super_browser.config import Config
+from super_browser import Config
 
 config = Config.from_env()
 errors = config.validate()
@@ -178,7 +178,7 @@ tracing:
 ```
 
 ```python
-from super_browser.config import Config
+from super_browser import Config
 
 config = Config.from_yaml("super-browser.yaml")
 ```
@@ -186,7 +186,7 @@ config = Config.from_yaml("super-browser.yaml")
 ### Option C: Dictionary
 
 ```python
-from super_browser.config import Config
+from super_browser import Config
 
 config = Config.from_dict({
     "agent": {
@@ -205,7 +205,7 @@ config = Config.from_dict({
 With a real API key, create an LLM client directly:
 
 ```python
-from super_browser.agent.llm.factory import create_llm
+from super_browser import create_llm
 
 # Explicit
 llm = create_llm(provider="anthropic", model="claude-sonnet-4-20250514", api_key="sk-ant-...")
