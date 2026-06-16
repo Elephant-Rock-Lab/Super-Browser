@@ -329,3 +329,16 @@ def pytest_sessionfinish(
                 print(f"  - {err}", file=_sys.stderr)
     except ImportError:
         pass  # validator not available, skip silently
+
+    # Best-effort trend generation (non-fatal)
+    try:
+        from e2e_trend import load_history, process_reports, render_trend_markdown, write_history
+        history_path = report_dir / "e2e-history.json"
+        md_trend_path = report_dir / "e2e-trend.md"
+        history = load_history(history_path)
+        history, _ = process_reports([json_path], history, max_runs=30)
+        write_history(history, history_path)
+        trend_md = render_trend_markdown(history)
+        md_trend_path.write_text(trend_md, encoding="utf-8")
+    except Exception as exc:
+        print(f"⚠ E2E trend generation failed: {exc}", file=_sys.stderr)

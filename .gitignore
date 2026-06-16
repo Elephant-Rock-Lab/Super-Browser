@@ -70,3 +70,7 @@ benchmarks/results/
 
 # Smoke test results
 smoke-results/
+
+# E2E trend artifacts
+tests/e2e/artifacts/e2e-history.json
+tests/e2e/artifacts/e2e-trend.md

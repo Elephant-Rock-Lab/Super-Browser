@@ -453,6 +453,19 @@ The JSON report follows schema v3. You can validate any report file:
 python scripts/validate_e2e_report.py tests/e2e/artifacts/e2e-report.json
 ```
 
+After each E2E run, the trend tracker archives the report summary into
+`e2e-history.json` and renders `e2e-trend.md` showing pass-rate,
+duration, and budget trends across recent runs. You can also run it
+manually:
+
+```bash
+python scripts/e2e_trend.py \
+  --reports tests/e2e/artifacts/e2e-report.json \
+  --history tests/e2e/artifacts/e2e-history.json \
+  --markdown tests/e2e/artifacts/e2e-trend.md \
+  --max-runs 30
+```
+
 ### CI integration
 
 E2E tests can be triggered manually via GitHub Actions:
