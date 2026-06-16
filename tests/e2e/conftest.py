@@ -178,9 +178,45 @@ def pytest_runtest_makereport(
 
     _record_result(item, status, duration_ms, call, report)
 
-    # Screenshot capture on failure
+    # Screenshot capture on failure — attach path to matching result
     if report.failed:
-        _capture_screenshot(item)
+        screenshot = _capture_screenshot(item)
+        if screenshot:
+            # Attach to the result matching this nodeid (not just last entry)
+            for result in reversed(_e2e_results):
+                if result["nodeid"] == item.nodeid:
+                    result["screenshot"] = screenshot
+                    break
+
+
+def _format_error(call: pytest.CallInfo[Any], report: pytest.TestReport) -> str | None:
+    """Extract a useful failure string from pytest call/report.
+
+    Tries call.excinfo first, then falls back to report.longrepr,
+    then to a generic string. Returns None if no error info available.
+    """
+    # call.excinfo gives us the exception type and value
+    if call.excinfo is not None:
+        exc = call.excinfo
+        exc_type = type(exc.value).__name__
+        exc_msg = str(exc.value)
+        if exc_msg:
+            # Truncate very long error messages
+            if len(exc_msg) > 500:
+                exc_msg = exc_msg[:497] + "..."
+            return f"{exc_type}: {exc_msg}"
+        return exc_type
+
+    # report.longrepr can contain structured failure info
+    longrepr = getattr(report, "longrepr", None)
+    if longrepr is not None:
+        text = str(longrepr)
+        if text:
+            if len(text) > 500:
+                text = text[:497] + "..."
+            return text
+
+    return None
 
 
 def _record_result(
@@ -204,14 +240,20 @@ def _record_result(
         "duration_ms": round(duration_ms, 1),
         "budget_ms": round(budget_ms, 1),
         "budget_exceeded": budget_exceeded,
+        "error": _format_error(call, report) if status == "failed" else None,
+        "screenshot": None,
     })
 
 
-def _capture_screenshot(item: pytest.Item) -> None:
-    """Capture a screenshot from the active browser page on test failure."""
+def _capture_screenshot(item: pytest.Item) -> str | None:
+    """Capture a screenshot from the active browser page on test failure.
+
+    Returns the screenshot path string on success, None on failure.
+    Non-fatal — screenshot is best-effort.
+    """
     page = _active_pages.get(item.nodeid)
     if page is None:
-        return
+        return None
 
     report_dir = _get_report_dir()
     screenshot_path = report_dir / f"{item.name}-failure.png"
@@ -223,8 +265,9 @@ def _capture_screenshot(item: pytest.Item) -> None:
             loop.run_until_complete(page.screenshot(path=str(screenshot_path)))
         finally:
             loop.close()
+        return str(screenshot_path)
     except Exception:
-        pass  # Non-fatal — screenshot is best-effort
+        return None  # Non-fatal — screenshot is best-effort
 
 
 def _get_report_dir() -> Path:
