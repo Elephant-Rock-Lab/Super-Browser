@@ -204,7 +204,7 @@ async def _bench_dom_query(base_url: str, runs: int) -> dict[str, Any]:
         samples: list[float] = []
         for _ in range(runs):
             t0 = time.monotonic()
-            await page.query_selector_all("div")
+            await page.backend_page.query_selector_all("div")
             elapsed = (time.monotonic() - t0) * 1000
             samples.append(round(elapsed, 3))
         await page.close()
@@ -244,7 +244,7 @@ async def _bench_screenshot(base_url: str, runs: int) -> dict[str, Any]:
     try:
         page = await engine.new_page()
         await page.goto(f"{base_url}/simple.html", wait_until="load")
-        await page.raw_page.set_viewport_size({"width": 1280, "height": 720})
+        await page.backend_page.set_viewport_size({"width": 1280, "height": 720})
         samples: list[float] = []
         for _ in range(runs):
             t0 = time.monotonic()

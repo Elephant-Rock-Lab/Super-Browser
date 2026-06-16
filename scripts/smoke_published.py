@@ -95,8 +95,9 @@ def run_smoke(
     checks: list[dict[str, Any]] = []
     started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-    # Determine install spec
-    install_spec = f"{dist}=={version}" if version else dist
+    # Determine install spec — extras go before version: dist[extra]==version
+    version_suffix = f"=={version}" if version else ""
+    install_spec = f"{dist}{version_suffix}"  # for display only
 
     with tempfile.TemporaryDirectory(prefix="sb_smoke_") as tmpdir:
         tmp = Path(tmpdir)
@@ -114,10 +115,10 @@ def run_smoke(
 
         # Install [all]
         rc, out, err = _run(
-            [str(venv_python), "-m", "pip", "install", f"{install_spec}[all]"],
+            [str(venv_python), "-m", "pip", "install", f"{dist}[all]{version_suffix}"],
             timeout=180,
         )
-        checks.append(_check_result(f"install_all ({install_spec}[all])", rc, out, err))
+        checks.append(_check_result(f"install_all ({dist}[all]{version_suffix})", rc, out, err))
         if rc != 0:
             # No point continuing if base install fails
             report = _build_report(started, install_spec, checks)
@@ -145,17 +146,17 @@ def run_smoke(
 
         # Verify [patchright] extra installs without conflict
         rc, out, err = _run(
-            [str(venv_python), "-m", "pip", "install", f"{install_spec}[patchright]"],
+            [str(venv_python), "-m", "pip", "install", f"{dist}[patchright]{version_suffix}"],
             timeout=180,
         )
-        checks.append(_check_result(f"install_patchright ({install_spec}[patchright])", rc, out, err))
+        checks.append(_check_result(f"install_patchright ({dist}[patchright]{version_suffix})", rc, out, err))
 
         # Verify [playwright] extra installs without conflict
         rc, out, err = _run(
-            [str(venv_python), "-m", "pip", "install", f"{install_spec}[playwright]"],
+            [str(venv_python), "-m", "pip", "install", f"{dist}[playwright]{version_suffix}"],
             timeout=180,
         )
-        checks.append(_check_result(f"install_playwright ({install_spec}[playwright])", rc, out, err))
+        checks.append(_check_result(f"install_playwright ({dist}[playwright]{version_suffix})", rc, out, err))
 
         # Version match check (if version was specified)
         if version and installed_version:
