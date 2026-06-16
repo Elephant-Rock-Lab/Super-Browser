@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-06-16
+
+### Overview
+
+**v2.2.0 — API Ergonomics**
+
+v2.2 polishes the public API surface based on the Track D discovery
+audit. No new features, no breaking changes — cleaner imports, better
+CLI discoverability, and a new `python -m super_browser` entry point.
+
+### Added
+
+- **`python -m super_browser` support**: New `__main__.py` delegates to
+  the CLI dispatcher, so users can run either `superbrowser version` or
+  `python -m super_browser version`.
+
+### Changed
+
+- **Standardized top-level imports**: All examples, quickstart, and docs
+  now use `from super_browser import SuperBrowser`, `Config`, and
+  `create_llm` instead of deep module paths.
+- **CLI help clarified**:
+  - `stealth-check` → "Run offline fingerprint scoring and report"
+  - `stealth-validate` → "Validate fingerprint against baselines
+    (CI/regression mode)"
+  - `result-demo` → labeled as internal command
+- **API reference cleaned**: Removed stale `SuperBrowserConfig`
+  references (class removed in v2.0) and the removed `core` field row
+  from `AgentConfig`.
+- **`raw_page` deprecation updated**: Removal target changed from
+  "v2.1" to "v3.0" — the alias stays available through the v2.x series.
+
+### Track D audit artifacts
+
+- `docs/api-ergonomics-audit.md` — full discovery document with 15
+  findings across three buckets (patch-safe, backward-compatible polish,
+  defer).
+
 ## [2.1.1] — 2026-06-16
 
 ### Fixed — Smoke workflow install spec format

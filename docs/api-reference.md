@@ -1,6 +1,6 @@
 # API Reference
 
-> **Super Browser** v2.1.1 — Complete public API documentation.
+> **Super Browser** v2.2.0 — Complete public API documentation.
 
 This reference covers every public class, method, and function in Super Browser. Classes are grouped by subsystem.
 
