@@ -265,3 +265,54 @@ class TestEarlyFailurePaths:
         # Should have at least pip_upgrade and install_all checks
         check_names = [c["name"] for c in loaded["checks"]]
         assert any("install_all" in name for name in check_names)
+
+
+class TestInstallSpecFormat:
+    """Test that pip install spec uses correct syntax.
+
+    Regression guard for v2.1.0 post-release smoke failure: extras
+    must go before the version specifier (dist[extra]==version),
+    not after (dist==version[extra]).
+    """
+
+    def test_extras_before_version(self, tmp_path: Path) -> None:
+        """pip install args must format as dist[extra]==version."""
+        from unittest.mock import patch
+
+        captured_cmds: list[list[str]] = []
+
+        def mock_run(cmd: list[str], **kwargs: Any) -> tuple[int, str, str]:
+            captured_cmds.append(cmd)
+            if "venv" in str(cmd):
+                return 0, "", ""
+            if "--upgrade" in cmd:
+                return 0, "", ""
+            # Simulate success for all installs
+            if "install" in cmd:
+                return 0, "installed", ""
+            # Simulate import / CLI success
+            return 0, "2.1.0", ""
+
+        out_path = tmp_path / "smoke.json"
+
+        with (
+            patch.object(sp, "_create_venv", return_value=Path("/fake/python")),
+            patch.object(sp, "_run", side_effect=mock_run),
+        ):
+            sp.run_smoke(version="2.1.0", dist="superbrowser-sdk", out_path=out_path)
+
+        # Find the install commands
+        install_cmds = [c for c in captured_cmds if "install" in c and "--upgrade" not in c]
+        assert len(install_cmds) >= 3  # [all], [patchright], [playwright]
+
+        for cmd in install_cmds:
+            # Get the package spec (last argument before timeout)
+            pkg_arg = [a for a in cmd if "superbrowser-sdk" in a][0]
+            # Must be: superbrowser-sdk[extra]==2.1.0
+            # NOT: superbrowser-sdk==2.1.0[extra]
+            assert "==" in pkg_arg, f"Missing version in: {pkg_arg}"
+            assert "[" in pkg_arg, f"Missing extras in: {pkg_arg}"
+            # The bracket must come before ==
+            bracket_pos = pkg_arg.index("[")
+            eq_pos = pkg_arg.index("==")
+            assert bracket_pos < eq_pos, f"Extras must come before version: {pkg_arg}"
