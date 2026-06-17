@@ -151,6 +151,59 @@ class TestNavigationSeedPropagation:
         asyncio.run(orch.navigate(mock_page, "https://example.com"))
         assert mock_page.goto.called
 
+    def test_navigate_without_seed_preserves_navigator_rng(self) -> None:
+        """In no-seed mode, navigate() must use navigator's injected RNG.
+
+        Regression test: previously, navigate() always called
+        session_seed.rng() which returned a fresh entropy Random(),
+        ignoring the navigator's configured RNG. Now nav_rng is None
+        when non-deterministic, so select_style falls back to the
+        navigator's own _rng.
+        """
+        # Use mixed weights so selection actually varies
+        config = NavigationConfig(style_weights={
+            "direct": 0.25,
+            "type_enter": 0.25,
+            "click_link": 0.25,
+            "referrer": 0.25,
+        })
+
+        # Navigator with a deterministic RNG (seed=123)
+        nav = NavigationVariator(config=config, rng=random.Random(123))
+
+        # Spy on select_style to capture the rng= argument
+        original_select = nav.select_style
+        captured_rngs: list[object] = []
+
+        def _spy_select(rng=None):
+            captured_rngs.append(rng)
+            return original_select(rng=rng)
+
+        nav.select_style = _spy_select  # type: ignore[method-assign]
+
+        adapter = MagicMock()
+        zero_dwell = DwellTimer(
+            config=DwellConfig(pre_action_min_ms=0, pre_action_max_ms=0,
+                               post_action_min_ms=0, post_action_max_ms=0,
+                               page_settle_ms=0, variability=0),
+        )
+        orch = BehaviorOrchestrator(
+            adapter=adapter,
+            dwell=zero_dwell,
+            navigator=nav,
+            session_seed=SessionSeed(""),  # non-deterministic
+        )
+
+        mock_page = MagicMock()
+        mock_page.goto = AsyncMock()
+
+        asyncio.run(orch.navigate(mock_page, "https://example.com"))
+
+        # CRITICAL: select_style was called with rng=None, NOT a fresh
+        # entropy Random(). This proves the navigator's own RNG is used.
+        assert len(captured_rngs) == 1
+        assert captured_rngs[0] is None
+
 
 # ---------------------------------------------------------------------------
 # Item 3: SessionSeed reproducibility boundary

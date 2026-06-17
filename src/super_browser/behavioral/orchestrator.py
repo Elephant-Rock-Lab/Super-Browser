@@ -134,8 +134,14 @@ class BehaviorOrchestrator:
         """
         # Propagate session seed: when deterministic, derive an RNG for
         # navigation style selection so the same session seed produces
-        # the same navigation pattern.
-        nav_rng = self._session_seed.rng("navigate", url)
+        # the same navigation pattern. When non-deterministic, pass None
+        # so the navigator's own configured RNG is used (preserving
+        # injection-based deterministic control).
+        nav_rng = (
+            self._session_seed.rng("navigate", url)
+            if self._session_seed.is_deterministic
+            else None
+        )
         style = self._navigator.select_style(rng=nav_rng)
 
         # Pre-action dwell
