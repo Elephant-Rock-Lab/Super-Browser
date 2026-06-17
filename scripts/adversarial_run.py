@@ -173,62 +173,73 @@ def _make_super_browser() -> Any:
 
 
 # ---------------------------------------------------------------------------
-# Tier 3: Controlled server (synchronous, local)
+# Tier 3: Controlled server (async, browser-based)
 # ---------------------------------------------------------------------------
 
-def _run_tier3() -> list[TargetResult]:
-    """Run the controlled detection target synchronously."""
-    from tests.adversarial.controlled_server import (
-        ControlledDetectionServer,  # type: ignore[import-not-found]
+def _controlled_target_for(base_url: str) -> Target:
+    """Build a Target descriptor for the controlled server at *base_url*.
+
+    Mirrors the probe shape from test_tier3_controlled.py: reads the
+    verdict from the #status element (DOM is shared across isolated JS
+    worlds in Patchright, unlike window properties).
+    """
+    def _parse_controlled(target_id: str, *, verdict_data: dict | None, **_: Any) -> TargetResult:
+        if verdict_data is None:
+            return TargetResult(
+                target_id=target_id,
+                verdict=Verdict.INCONCLUSIVE,
+                score=0,
+                detail="no verdict data received from controlled server",
+            )
+        verdict_str = verdict_data.get("verdict", "inconclusive")
+        score = verdict_data.get("score", 0)
+        flags = verdict_data.get("flags", [])
+        verdict_map = {
+            "clean": Verdict.CLEAN,
+            "challenged": Verdict.CHALLENGED,
+            "flagged": Verdict.FLAGGED,
+        }
+        verdict = verdict_map.get(verdict_str, Verdict.INCONCLUSIVE)
+        return TargetResult(
+            target_id=target_id,
+            verdict=verdict,
+            score=score,
+            detail=f"verdict={verdict_str}, flags={flags}",
+            raw=verdict_data,
+        )
+
+    return Target(
+        target_id="controlled_local",
+        tier=Tier.CONTROLLED,
+        url=base_url,
+        description="Local controlled detection target with documented heuristics",
+        probes={
+            "verdict_data": (
+                "() => { try { "
+                "  var s = document.getElementById('status'); "
+                "  if (!s || s.textContent.indexOf('{') < 0) return null; "
+                "  return JSON.parse(s.textContent); "
+                "} catch (e) { return null; } }"
+            ),
+        },
+        settle_ms=2000,
+        parser=_parse_controlled,
     )
 
-    results: list[TargetResult] = []
+
+async def _run_tier3(rate_limiter: _RateLimiter) -> list[TargetResult]:
+    """Run the controlled detection target with a real browser.
+
+    Launches SuperBrowser, navigates to the local detection server,
+    waits for the JS probes to post a verdict, and reads the result
+    from the DOM #status element.
+    """
+    from tests.adversarial.controlled_server import ControlledDetectionServer
+
     with ControlledDetectionServer() as server:
-        # We can't easily run the full async probe pipeline here without
-        # a real browser, so we hit the server with a simple HTTP request
-        # and read the verdict it stores.
-        import urllib.error
-        import urllib.request
-
-        try:
-            req = urllib.request.Request(
-                server.base_url,
-                headers={"User-Agent": "SuperBrowser/AdversarialHarness"},
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                _ = resp.read()
-        except urllib.error.URLError:
-            pass
-
-        # Give the server time to receive the POST from its own JS
-        time.sleep(0.5)
-        verdict = server.last_verdict
-
-        if verdict:
-            verdict_str = verdict.get("verdict", "inconclusive")
-            score = verdict.get("score", 0)
-            flags = verdict.get("flags", [])
-            from tests.adversarial.targets import Verdict as V
-            vmap = {"clean": V.CLEAN, "challenged": V.CHALLENGED, "flagged": V.FLAGGED}
-            results.append(
-                TargetResult(
-                    target_id="controlled_local",
-                    verdict=vmap.get(verdict_str, V.INCONCLUSIVE),
-                    score=score,
-                    detail=f"verdict={verdict_str}, flags={flags}",
-                    raw=verdict,
-                )
-            )
-        else:
-            results.append(
-                TargetResult(
-                    target_id="controlled_local",
-                    verdict=Verdict.INCONCLUSIVE,
-                    score=0,
-                    detail="no verdict received from controlled server",
-                )
-            )
-    return results
+        target = _controlled_target_for(server.base_url)
+        result = await _evaluate_target(target, _make_super_browser, rate_limiter)
+        return [result]
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +298,7 @@ async def main() -> int:
     # --- Tier 3 (controlled, always runnable) ---
     if "tier3" in tiers_requested:
         print("[Tier 3] Running controlled detection target...")
-        results_by_tier[Tier.CONTROLLED] = _run_tier3()
+        results_by_tier[Tier.CONTROLLED] = await _run_tier3(rate_limiter)
         for r in results_by_tier[Tier.CONTROLLED]:
             print(f"  {r.target_id}: {r.verdict.value} (score={r.score}) — {r.detail}")
 

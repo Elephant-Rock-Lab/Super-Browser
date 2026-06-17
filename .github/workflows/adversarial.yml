@@ -42,14 +42,44 @@ jobs:
           pip install -e .[all] || pip install -e .
           pip install pytest pytest-asyncio
 
+      - name: Install browser engine
+        run: |
+          python -m patchright install --with-deps chromium || \
+          python -m playwright install --with-deps chromium || true
+
+      - name: Compute tier env vars
+        id: tiers
+        run: |
+          TIER="${{ inputs.tier }}"
+          if [ "$TIER" = "tier1" ] || [ "$TIER" = "all" ]; then
+            echo "adv=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "adv=0" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$TIER" = "tier2" ] || [ "$TIER" = "all" ]; then
+            echo "vendors=1" >> "$GITHUB_OUTPUT"
+            echo "vendors_ack=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "vendors=0" >> "$GITHUB_OUTPUT"
+            echo "vendors_ack=0" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run adversarial harness
         env:
-          SB_ADV: ${{ inputs.tier == 'tier1' || inputs.tier == 'all' && '1' || '0' }}
-          SB_ADV_VENDORS: ${{ inputs.tier == 'tier2' || inputs.tier == 'all' && '1' || '0' }}
-          SB_ADV_VENDORS_ACK: ${{ inputs.tier == 'tier2' || inputs.tier == 'all' && '1' || '0' }}
-          SB_ADV_REPORT_DIR: adversarial-results
+          SB_ADV: ${{ steps.tiers.outputs.adv }}
+          SB_ADV_VENDORS: ${{ steps.tiers.outputs.vendors }}
+          SB_ADV_VENDORS_ACK: ${{ steps.tiers.outputs.vendors_ack }}
         run: |
-          python scripts/adversarial_run.py             --tier ${{ inputs.tier }}             --output adversarial-results/report.json             --markdown adversarial-results/report.md             --history adversarial-results/adversarial-history.json             ${{ inputs.run_id && format('--run-id {0}', inputs.run_id) || '' }}
+          RUN_ID_ARG=""
+          if [ -n "${{ inputs.run_id }}" ]; then
+            RUN_ID_ARG="--run-id ${{ inputs.run_id }}"
+          fi
+          python scripts/adversarial_run.py \
+            --tier ${{ inputs.tier }} \
+            --output adversarial-results/report.json \
+            --markdown adversarial-results/report.md \
+            --history adversarial-results/adversarial-history.json \
+            $RUN_ID_ARG
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -57,18 +87,31 @@ jobs:
           name: adversarial-report-${{ github.run_id }}
           path: adversarial-results/
 
-      - name: Comment PR (if triggered from PR)
+      - name: Comment on PR (if triggered from a PR branch)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.tier != 'tier3'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const md = fs.readFileSync('adversarial-results/report.md', 'utf8');
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            // workflow_dispatch from a branch does not populate
+            // context.issue.number. Find the PR for this branch instead.
+            const branch = context.ref.replace('refs/heads/', '');
+            const prs = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🤖 Adversarial Stealth Validation Report
-
-${md}`
+              head: `${context.repo.owner}:${branch}`,
+              state: 'open',
             });
+            if (prs.data.length === 0) {
+              core.info(`No open PR found for branch ${branch}, skipping comment.`);
+              return;
+            }
+            const prNumber = prs.data[0].number;
+            const md = fs.readFileSync('adversarial-results/report.md', 'utf8');
+            await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🤖 Adversarial Stealth Validation Report\n\n${md}`
+            });
+            core.info(`Commented on PR #${prNumber}`);

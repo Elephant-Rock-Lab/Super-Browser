@@ -18,14 +18,6 @@ from .targets import TargetResult, Tier, Verdict  # type: ignore[import-not-foun
 # Per-tier scoring weights
 # ---------------------------------------------------------------------------
 
-# Verdict → base score contribution (0-100 scale)
-VERDICT_WEIGHTS: dict[Verdict, float] = {
-    Verdict.CLEAN: 1.0,
-    Verdict.CHALLENGED: 0.4,
-    Verdict.FLAGGED: 0.0,
-    Verdict.INCONCLUSIVE: 0.0,  # excluded from averages
-}
-
 # Tier → importance multiplier (arbitrary scale, Tier 2 matters most)
 TIER_MULTIPLIERS: dict[Tier, float] = {
     Tier.SCANNER: 0.8,
@@ -123,15 +115,11 @@ def compute_tier_score(tier: Tier, results: list[TargetResult]) -> TierScore:
             details=results,
         )
 
-    # Weighted average: each target contributes its score * verdict_weight
-    total_weight = 0.0
-    weighted_sum = 0.0
-    for r in conclusive:
-        w = VERDICT_WEIGHTS.get(r.verdict, 0.0)
-        weighted_sum += r.score * w
-        total_weight += w
-
-    avg_score = weighted_sum / total_weight if total_weight > 0 else 0.0
+    # Simple average of per-target scores. Each target's score already
+    # encodes the verdict severity (CLEAN=100, CHALLENGED=40, FLAGGED=0).
+    # FLAGGED targets must count in the denominator so they pull the
+    # average down — not be silently excluded by a zero weight.
+    avg_score = sum(r.score for r in conclusive) / len(conclusive)
     composite = int(round(avg_score))
 
     return TierScore(
