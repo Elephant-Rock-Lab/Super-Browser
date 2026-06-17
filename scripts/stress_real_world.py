@@ -484,6 +484,24 @@ async def _scenario_request_intercept(base_url: str, timeout_s: float) -> Scenar
             # Navigate to app first
             await asyncio.wait_for(sb.navigate(f"{base_url}/app.html"), timeout=timeout_s)
 
+            # Establish non-empty baseline BEFORE registering mock
+            # (app starts with zero items until AJAX hydration completes)
+            baseline_count = 0
+            if sb._page and sb._page.backend_page:
+                bp0 = sb._page.backend_page
+
+                async def _has_items() -> bool:
+                    count = await bp0.evaluate(
+                        "document.querySelectorAll('.item').length"
+                    )
+                    return count > 0
+
+                await _wait_for_condition(_has_items, timeout_s=10.0, interval_s=0.3)
+                baseline_count = await bp0.evaluate(
+                    "document.querySelectorAll('.item').length"
+                )
+            metrics["baseline_item_count"] = baseline_count
+
             # Mock the API response (** glob needed for full URL matching)
             mock_result = await asyncio.wait_for(
                 sb.mock_response("**/api/data", json.dumps({"mocked": True, "items": []})),
@@ -510,12 +528,12 @@ async def _scenario_request_intercept(base_url: str, timeout_s: float) -> Scenar
 
                     await _wait_for_condition(_items_cleared, timeout_s=5.0, interval_s=0.2)
 
-                    # Final check
+                    # Final check: baseline was non-empty AND now it's zero
                     item_count = await bp.evaluate(
                         "document.querySelectorAll('.item').length"
                     )
                     metrics["item_count_after_mock"] = item_count
-                    metrics["mock_effective"] = item_count == 0
+                    metrics["mock_effective"] = baseline_count > 0 and item_count == 0
                 except Exception:
                     metrics["mock_effective"] = False
 
@@ -592,32 +610,37 @@ async def _scenario_parallel_profiles(base_url: str, timeout_s: float, concurren
                     sb.navigate(f"{base_url}/login.html"), timeout=timeout_s
                 )
 
-                # Write a unique localStorage value for this profile
+                # Write a unique localStorage value under a profile-specific key
                 if sb._page and sb._page.backend_page:
                     page = sb._page.backend_page
+                    unique_key = f"profile-id-{idx}"
                     unique_val = f"profile-{idx}-token"
                     await page.evaluate(
-                        f"localStorage.setItem('profile-id', '{unique_val}')"
+                        f"localStorage.setItem('{unique_key}', '{unique_val}')"
                     )
                     # Also set a unique cookie
                     await page.evaluate(
-                        f"document.cookie = 'profile-cookie={unique_val}; path=/'"
+                        f"document.cookie = 'profile-cookie-{idx}={unique_val}; path=/'"
                     )
 
-                    # Read back to verify self
+                    # Read back own key to verify self
                     ls_read = await page.evaluate(
-                        "localStorage.getItem('profile-id')"
+                        f"localStorage.getItem('{unique_key}')"
                     )
                     result["ls_value"] = ls_read
                     self_ok = ls_read == unique_val
 
-                    # Verify no OTHER profile's value is present in this context
+                    # Verify no OTHER profile's key exists in this context
+                    # This is meaningful because each profile writes a
+                    # distinct key. If another key is present, contexts
+                    # are sharing localStorage (leak).
                     other_ids_present = []
                     for other_idx in all_ids:
                         if other_idx == idx:
                             continue
+                        other_key = f"profile-id-{other_idx}"
                         other_val = await page.evaluate(
-                            f"localStorage.getItem('profile-id-{other_idx}')"
+                            f"localStorage.getItem('{other_key}')"
                         )
                         if other_val is not None:
                             other_ids_present.append(other_idx)
@@ -644,9 +667,10 @@ async def _scenario_parallel_profiles(base_url: str, timeout_s: float, concurren
         values = [r.get("ls_value") for r in results if r.get("ls_value")]
         all_ok = all(r.get("ok") for r in results)
         all_distinct = len(set(values)) == concurrency
-        metrics["all_isolated"] = all_distinct
+        total_leaks = sum(r.get("other_values_leaked", 0) for r in results)
+        metrics["all_isolated"] = all_ok and all_distinct and total_leaks == 0
 
-        passed = all_ok and all_distinct
+        passed = all_ok and all_distinct and total_leaks == 0
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
 
