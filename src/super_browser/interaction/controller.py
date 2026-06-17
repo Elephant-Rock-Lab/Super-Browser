@@ -52,6 +52,55 @@ _DEFAULT_TIMEOUTS: dict[Tier, float] = {
 }
 
 
+class FrameInteractionTarget:
+    """Adapter that normalises a Playwright ``FrameLocator`` to the
+    selector-tier method signatures used by ``MultimodalController``.
+
+    Playwright ``FrameLocator`` requires ``.locator(sel).click()`` while
+    the controller's selector-tier methods call ``target.click(sel)``.
+    This adapter bridges that gap so the same calling convention works
+    whether interactions target the top-level page or an iframe.
+
+    Methods that have no frame-scoped equivalent (e.g. viewport scroll
+    without a target element) raise ``NotImplementedError`` so the
+    controller's cascade falls back to coordinate/CDP tiers.
+    """
+
+    def __init__(self, frame_locator: Any) -> None:
+        self._frame = frame_locator
+
+    async def click(self, selector: str, **kwargs: Any) -> None:
+        await self._frame.locator(selector).click(**kwargs)
+
+    async def fill(self, selector: str, value: str, **kwargs: Any) -> None:
+        await self._frame.locator(selector).fill(value, **kwargs)
+
+    async def select_option(self, selector: str, **kwargs: Any) -> None:
+        await self._frame.locator(selector).select_option(**kwargs)
+
+    async def hover(self, selector: str) -> None:
+        await self._frame.locator(selector).hover()
+
+    async def drag_and_drop(self, source: str, target: str) -> None:
+        src = self._frame.locator(source)
+        dst = self._frame.locator(target)
+        await src.drag_to(dst)
+
+    async def scroll(
+        self,
+        direction: str,
+        amount: int,
+        target: Optional[str] = None,
+    ) -> None:
+        if target:
+            await self._frame.locator(target).scroll(direction, amount)
+        else:
+            raise NotImplementedError(
+                "Viewport scroll not supported inside frames; "
+                "use coordinate-tier scroll or provide a target element"
+            )
+
+
 class MultimodalController:
 
     def __init__(
@@ -76,6 +125,38 @@ class MultimodalController:
         self._two_phase: bool = False
         self._verifier: Any = None
         self._vision_controller = vision_controller
+        self._frame_target: Optional["FrameInteractionTarget"] = None
+
+    # =====================================================================
+    # Frame scoping
+    # =====================================================================
+
+    @property
+    def _interaction_target(self) -> Any:
+        """The target for selector-based interactions.
+
+        Returns a :class:`FrameInteractionTarget` adapter when inside an
+        iframe (set by ``enter_frame``), otherwise the top-level engine
+        page.  The adapter normalises Playwright's ``FrameLocator`` API
+        (``.locator(sel).click()``) to match the selector-tier method
+        signatures used by this controller (``.click(sel)``).
+        """
+        if self._frame_target is not None:
+            return self._frame_target
+        return self._page.engine_page
+
+    def _set_frame_locator(self, frame_locator: Any) -> None:
+        """Set the active frame for scoping selector-based interactions.
+
+        Wraps the raw Playwright ``FrameLocator`` in a
+        :class:`FrameInteractionTarget` adapter so that selector-tier
+        methods receive the same calling convention as ``engine_page``.
+        """
+        self._frame_target = FrameInteractionTarget(frame_locator)
+
+    def _clear_frame_locator(self) -> None:
+        """Clear the frame, returning to the top-level page."""
+        self._frame_target = None
 
     # =====================================================================
     # Action methods
@@ -93,7 +174,7 @@ class MultimodalController:
         """Click on an element identified by selector, coordinates, or description."""
 
         async def t1():
-            await self._page.engine_page.click(target, button=button, click_count=click_count)
+            await self._interaction_target.click(target, button=button, click_count=click_count)
             return action_result(
                 ok=True,
                 data=ClickResult(target=target, method=ActionMethod.SELECTOR),
@@ -130,9 +211,9 @@ class MultimodalController:
 
         async def t1():
             if clear_first:
-                await self._page.engine_page.click(target)
+                await self._interaction_target.click(target)
                 await self._cdp.compositor_key_press("a", modifiers=2)
-            await self._page.engine_page.fill(target, value)
+            await self._interaction_target.fill(target, value)
             return action_result(
                 ok=True,
                 data=FillResult(selector=target, value_entered=value, method=ActionMethod.SELECTOR, character_count=len(value), clear_first=clear_first),
@@ -171,7 +252,7 @@ class MultimodalController:
     ) -> ActionResult:
 
         async def t1():
-            await self._page.engine_page.select_option(target, **{by: option})
+            await self._interaction_target.select_option(target, **{by: option})
             return action_result(
                 ok=True,
                 data=SelectResult(selector=target, option=option, method=ActionMethod.SELECTOR, by=by),
@@ -211,7 +292,7 @@ class MultimodalController:
     ) -> ActionResult:
 
         async def t1():
-            await self._page.engine_page.hover(target)
+            await self._interaction_target.hover(target)
             return action_result(
                 ok=True,
                 data=HoverResult(target=target, method=ActionMethod.SELECTOR),
@@ -259,7 +340,7 @@ class MultimodalController:
     ) -> ActionResult:
 
         async def t1():
-            await self._page.engine_page.drag_and_drop(source, destination)
+            await self._interaction_target.drag_and_drop(source, destination)
             return action_result(
                 ok=True,
                 data=DragResult(source=source, destination=destination, method=ActionMethod.SELECTOR),
@@ -318,7 +399,7 @@ class MultimodalController:
         dx, dy = delta_map.get(direction, (0, 100))
 
         async def t1():
-            await self._page.engine_page.scroll(direction, amount, target=target)
+            await self._interaction_target.scroll(direction, amount, target=target)
             return action_result(
                 ok=True,
                 data=ScrollResult(direction=direction, amount=amount, method=ActionMethod.SELECTOR),

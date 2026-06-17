@@ -499,7 +499,7 @@ class AgentLoop:
             snapshot = self._controller._ax_snapshot
             node_count = len(snapshot.nodes) if snapshot else 0
             interactive_count = sum(
-                1 for n in (snapshot.nodes or []) if n.get("interactive", False)
+                1 for n in snapshot.nodes.values() if n.is_interactive
             )
             return PageFingerprint(
                 url=url, title=title,

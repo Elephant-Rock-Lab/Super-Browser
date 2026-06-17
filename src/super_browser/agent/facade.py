@@ -612,6 +612,8 @@ class SuperBrowser:
         try:
             frame = self._page.engine_page.frame_locator(selector)
             self._frame_stack.append(frame)
+            if self._controller:
+                self._controller._set_frame_locator(frame)
             return timed_action_result(ok=True, start_ns=start, data={"frame": selector, "depth": len(self._frame_stack)})
         except Exception as e:
             return timed_action_result(ok=False, start_ns=start, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Frame not found: {e}"))
@@ -624,6 +626,11 @@ class SuperBrowser:
             return sec
         if self._frame_stack:
             self._frame_stack.pop()
+            if self._controller:
+                if self._frame_stack:
+                    self._controller._set_frame_locator(self._frame_stack[-1])
+                else:
+                    self._controller._clear_frame_locator()
             return timed_action_result(ok=True, start_ns=start, data={"depth": len(self._frame_stack)})
         return timed_action_result(ok=True, start_ns=start, data={"depth": 0})
 
