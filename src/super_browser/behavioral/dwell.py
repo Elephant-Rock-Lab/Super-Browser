@@ -40,8 +40,9 @@ class DwellConfig:
     # Page-load dwell: time after navigation before interacting
     page_settle_ms: float = 800.0
 
-    # Variability: 0.0 = uniform, 1.0 = high variance
-    # Higher variability → more clustering at extremes (lognormal-like)
+    # Variability: 0.0 = uniform midpoint, 1.0 = high spread
+    # Controls the spread of the triangular distribution's mode
+    # selection around the midpoint of [lo, hi].
     variability: float = 0.7
 
 
@@ -136,12 +137,13 @@ class DwellTimer:
     def _sample(self, lo: float, hi: float) -> float:
         """Sample a value in [lo, hi] with configurable variability.
 
-        - ``variability=0.0``: uniform (midpoint bias)
-        - ``variability=1.0``: high variance (clustering at extremes)
-        - ``variability=0.5``: moderate (beta-like)
+        Uses a **triangular distribution**:
+        - ``variability=0.0``: mode at midpoint (tight clustering)
+        - ``variability=1.0``: mode widely spread around midpoint
+        - ``variability=0.5``: moderate spread
 
-        Uses a triangular distribution centered at midpoint, where
-        ``variability`` controls how wide the base is.
+        The mode is randomly placed within ``±spread/2`` of the
+        midpoint, then passed to ``rng.triangular(lo, hi, mode)``.
         """
         if hi <= lo:
             return lo

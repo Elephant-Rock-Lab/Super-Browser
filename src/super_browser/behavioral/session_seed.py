@@ -78,6 +78,17 @@ class SessionSeed:
 
         When non-deterministic (no base seed), returns an unseeded
         ``random.Random()`` (uses system entropy).
+
+        .. note::
+
+            **Reproducibility boundary:** Determinism holds within a
+            single Python version. The string-to-RNG-state mapping used
+            by ``random.Random(seed_str)`` is an implementation detail
+            of CPython's Mersenne Twister seeding and is **not** a
+            cross-version persistence contract. If cross-version replay
+            becomes a requirement, derive a stable integer hash
+            (e.g. SHA-256) from the seed string before passing it to
+            ``random.Random()``.
         """
         seed_str = self.derive(action_type, target)
         if seed_str:
