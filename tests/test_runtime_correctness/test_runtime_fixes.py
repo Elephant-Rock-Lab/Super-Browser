@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # Fix 1: interactive_count in _compute_page_fingerprint_rich
@@ -71,10 +73,10 @@ class TestInteractiveCount:
 
 
 class TestFrameScopingController:
-    """Verify controller uses frame locator when set."""
+    """Verify controller uses frame adapter when set."""
 
-    def test_interaction_target_returns_frame_when_set(self) -> None:
-        """When _frame_locator is set, _interaction_target returns it."""
+    def test_interaction_target_returns_engine_page_by_default(self) -> None:
+        """Without frame set, _interaction_target returns engine_page."""
         from super_browser.interaction.controller import MultimodalController
 
         page = MagicMock()
@@ -82,21 +84,28 @@ class TestFrameScopingController:
         cdp = MagicMock()
 
         controller = MultimodalController(page, cdp)
-
-        # Default: no frame → returns engine_page
         assert controller._interaction_target is page.engine_page
 
-        # Set frame locator → returns frame
-        mock_frame = MagicMock(name="frame_locator")
-        controller._set_frame_locator(mock_frame)
-        assert controller._interaction_target is mock_frame
+    def test_interaction_target_returns_adapter_when_frame_set(self) -> None:
+        """When frame is set, _interaction_target returns FrameInteractionTarget."""
+        from super_browser.interaction.controller import (
+            FrameInteractionTarget,
+            MultimodalController,
+        )
 
-        # Clear → back to engine_page
-        controller._clear_frame_locator()
-        assert controller._interaction_target is page.engine_page
+        page = MagicMock()
+        page.engine_page = MagicMock()
+        cdp = MagicMock()
 
-    def test_controller_clear_sets_none(self) -> None:
-        """_clear_frame_locator sets _frame_locator to None."""
+        controller = MultimodalController(page, cdp)
+        mock_frame_locator = MagicMock(name="frame_locator")
+        controller._set_frame_locator(mock_frame_locator)
+
+        target = controller._interaction_target
+        assert isinstance(target, FrameInteractionTarget)
+
+    def test_clear_restores_engine_page(self) -> None:
+        """_clear_frame_locator restores engine_page as target."""
         from super_browser.interaction.controller import MultimodalController
 
         page = MagicMock()
@@ -105,10 +114,8 @@ class TestFrameScopingController:
 
         controller = MultimodalController(page, cdp)
         controller._set_frame_locator(MagicMock())
-        assert controller._frame_locator is not None
-
         controller._clear_frame_locator()
-        assert controller._frame_locator is None
+        assert controller._interaction_target is page.engine_page
 
 
 class TestFrameScopingFacade:
@@ -162,6 +169,187 @@ class TestFrameScopingFacade:
                 mock_controller._clear_frame_locator()
 
         mock_controller._set_frame_locator.assert_called_once_with(parent_frame)
+
+
+class TestFrameInteractionAdapter:
+    """Verify FrameInteractionTarget adapter normalises frame locator API.
+
+    These are the real regression tests: they prove that selector-tier
+    calls route through ``.locator(selector).method()`` on the frame
+    locator, not directly ``.method(selector)`` which would fail.
+    """
+
+    def test_click_routes_through_locator(self) -> None:
+        """click(selector) calls frame.locator(selector).click()."""
+        from super_browser.interaction.controller import FrameInteractionTarget
+
+        mock_frame = MagicMock(name="frame")
+        mock_locator = MagicMock(name="locator")
+        mock_locator.click = AsyncMock()
+        mock_frame.locator.return_value = mock_locator
+
+        adapter = FrameInteractionTarget(mock_frame)
+        asyncio.run(adapter.click("#btn", button="left", click_count=2))
+
+        mock_frame.locator.assert_called_once_with("#btn")
+        mock_locator.click.assert_called_once_with(button="left", click_count=2)
+
+    def test_fill_routes_through_locator(self) -> None:
+        """fill(selector, value) calls frame.locator(selector).fill(value)."""
+        from super_browser.interaction.controller import FrameInteractionTarget
+
+        mock_frame = MagicMock(name="frame")
+        mock_locator = MagicMock(name="locator")
+        mock_locator.fill = AsyncMock()
+        mock_frame.locator.return_value = mock_locator
+
+        adapter = FrameInteractionTarget(mock_frame)
+        asyncio.run(adapter.fill("#input", "hello"))
+
+        mock_frame.locator.assert_called_once_with("#input")
+        mock_locator.fill.assert_called_once_with("hello")
+
+    def test_hover_routes_through_locator(self) -> None:
+        """hover(selector) calls frame.locator(selector).hover()."""
+        from super_browser.interaction.controller import FrameInteractionTarget
+
+        mock_frame = MagicMock(name="frame")
+        mock_locator = MagicMock(name="locator")
+        mock_locator.hover = AsyncMock()
+        mock_frame.locator.return_value = mock_locator
+
+        adapter = FrameInteractionTarget(mock_frame)
+        asyncio.run(adapter.hover("#el"))
+
+        mock_frame.locator.assert_called_once_with("#el")
+        mock_locator.hover.assert_called_once()
+
+    def test_select_option_routes_through_locator(self) -> None:
+        """select_option(selector, **kwargs) routes through locator."""
+        from super_browser.interaction.controller import FrameInteractionTarget
+
+        mock_frame = MagicMock(name="frame")
+        mock_locator = MagicMock(name="locator")
+        mock_locator.select_option = AsyncMock()
+        mock_frame.locator.return_value = mock_locator
+
+        adapter = FrameInteractionTarget(mock_frame)
+        asyncio.run(adapter.select_option("#select", value="opt"))
+
+        mock_frame.locator.assert_called_once_with("#select")
+        mock_locator.select_option.assert_called_once_with(value="opt")
+
+    def test_drag_and_drop_routes_through_locator(self) -> None:
+        """drag_and_drop(source, target) calls locator(source).drag_to(locator(target))."""
+        from super_browser.interaction.controller import FrameInteractionTarget
+
+        mock_frame = MagicMock(name="frame")
+        mock_src = MagicMock(name="src_locator")
+        mock_src.drag_to = AsyncMock()
+        mock_dst = MagicMock(name="dst_locator")
+
+        def _locator(sel):
+            return mock_src if sel == "#src" else mock_dst
+
+        mock_frame.locator.side_effect = _locator
+
+        adapter = FrameInteractionTarget(mock_frame)
+        asyncio.run(adapter.drag_and_drop("#src", "#dst"))
+
+        mock_frame.locator.assert_any_call("#src")
+        mock_frame.locator.assert_any_call("#dst")
+        mock_src.drag_to.assert_called_once_with(mock_dst)
+
+    def test_scroll_with_target_routes_through_locator(self) -> None:
+        """scroll with target calls frame.locator(target).scroll()."""
+        from super_browser.interaction.controller import FrameInteractionTarget
+
+        mock_frame = MagicMock(name="frame")
+        mock_locator = MagicMock(name="locator")
+        mock_locator.scroll = AsyncMock()
+        mock_frame.locator.return_value = mock_locator
+
+        adapter = FrameInteractionTarget(mock_frame)
+        asyncio.run(adapter.scroll("down", 5, target="#container"))
+
+        mock_frame.locator.assert_called_once_with("#container")
+        mock_locator.scroll.assert_called_once_with("down", 5)
+
+    def test_scroll_without_target_raises(self) -> None:
+        """Viewport scroll inside frame raises NotImplementedError (falls back to CDP)."""
+        from super_browser.interaction.controller import FrameInteractionTarget
+
+        adapter = FrameInteractionTarget(MagicMock())
+        with pytest.raises(NotImplementedError):
+            asyncio.run(adapter.scroll("down", 5, target=None))
+
+
+class TestFrameScopedClickRegression:
+    """Integration-level test proving click inside frame resolves correctly.
+
+    Simulates: navigate → enter_frame → click inside frame.
+    Verifies the click is dispatched via frame.locator(selector).click(),
+    NOT via the top-level page's click(selector).
+    """
+
+    def test_click_inside_frame_uses_frame_locator_not_page(self) -> None:
+        """When frame is active, click routes through frame adapter."""
+        from super_browser.interaction.controller import (
+            FrameInteractionTarget,
+            MultimodalController,
+        )
+
+        # Build mock page with mock engine_page
+        mock_engine_page = MagicMock(name="engine_page")
+        mock_page = MagicMock(name="page")
+        mock_page.engine_page = mock_engine_page
+
+        # Build mock frame locator (what frame_locator() returns)
+        mock_frame = MagicMock(name="frame_locator")
+        mock_inner_locator = MagicMock(name="inner_locator")
+        mock_inner_locator.click = AsyncMock()
+        mock_frame.locator.return_value = mock_inner_locator
+
+        cdp = MagicMock()
+
+        controller = MultimodalController(mock_page, cdp)
+
+        # Enter frame: set frame locator
+        controller._set_frame_locator(mock_frame)
+
+        # Verify _interaction_target is the adapter
+        target = controller._interaction_target
+        assert isinstance(target, FrameInteractionTarget)
+
+        # Call click through the adapter directly
+        asyncio.run(target.click("#inside-frame-btn"))
+
+        # The click should have gone through frame.locator(selector).click()
+        mock_frame.locator.assert_called_once_with("#inside-frame-btn")
+        mock_inner_locator.click.assert_called_once()
+
+        # CRITICAL: engine_page.click should NOT have been called
+        mock_engine_page.click.assert_not_called()
+
+    def test_click_outside_frame_uses_engine_page(self) -> None:
+        """When no frame is active, click routes through engine_page."""
+        from super_browser.interaction.controller import MultimodalController
+
+        mock_engine_page = MagicMock(name="engine_page")
+        mock_engine_page.click = AsyncMock()
+        mock_page = MagicMock(name="page")
+        mock_page.engine_page = mock_engine_page
+
+        cdp = MagicMock()
+
+        controller = MultimodalController(mock_page, cdp)
+
+        # No frame set → _interaction_target is engine_page
+        target = controller._interaction_target
+        assert target is mock_engine_page
+
+        asyncio.run(target.click("#btn"))
+        mock_engine_page.click.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
