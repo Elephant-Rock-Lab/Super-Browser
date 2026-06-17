@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] — 2026-06-17
+
+### Overview
+
+**v2.2.1 — Runtime Correctness**
+
+Patch release fixing three user-facing runtime defects discovered in
+post-release source audit. No new features, no breaking changes.
+
+### Fixed
+
+- **Rich page fingerprint `interactive_count`** (loop.py): Was iterating
+  dict keys instead of `.values()`, calling `.get()` on string keys.
+  The `except` block silently returned `interactive_count=0` every time,
+  weakening page change detection. Now correctly counts interactive
+  nodes via `is_interactive` attribute.
+
+- **iframe action scoping** (controller.py + facade.py): `enter_frame()`
+  pushed a frame locator but no interaction method used it — all actions
+  targeted the top-level page instead of the iframe. New
+  `FrameInteractionTarget` adapter normalizes Playwright's
+  `FrameLocator` API (`.locator(sel).click()`) to match the controller's
+  selector-tier signatures (`.click(sel)`).
+
+- **IPReputationClient async path** (ip_reputation.py): Replaced
+  deprecated `asyncio.get_event_loop()` with `asyncio.get_running_loop()`
+  to fix DeprecationWarning on every call and future RuntimeError risk.
+
+### Internal
+
+- **Stress signal accuracy** (#167): RSS measurement prefers `psutil`
+  with platform-aware fallback; periodic `RSSSampler`; hard sleeps
+  replaced with `_wait_for_condition()` polling; `parallel_profiles`
+  verifies cross-context isolation; `/api/upload` returns real digest.
+
 ## [2.2.0] — 2026-06-16
 
 ### Overview
