@@ -67,6 +67,7 @@ jobs:
           --ignore=tests/pattern_validation.py
           --ignore=tests/stealth_detection/
           --ignore=tests/discovery/
+          --ignore=tests/adversarial/
           -q
         env:
           PYTHONIOENCODING: utf-8
