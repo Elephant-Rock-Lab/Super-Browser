@@ -448,7 +448,7 @@ class TestReportJSONValidation:
             scenarios=scenarios,
             started_at=time.time(),
             duration_s=1.0,
-            environment={"peak_rss_mb": 100.0},
+            environment={"rss_peak_mb": 100.0},
         )
         data = serialize_report(report)
 
@@ -461,7 +461,7 @@ class TestReportJSONValidation:
         assert loaded["summary"]["total"] == 1
         assert loaded["summary"]["passed"] == 1
         assert loaded["scenarios"][0]["name"] == "a"
-        assert loaded["environment"]["peak_rss_mb"] == 100.0
+        assert loaded["environment"]["rss_peak_mb"] == 100.0
 
     def test_report_has_required_top_level_keys(self) -> None:
         """Report has all required top-level keys."""
@@ -611,3 +611,110 @@ class TestScenarioAssertionLogic:
         download_ok = True
         passed = upload_ok and download_ok
         assert not passed
+
+
+class TestRSSSampler:
+    """Test the RSSSampler periodic memory tracker."""
+
+    def test_rss_sampler_stop_without_start(self) -> None:
+        """RSSSampler.stop() returns zeros when never started."""
+        import asyncio
+
+        from scripts.stress_real_world import RSSSampler
+
+        sampler = RSSSampler()
+        stats = asyncio.run(sampler.stop())
+        assert stats["rss_start_mb"] == 0.0
+        assert stats["rss_peak_mb"] == 0.0
+        assert stats["rss_end_mb"] == 0.0
+        assert stats["rss_delta_mb"] == 0.0
+
+    def test_rss_sampler_returns_real_stats(self) -> None:
+        """RSSSampler collects samples after start."""
+        import asyncio
+
+        from scripts.stress_real_world import RSSSampler
+
+        async def _run() -> dict[str, float]:
+            sampler = RSSSampler()
+            sampler.start()
+            await asyncio.sleep(1.0)
+            return await sampler.stop()
+
+        stats = asyncio.run(_run())
+        # Should have real samples (non-zero on any real system)
+        assert "rss_start_mb" in stats
+        assert "rss_peak_mb" in stats
+        assert "rss_end_mb" in stats
+        assert "rss_delta_mb" in stats
+
+
+class TestWaitForCondition:
+    """Test the polling helper that replaces hard sleeps."""
+
+    def test_returns_true_immediately(self) -> None:
+        """Condition already met returns True quickly."""
+        import asyncio
+
+        from scripts.stress_real_world import _wait_for_condition
+
+        async def _always_true() -> bool:
+            return True
+
+        result = asyncio.run(_wait_for_condition(_always_true, timeout_s=1.0))
+        assert result is True
+
+    def test_returns_false_on_timeout(self) -> None:
+        """Condition never met returns False after timeout."""
+        import asyncio
+
+        from scripts.stress_real_world import _wait_for_condition
+
+        async def _always_false() -> bool:
+            return False
+
+        result = asyncio.run(_wait_for_condition(_always_false, timeout_s=0.3, interval_s=0.1))
+        assert result is False
+
+    def test_eventually_true(self) -> None:
+        """Condition becomes true after a few polls."""
+        import asyncio
+
+        from scripts.stress_real_world import _wait_for_condition
+
+        counter = {"n": 0}
+
+        async def _after_three() -> bool:
+            counter["n"] += 1
+            return counter["n"] >= 3
+
+        result = asyncio.run(_wait_for_condition(_after_three, timeout_s=2.0, interval_s=0.05))
+        assert result is True
+        assert counter["n"] >= 3
+
+
+class TestUploadDigestFix:
+    """Verify fixture server returns real upload digest."""
+
+    def test_upload_returns_non_empty_digest(self) -> None:
+        """/api/upload returns sha256 of actual body, not empty bytes."""
+        import hashlib
+        import json as json_mod
+        import urllib.request
+
+        from stress.server import StressFixtureServer
+
+        payload = b"test-upload-content-12345"
+        expected_hash = hashlib.sha256(payload).hexdigest()
+
+        with StressFixtureServer(port=0) as base_url:
+            req = urllib.request.Request(
+                f"{base_url}/api/upload",
+                method="POST",
+                data=payload,
+            )
+            resp = urllib.request.urlopen(req)
+            data = json_mod.loads(resp.read())
+            assert data["sha256"] == expected_hash
+            assert data["sha256"] != hashlib.sha256(b"").hexdigest()
+            assert data["size_bytes"] == len(payload)
