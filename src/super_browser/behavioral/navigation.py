@@ -100,14 +100,21 @@ class NavigationVariator:
     def config(self) -> NavigationConfig:
         return self._config
 
-    def select_style(self) -> NavigationStyle:
+    def select_style(self, rng: random.Random | None = None) -> NavigationStyle:
         """Select a navigation style based on configured weights.
+
+        Parameters
+        ----------
+        rng:
+            Optional RNG for deterministic selection. If ``None``, uses
+            the instance's default RNG.
 
         Returns
         -------
         NavigationStyle
             One of DIRECT, TYPE_AND_ENTER, CLICK_LINK, REFERRER.
         """
+        r = rng or self._rng
         weights = self._config.style_weights
         styles = list(weights.keys())
         raw_weights = [max(weights[s], 0.0) for s in styles]
@@ -116,29 +123,41 @@ class NavigationVariator:
         if total == 0:
             return NavigationStyle.DIRECT
 
-        chosen = self._rng.choices(styles, weights=raw_weights, k=1)[0]
+        chosen = r.choices(styles, weights=raw_weights, k=1)[0]
         return NavigationStyle(chosen)
 
-    def pick_referrer(self) -> str:
+    def pick_referrer(self, rng: random.Random | None = None) -> str:
         """Return a random referrer URL from the configured pool.
+
+        Parameters
+        ----------
+        rng:
+            Optional RNG for deterministic selection.
 
         Returns
         -------
         str
             A referrer URL. If the pool is empty, returns an empty string.
         """
+        r = rng or self._rng
         pool = self._config.referrer_pool
         if not pool:
             return ""
-        return self._rng.choice(pool)
+        return r.choice(pool)
 
-    def type_delay(self) -> float:
+    def type_delay(self, rng: random.Random | None = None) -> float:
         """Return inter-keystroke delay for URL typing simulation, in seconds.
+
+        Parameters
+        ----------
+        rng:
+            Optional RNG for deterministic output.
 
         Returns
         -------
         float
             Delay in seconds, sampled from the configured range.
         """
+        r = rng or self._rng
         lo, hi = self._config.type_url_delay_ms
-        return self._rng.uniform(lo, hi) / 1000.0
+        return r.uniform(lo, hi) / 1000.0

@@ -132,7 +132,17 @@ class BehaviorOrchestrator:
         NavigationStyle
             The style that was selected for this navigation.
         """
-        style = self._navigator.select_style()
+        # Propagate session seed: when deterministic, derive an RNG for
+        # navigation style selection so the same session seed produces
+        # the same navigation pattern. When non-deterministic, pass None
+        # so the navigator's own configured RNG is used (preserving
+        # injection-based deterministic control).
+        nav_rng = (
+            self._session_seed.rng("navigate", url)
+            if self._session_seed.is_deterministic
+            else None
+        )
+        style = self._navigator.select_style(rng=nav_rng)
 
         # Pre-action dwell
         delay = self._dwell.pre_action_delay("navigate")
@@ -141,7 +151,7 @@ class BehaviorOrchestrator:
         # Navigate — all styles use page.goto() under the hood
         # The variation is in timing, headers, and pre-navigation behavior
         if style == NavigationStyle.REFERRER:
-            referrer = self._navigator.pick_referrer()
+            referrer = self._navigator.pick_referrer(rng=nav_rng)
             logger.debug(
                 "Navigating with referrer %s → %s", referrer, url,
             )
@@ -150,11 +160,14 @@ class BehaviorOrchestrator:
                 try:
                     await page.set_extra_http_headers({"Referer": referrer})
                 except Exception:
-                    pass  # Non-fatal — header is advisory
+                    logger.debug(
+                        "Failed to set referrer header (non-fatal): %s",
+                        referrer,
+                    )
             await page.goto(url)
         elif style == NavigationStyle.TYPE_AND_ENTER:
             # Simulated: small pre-navigation delay to model "typing"
-            type_delay = self._navigator.type_delay()
+            type_delay = self._navigator.type_delay(rng=nav_rng)
             await asyncio.sleep(type_delay)
             await page.goto(url)
         else:
