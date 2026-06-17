@@ -156,14 +156,14 @@ class IPReputationClient:
         """Perform the actual HTTP request to the provider.
 
         Uses ``urllib`` (stdlib) — no async HTTP library dependency.
-        Runs the blocking call in a thread via ``asyncio.get_event_loop()``.
+        Runs the blocking call in a thread via ``asyncio.get_running_loop()``.
         """
         import asyncio
 
         url = self._provider_url.format(ip=ip) if "{ip}" in self._provider_url else self._provider_url
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             data = await loop.run_in_executor(
                 None, self._fetch, url,
             )

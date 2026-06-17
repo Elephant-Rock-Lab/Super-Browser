@@ -76,6 +76,30 @@ class MultimodalController:
         self._two_phase: bool = False
         self._verifier: Any = None
         self._vision_controller = vision_controller
+        self._frame_locator: Any = None  # Set by facade enter_frame()
+
+    # =====================================================================
+    # Frame scoping
+    # =====================================================================
+
+    @property
+    def _interaction_target(self) -> Any:
+        """The target for selector-based interactions.
+
+        Returns the frame locator when inside an iframe (set by
+        ``enter_frame``), otherwise the top-level engine page.
+        """
+        if self._frame_locator is not None:
+            return self._frame_locator
+        return self._page.engine_page
+
+    def _set_frame_locator(self, locator: Any) -> None:
+        """Set the active frame locator for scoping selector-based interactions."""
+        self._frame_locator = locator
+
+    def _clear_frame_locator(self) -> None:
+        """Clear the frame locator, returning to the top-level page."""
+        self._frame_locator = None
 
     # =====================================================================
     # Action methods
@@ -93,7 +117,7 @@ class MultimodalController:
         """Click on an element identified by selector, coordinates, or description."""
 
         async def t1():
-            await self._page.engine_page.click(target, button=button, click_count=click_count)
+            await self._interaction_target.click(target, button=button, click_count=click_count)
             return action_result(
                 ok=True,
                 data=ClickResult(target=target, method=ActionMethod.SELECTOR),
@@ -130,9 +154,9 @@ class MultimodalController:
 
         async def t1():
             if clear_first:
-                await self._page.engine_page.click(target)
+                await self._interaction_target.click(target)
                 await self._cdp.compositor_key_press("a", modifiers=2)
-            await self._page.engine_page.fill(target, value)
+            await self._interaction_target.fill(target, value)
             return action_result(
                 ok=True,
                 data=FillResult(selector=target, value_entered=value, method=ActionMethod.SELECTOR, character_count=len(value), clear_first=clear_first),
@@ -171,7 +195,7 @@ class MultimodalController:
     ) -> ActionResult:
 
         async def t1():
-            await self._page.engine_page.select_option(target, **{by: option})
+            await self._interaction_target.select_option(target, **{by: option})
             return action_result(
                 ok=True,
                 data=SelectResult(selector=target, option=option, method=ActionMethod.SELECTOR, by=by),
@@ -211,7 +235,7 @@ class MultimodalController:
     ) -> ActionResult:
 
         async def t1():
-            await self._page.engine_page.hover(target)
+            await self._interaction_target.hover(target)
             return action_result(
                 ok=True,
                 data=HoverResult(target=target, method=ActionMethod.SELECTOR),
@@ -259,7 +283,7 @@ class MultimodalController:
     ) -> ActionResult:
 
         async def t1():
-            await self._page.engine_page.drag_and_drop(source, destination)
+            await self._interaction_target.drag_and_drop(source, destination)
             return action_result(
                 ok=True,
                 data=DragResult(source=source, destination=destination, method=ActionMethod.SELECTOR),
@@ -318,7 +342,7 @@ class MultimodalController:
         dx, dy = delta_map.get(direction, (0, 100))
 
         async def t1():
-            await self._page.engine_page.scroll(direction, amount, target=target)
+            await self._interaction_target.scroll(direction, amount, target=target)
             return action_result(
                 ok=True,
                 data=ScrollResult(direction=direction, amount=amount, method=ActionMethod.SELECTOR),
