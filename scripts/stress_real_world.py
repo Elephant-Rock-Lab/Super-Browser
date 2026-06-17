@@ -110,20 +110,30 @@ class StressReport:
 
 
 def _get_rss_mb() -> float:
-    """Get current process RSS in MB (best-effort, platform-specific)."""
-    try:
-        # Linux
-        import resource
+    """Get current process RSS in MB.
 
-        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
-    except (ImportError, AttributeError, OSError):
-        pass
+    Prefers psutil for cross-platform consistency. Falls back to
+    platform-specific ``resource`` module (Linux: KB, macOS: bytes).
+    """
+    # Prefer psutil — accurate and cross-platform
     try:
-        # Windows / cross-platform fallback
         import psutil
 
         return psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
     except ImportError:
+        pass
+    try:
+        # Fallback: Linux (ru_maxrss is in KB)
+        import resource
+        import sys as _sys
+
+        rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if _sys.platform == "darwin":
+            # macOS: ru_maxrss is in bytes
+            return rss_kb / (1024 * 1024)
+        # Linux: ru_maxrss is in KB
+        return rss_kb / 1024.0
+    except (ImportError, AttributeError, OSError):
         return 0.0
 
 
@@ -140,6 +150,63 @@ def _count_browser_processes() -> int:
         return count
     except (ImportError, Exception):
         return -1
+
+
+async def _wait_for_condition(
+    check: Any,
+    *,
+    timeout_s: float = 10.0,
+    interval_s: float = 0.2,
+) -> bool:
+    """Poll a condition until it returns truthy or timeout elapses.
+
+    Replaces hard sleeps with deterministic waits.
+    ``check`` is an async callable returning a value.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        result = await check()
+        if result:
+            return True
+        await asyncio.sleep(interval_s)
+    return False
+
+
+class RSSSampler:
+    """Lightweight periodic RSS sampler for stress runs."""
+
+    def __init__(self) -> None:
+        self._samples: list[float] = []
+        self._task: asyncio.Task | None = None
+
+    def start(self) -> None:
+        self._samples = []
+        self._task = asyncio.create_task(self._run())
+
+    async def _run(self) -> None:
+        while True:
+            self._samples.append(_get_rss_mb())
+            await asyncio.sleep(2.0)
+
+    async def stop(self) -> dict[str, float]:
+        """Stop sampling and return RSS statistics."""
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
+
+        if not self._samples:
+            return {"rss_start_mb": 0.0, "rss_peak_mb": 0.0, "rss_end_mb": 0.0, "rss_delta_mb": 0.0}
+
+        return {
+            "rss_start_mb": round(self._samples[0], 1),
+            "rss_peak_mb": round(max(self._samples), 1),
+            "rss_end_mb": round(self._samples[-1], 1),
+            "rss_delta_mb": round(self._samples[-1] - self._samples[0], 1),
+        }
 
 
 def _disk_usage_mb(path: str | Path) -> float:
@@ -192,16 +259,20 @@ async def _scenario_auth_flow(base_url: str, timeout_s: float) -> ScenarioResult
             )
             metrics["click_ok"] = click_result.ok
 
-            # Give JS a moment to set cookies/localStorage
-            await asyncio.sleep(0.5)
+            # Wait for JS to set cookie/localStorage (poll for cookie)
+            if sb._page and sb._page.backend_page:
+                page = sb._page.backend_page
 
-            # Verify authentication state via cookie and localStorage
-            page = sb._page
-            if page and page.backend_page:
-                cookie_present = await page.backend_page.evaluate(
+                async def _check_cookie() -> bool:
+                    return await page.evaluate("document.cookie.includes('session_token=')")
+
+                await _wait_for_condition(_check_cookie, timeout_s=5.0, interval_s=0.2)
+
+                # Verify authentication state via cookie and localStorage
+                cookie_present = await page.evaluate(
                     "document.cookie.includes('session_token=')"
                 )
-                user_storage = await page.backend_page.evaluate(
+                user_storage = await page.evaluate(
                     "localStorage.getItem('user') !== null"
                 )
                 metrics["cookie_present"] = cookie_present
@@ -241,26 +312,35 @@ async def _scenario_js_heavy(base_url: str, timeout_s: float) -> ScenarioResult:
         try:
             await asyncio.wait_for(sb.navigate(f"{base_url}/app.html"), timeout=timeout_s)
 
-            # Wait longer for dynamic AJAX to complete
-            await asyncio.sleep(2.0)
-
-            # Evaluate JS to check hydration state
+            # Wait for AJAX hydration by polling for dynamic content
             page = sb._page
             if page and page.backend_page:
+                bp = page.backend_page
+
+                async def _check_items() -> int:
+                    els = await bp.query_selector_all(".item")
+                    return len(els)
+
+                async def _has_items() -> bool:
+                    return await _check_items() > 0
+
+                await _wait_for_condition(_has_items, timeout_s=10.0, interval_s=0.3)
+
+                items_count = await _check_items()
+
                 # Check DOM has dynamic content (more reliable than window flag
                 # which may be isolated by Patchright stealth context)
-                items = await page.backend_page.query_selector_all(".item")
-                metrics["dom_items"] = len(items)
+                metrics["dom_items"] = items_count
 
                 # Best-effort hydration flag check
                 try:
-                    hydrated = await page.backend_page.evaluate("window.__HYDRATED__ === true")
+                    hydrated = await bp.evaluate("window.__HYDRATED__ === true")
                 except Exception:
                     hydrated = False
                 metrics["hydrated"] = hydrated
 
                 # Pass if DOM items exist (AJAX hydration completed)
-                passed = len(items) > 0
+                passed = items_count > 0
             else:
                 error = "No backend page available"
         finally:
@@ -404,6 +484,24 @@ async def _scenario_request_intercept(base_url: str, timeout_s: float) -> Scenar
             # Navigate to app first
             await asyncio.wait_for(sb.navigate(f"{base_url}/app.html"), timeout=timeout_s)
 
+            # Establish non-empty baseline BEFORE registering mock
+            # (app starts with zero items until AJAX hydration completes)
+            baseline_count = 0
+            if sb._page and sb._page.backend_page:
+                bp0 = sb._page.backend_page
+
+                async def _has_items() -> bool:
+                    count = await bp0.evaluate(
+                        "document.querySelectorAll('.item').length"
+                    )
+                    return count > 0
+
+                await _wait_for_condition(_has_items, timeout_s=10.0, interval_s=0.3)
+                baseline_count = await bp0.evaluate(
+                    "document.querySelectorAll('.item').length"
+                )
+            metrics["baseline_item_count"] = baseline_count
+
             # Mock the API response (** glob needed for full URL matching)
             mock_result = await asyncio.wait_for(
                 sb.mock_response("**/api/data", json.dumps({"mocked": True, "items": []})),
@@ -418,14 +516,24 @@ async def _scenario_request_intercept(base_url: str, timeout_s: float) -> Scenar
                     await asyncio.wait_for(
                         sb.click("#refresh-btn"), timeout=timeout_s
                     )
-                    await asyncio.sleep(1.0)
 
-                    # Check if items were cleared (mocked response has empty items)
-                    item_count = await sb._page.backend_page.evaluate(
+                    # Poll for items clearing (mock replaces with empty items)
+                    bp = sb._page.backend_page
+
+                    async def _items_cleared() -> bool:
+                        count = await bp.evaluate(
+                            "document.querySelectorAll('.item').length"
+                        )
+                        return count == 0
+
+                    await _wait_for_condition(_items_cleared, timeout_s=5.0, interval_s=0.2)
+
+                    # Final check: baseline was non-empty AND now it's zero
+                    item_count = await bp.evaluate(
                         "document.querySelectorAll('.item').length"
                     )
                     metrics["item_count_after_mock"] = item_count
-                    metrics["mock_effective"] = item_count == 0
+                    metrics["mock_effective"] = baseline_count > 0 and item_count == 0
                 except Exception:
                     metrics["mock_effective"] = False
 
@@ -439,10 +547,18 @@ async def _scenario_request_intercept(base_url: str, timeout_s: float) -> Scenar
             await asyncio.wait_for(sb.clear_interceptions(), timeout=timeout_s)
 
             await asyncio.wait_for(sb.navigate(f"{base_url}/app.html"), timeout=timeout_s)
-            await asyncio.sleep(2.0)
 
             if sb._page and sb._page.backend_page:
-                item_count_restored = await sb._page.backend_page.evaluate(
+                bp2 = sb._page.backend_page
+
+                async def _items_restored() -> bool:
+                    count = await bp2.evaluate(
+                        "document.querySelectorAll('.item').length"
+                    )
+                    return count > 0
+
+                await _wait_for_condition(_items_restored, timeout_s=10.0, interval_s=0.3)
+                item_count_restored = await bp2.evaluate(
                     "document.querySelectorAll('.item').length"
                 )
                 metrics["item_count_restored"] = item_count_restored
@@ -477,8 +593,12 @@ async def _scenario_parallel_profiles(base_url: str, timeout_s: float, concurren
     passed = False
     metrics: dict[str, Any] = {}
 
-    async def _single_profile(idx: int) -> dict[str, Any]:
-        """Run a single profile and return its isolation verification data."""
+    async def _single_profile(idx: int, all_ids: list[int]) -> dict[str, Any]:
+        """Run a single profile, write unique value, verify isolation.
+
+        Checks that own value is present AND no other profile's value
+        is present in this context's localStorage.
+        """
         from super_browser.agent.facade import SuperBrowser
 
         result: dict[str, Any] = {"idx": idx, "ok": False}
@@ -490,24 +610,43 @@ async def _scenario_parallel_profiles(base_url: str, timeout_s: float, concurren
                     sb.navigate(f"{base_url}/login.html"), timeout=timeout_s
                 )
 
-                # Write a unique localStorage value for this profile
+                # Write a unique localStorage value under a profile-specific key
                 if sb._page and sb._page.backend_page:
                     page = sb._page.backend_page
+                    unique_key = f"profile-id-{idx}"
                     unique_val = f"profile-{idx}-token"
                     await page.evaluate(
-                        f"localStorage.setItem('profile-id', '{unique_val}')"
+                        f"localStorage.setItem('{unique_key}', '{unique_val}')"
                     )
                     # Also set a unique cookie
                     await page.evaluate(
-                        f"document.cookie = 'profile-cookie={unique_val}; path=/'"
+                        f"document.cookie = 'profile-cookie-{idx}={unique_val}; path=/'"
                     )
 
-                    # Read back to verify self
+                    # Read back own key to verify self
                     ls_read = await page.evaluate(
-                        "localStorage.getItem('profile-id')"
+                        f"localStorage.getItem('{unique_key}')"
                     )
                     result["ls_value"] = ls_read
-                    result["ok"] = ls_read == unique_val
+                    self_ok = ls_read == unique_val
+
+                    # Verify no OTHER profile's key exists in this context
+                    # This is meaningful because each profile writes a
+                    # distinct key. If another key is present, contexts
+                    # are sharing localStorage (leak).
+                    other_ids_present = []
+                    for other_idx in all_ids:
+                        if other_idx == idx:
+                            continue
+                        other_key = f"profile-id-{other_idx}"
+                        other_val = await page.evaluate(
+                            f"localStorage.getItem('{other_key}')"
+                        )
+                        if other_val is not None:
+                            other_ids_present.append(other_idx)
+
+                    result["other_values_leaked"] = len(other_ids_present)
+                    result["ok"] = self_ok and len(other_ids_present) == 0
             finally:
                 await sb.stop()
         except Exception:
@@ -515,20 +654,23 @@ async def _scenario_parallel_profiles(base_url: str, timeout_s: float, concurren
         return result
 
     try:
-        tasks = [_single_profile(i) for i in range(concurrency)]
+        all_ids = list(range(concurrency))
+        tasks = [_single_profile(i, all_ids) for i in range(concurrency)]
         results = await asyncio.gather(*tasks)
 
         metrics["profiles_started"] = concurrency
         metrics["profiles_ok"] = sum(1 for r in results if r.get("ok"))
         metrics["profile_values"] = [r.get("ls_value") for r in results]
+        metrics["total_leaks"] = sum(r.get("other_values_leaked", 0) for r in results)
 
         # Verify all profiles succeeded and have distinct values
         values = [r.get("ls_value") for r in results if r.get("ls_value")]
         all_ok = all(r.get("ok") for r in results)
         all_distinct = len(set(values)) == concurrency
-        metrics["all_isolated"] = all_distinct
+        total_leaks = sum(r.get("other_values_leaked", 0) for r in results)
+        metrics["all_isolated"] = all_ok and all_distinct and total_leaks == 0
 
-        passed = all_ok and all_distinct
+        passed = all_ok and all_distinct and total_leaks == 0
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
 
@@ -801,7 +943,10 @@ def render_markdown(report: StressReport, data: dict[str, Any]) -> str:
     env = report.environment
     lines.append("## Environment")
     lines.append("")
-    lines.append(f"- **Peak RSS:** {env.get('peak_rss_mb', 'N/A')} MB")
+    lines.append(f"- **RSS start:** {env.get('rss_start_mb', 'N/A')} MB")
+    lines.append(f"- **RSS peak:** {env.get('rss_peak_mb', 'N/A')} MB")
+    lines.append(f"- **RSS end:** {env.get('rss_end_mb', 'N/A')} MB")
+    lines.append(f"- **RSS delta:** {env.get('rss_delta_mb', 'N/A')} MB")
     lines.append(f"- **Browser processes (before):** {env.get('browser_procs_before', 'N/A')}")
     lines.append(f"- **Browser processes (after):** {env.get('browser_procs_after', 'N/A')}")
     lines.append(f"- **Disk usage:** {env.get('disk_usage_mb', 'N/A')} MB")
@@ -872,7 +1017,9 @@ async def main_async(args: argparse.Namespace) -> int:
 
     # Environment baseline
     browser_procs_before = _count_browser_processes()
-    rss_before = _get_rss_mb()
+
+    # Start RSS sampler
+    rss_sampler = RSSSampler()
 
     # Start fixture server
     server = StressFixtureServer()
@@ -883,6 +1030,7 @@ async def main_async(args: argparse.Namespace) -> int:
 
     started_at = time.monotonic()
     all_results: list[ScenarioResult] = []
+    rss_sampler.start()
 
     try:
         for session_idx in range(sessions):
@@ -913,13 +1061,12 @@ async def main_async(args: argparse.Namespace) -> int:
     duration_s = time.monotonic() - started_at
 
     # Environment after
-    rss_after = _get_rss_mb()
+    rss_stats = await rss_sampler.stop()
     browser_procs_after = _count_browser_processes()
     disk_mb = _disk_usage_mb(tmp_dir)
 
     environment = {
-        "peak_rss_mb": round(max(rss_before, rss_after), 1),
-        "rss_delta_mb": round(rss_after - rss_before, 1),
+        **rss_stats,
         "browser_procs_before": browser_procs_before,
         "browser_procs_after": browser_procs_after,
         "disk_usage_mb": round(disk_mb, 3),

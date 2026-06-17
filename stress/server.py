@@ -246,13 +246,13 @@ class StressFixtureHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/upload":
-            # Read content length to consume the body
+            # Read body and compute real digest
             content_length = int(self.headers.get("Content-Length", 0))
-            _ = self.rfile.read(content_length)
+            body = self.rfile.read(content_length)
             data = {
                 "uploaded": True,
                 "size_bytes": content_length,
-                "sha256": hashlib.sha256(b"").hexdigest(),
+                "sha256": hashlib.sha256(body).hexdigest(),
             }
             self._serve_json(data)
             return
