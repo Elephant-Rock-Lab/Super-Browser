@@ -1,0 +1,99 @@
+name: Adversarial v3 Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/adversarial_v3/**'
+  pull_request:
+    paths:
+      - 'tests/adversarial_v3/**'
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: 'Browser backend for real-browser run'
+        required: false
+        default: 'stub'
+        type: choice
+        options:
+          - stub
+          - playwright
+          - superbrowser
+
+jobs:
+  # --- Offline structural tests (always run, merge gate) ---
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test deps
+        run: pip install pytest pytest-asyncio
+      - name: Run offline adversarial v3 suite
+        working-directory: tests/adversarial_v3
+        run: |
+          PYTHONPATH=. python -m pytest tests/ -v --tb=short
+      - name: Verify stub produces no fabricated evidence
+        working-directory: tests/adversarial_v3
+        run: |
+          PYTHONPATH=. python -c "
+          import subprocess, json, sys, tempfile, os
+          out = tempfile.mkdtemp()
+          r = subprocess.run(
+              [sys.executable, 'run.py', '--all', '--backend', 'stub', '--output-dir', out],
+              capture_output=True, text=True
+          )
+          assert r.returncode == 0, f'Stub run should exit 0, got {r.returncode}'
+          reports = [f for f in os.listdir(out) if f.endswith('.json')]
+          assert len(reports) == 1
+          with open(os.path.join(out, reports[0])) as f:
+              data = json.load(f)
+          clean = [r for r in data['results'] if r['verdict'] == 'clean']
+          flagged = [r for r in data['results'] if r['verdict'] == 'flagged']
+          assert len(clean) == 0, f'Stub should not produce CLEAN, got {len(clean)}'
+          assert len(flagged) == 0, f'Stub should not produce FLAGGED, got {len(flagged)}'
+          print(f'Stub honesty verified: 0 CLEAN, 0 FLAGGED, exit 0')
+          "
+
+  # --- Real-browser validation (manual dispatch only) ---
+  real-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          pip install playwright pytest pytest-asyncio
+          python -m playwright install --with-deps chromium
+      - name: Install SuperBrowser (for superbrowser backend)
+        if: github.event.inputs.backend == 'superbrowser'
+        run: |
+          pip install superbrowser-sdk[all]
+          python -m patchright install --with-deps chromium
+      - name: Run controlled tier
+        working-directory: tests/adversarial_v3
+        run: |
+          PYTHONPATH=. python run.py \
+            --tier controlled \
+            --backend ${{ github.event.inputs.backend }} \
+            --output-dir /tmp/adv3-reports
+      - name: Run internal vectors
+        working-directory: tests/adversarial_v3
+        run: |
+          PYTHONPATH=. python run.py \
+            --tier fingerprint --tier automation --tier ejector --tier network --tier controlled \
+            --backend ${{ github.event.inputs.backend }} \
+            --output-dir /tmp/adv3-reports
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adversarial-v3-reports
+          path: /tmp/adv3-reports/
