@@ -103,6 +103,12 @@ packages = ["src/super_browser"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Exclude self-contained suites that ship their own pytest.ini and run in a
+# dedicated workflow. tests/adversarial_v3/ has its own tests/conftest.py
+# whose module name (tests.conftest) collides with the root conftest when
+# collected from here, raising ImportPathMismatchError. It runs via
+# .github/workflows/adversarial-v3.yml instead.
+norecursedirs = ["tests/adversarial_v3"]
 markers = [
     "integration: tests requiring a real browser (deselect with '-m \"not integration\"')",
     "live: tests requiring a real browser AND real LLM API (excluded from CI)",
