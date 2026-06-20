@@ -57,6 +57,11 @@ jobs:
           reports = [f for f in os.listdir(out) if f.endswith('.json')]
           print('=== report files:', reports, flush=True)
           assert r.returncode == 0, f'Stub run should exit 0, got {r.returncode}'
+          # The harness writes two JSON files: the run report and
+          # adversarial-history.json (the trend log). Select only the
+          # per-run report; asserting on all *.json matched the history
+          # file too and failed with "Expected 1 report, got 2".
+          reports = [f for f in reports if f != 'adversarial-history.json']
           assert len(reports) == 1, f'Expected 1 report, got {len(reports)}: {reports}'
           with open(os.path.join(out, reports[0])) as f:
               data = json.load(f)
