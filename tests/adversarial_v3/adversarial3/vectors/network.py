@@ -32,14 +32,23 @@ class _NetworkVector(BaseVector):
     def requires_browser(self) -> bool:
         return True  # Needs browser navigation to generate captured request
 
-    def _inconclusive(self, reason: str, duration_ms: float) -> VectorResult:
+    def _inconclusive(
+        self,
+        reason: str,
+        duration_ms: float,
+        *,
+        extra: dict[str, Any] | None = None,
+    ) -> VectorResult:
+        details: dict[str, Any] = {"reason": reason}
+        if extra:
+            details.update(extra)
         return VectorResult(
             vector_id=self.vector_id,
             tier=self.tier,
             name=self.name,
             verdict=Verdict.INCONCLUSIVE,
             score=0.0,
-            details={"reason": reason},
+            details=details,
             severity=self.severity,
             duration_ms=duration_ms,
         )
@@ -58,7 +67,19 @@ class _NetworkVector(BaseVector):
 
 
 class HeaderOrderingConsistency(_NetworkVector):
-    """T5-001: Headers sent in browser-natural order."""
+    """T5-001: Headers sent in browser-natural order.
+
+    Diagnostic-only. The vector captures the observed request header order
+    (telemetry) but returns INCONCLUSIVE in every case, because there is no
+    expected-order contract to validate against. A captured order that
+    *looks* browser-natural is not evidence of stealth, and one that looks
+    unusual is not evidence of detection without a baseline. Returning CLEAN
+    here would inflate the network-tier score with a verdict the vector
+    cannot honestly justify.
+
+    To make this a real validator, define a per-backend expected header
+    sequence and compare against it (see issue #174).
+    """
 
     def __init__(self) -> None:
         super().__init__(
@@ -78,10 +99,13 @@ class HeaderOrderingConsistency(_NetworkVector):
         if not header_order:
             return self._inconclusive("No request headers captured", duration)
 
-        return self._make_result(
-            passed=True,
-            details={"header_order": header_order[:10], "count": len(header_order)},
-            duration_ms=duration,
+        # Captured, but no expected-order contract to compare against.
+        # Preserve the observation as telemetry; the verdict is INCONCLUSIVE
+        # so this vector does not contribute a CLEAN/FLAGGED to the score.
+        return self._inconclusive(
+            "Header order captured but no baseline contract defined to validate against",
+            duration,
+            extra={"header_order": header_order[:10], "count": len(header_order)},
         )
 
 
