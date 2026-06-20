@@ -10,9 +10,7 @@ the SDK's `SecurityManager` (allowed/blocked origins, confirmation, audit log).
 See [RFC #178](https://github.com/Octo-Lex/Super-Browser/issues/178) for the
 design and phasing.
 
-> **`screenshot` is read-only but privacy-sensitive** — it can capture
-> on-screen content, including secrets. Treat MCP screenshot access the same
-> way you would treat shell screen-capture access.
+> `screenshot` captures the rendered page contents as the browser sees them. There is no automatic redaction; callers decide when to invoke it.
 
 ## Install
 

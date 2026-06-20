@@ -9,7 +9,7 @@ dispatcher, lifecycle encapsulation, and a mandatory test gate.
 Phase 1 tool set (all read-only):
     observe         - page state (URL, title, interactive elements)
     extract_text    - text content, optionally scoped to a selector
-    screenshot      - base64 PNG (read-only but privacy-sensitive)
+    screenshot      - base64 PNG
     list_tabs       - open tabs
     current_url     - current URL only (no lazy browser start)
     browser_status  - runtime status (works before browser startup)
@@ -71,7 +71,7 @@ PHASE1_TOOLS: list[types.Tool] = [
     ),
     types.Tool(
         name="screenshot",
-        description="Take a screenshot of the current page (returns base64 PNG). Read-only but privacy-sensitive: can capture on-screen content. Starts the browser lazily on first call.",
+        description="Take a screenshot of the current page (returns base64 PNG). Captures the rendered viewport, or the full page when full_page=true, as the browser sees it. Starts the browser lazily on first call.",
         inputSchema={
             "type": "object",
             "properties": {
