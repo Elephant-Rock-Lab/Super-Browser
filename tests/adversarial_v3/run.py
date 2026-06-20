@@ -69,6 +69,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Include vectors requiring interaction (default: excluded unless --all).",
     )
     parser.add_argument(
+        "--record-behavior", action="store_true",
+        help=(
+            "Record a short interaction telemetry sample and include the "
+            "behavioral vectors (T4-001/002/003). Without it, behavioral "
+            "vectors remain skipped unless telemetry is supplied by another "
+            "caller. Requires a real browser backend (not stub)."
+        ),
+    )
+    parser.add_argument(
         "--critical-cap", type=float, default=0.5,
         help="Overall score cap when CRITICAL+FLAGGED failures occur. Default: 0.5",
     )
@@ -111,6 +120,7 @@ async def _main() -> int:
             tiers=tiers,
             vectors=args.vector,
             skip_interaction=skip_interaction,
+            record_behavior=args.record_behavior,
             run_id=args.run_id,
         )
     except KeyboardInterrupt:

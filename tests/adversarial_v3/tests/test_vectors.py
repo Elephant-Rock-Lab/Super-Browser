@@ -122,8 +122,14 @@ class TestVectorEvaluation:
             assert result.verdict.value == "inconclusive"
 
     @pytest.mark.asyncio
-    async def test_behavioral_vectors_return_skipped(self, eval_context):
-        """Behavioral vectors must return SKIPPED until telemetry harness exists."""
+    async def test_behavioral_vectors_skip_without_telemetry(self, eval_context):
+        """Behavioral vectors return SKIPPED when no telemetry is in the context.
+
+        This context has no behavioral_telemetry key, which means recording
+        was not attempted -- the correct verdict is SKIPPED. When telemetry
+        IS present (even if sparse), the contract becomes INCONCLUSIVE or a
+        real verdict; that is covered in test_behavioral_vectors.py.
+        """
         for vector in BEHAVIORAL_VECTORS:
             assert vector.requires_interaction is True
             result = await vector.evaluate(eval_context)
