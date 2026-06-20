@@ -7,9 +7,6 @@ the release-blocking Markdown reporter syntax error.
 from __future__ import annotations
 
 import json
-from pathlib import Path
-
-import pytest
 
 from adversarial3.core import (
     AssessmentReport,

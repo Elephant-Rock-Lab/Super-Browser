@@ -14,7 +14,6 @@ from adversarial3.core import Severity, Tier, Verdict
 from adversarial3.engines.scoring import ScoringConfig
 from adversarial3.harness import AssessmentHarness
 
-
 TIER_MAP = {
     "fingerprint": Tier.FINGERPRINT,
     "automation": Tier.AUTOMATION,

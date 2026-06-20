@@ -266,7 +266,8 @@ class ChromeRuntimeInjection(_AutomationVector):
 
 
 # Sentinel for undefined values in JS
-undefined_sentinel = lambda x: str(x) == "<undefined>" if x is not None else False
+def undefined_sentinel(x: object) -> bool:
+    return str(x) == "<undefined>" if x is not None else False
 
 
 AUTOMATION_VECTORS: list[BaseVector] = [

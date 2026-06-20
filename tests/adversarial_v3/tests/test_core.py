@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import FrozenInstanceError
-
-import pytest
 
 from adversarial3.core import (
     AssessmentReport,
-    BaseReporter,
     BaseVector,
-    EvaluationContext,
     Severity,
     Tier,
     TierSummary,

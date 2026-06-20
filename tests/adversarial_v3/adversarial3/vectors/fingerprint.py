@@ -6,7 +6,6 @@ fingerprints. Each is self-contained and can run against any page.
 
 from __future__ import annotations
 
-import json
 import time
 from typing import Any
 

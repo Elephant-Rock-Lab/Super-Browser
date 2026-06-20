@@ -6,9 +6,7 @@ import os
 from pathlib import Path
 
 import pytest
-
-from adversarial3.backends import StubBackend
-from adversarial3.core import BrowserBackend, EvaluationContext
+from adversarial3.core import EvaluationContext
 from adversarial3.server import ControlledDetectionServer
 
 

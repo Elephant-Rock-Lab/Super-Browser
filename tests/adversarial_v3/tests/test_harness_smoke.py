@@ -8,12 +8,9 @@ honest behavior and validates the pipeline itself.
 
 from __future__ import annotations
 
-import asyncio
 import json
-from pathlib import Path
 
 import pytest
-
 from adversarial3.core import Tier, Verdict
 from adversarial3.harness import AssessmentHarness
 

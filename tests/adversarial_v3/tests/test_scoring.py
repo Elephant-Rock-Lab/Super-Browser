@@ -7,13 +7,9 @@ handling, and the FLAGGED-in-denominator regression guard.
 
 from __future__ import annotations
 
-import pytest
-
 from adversarial3.core import (
-    AssessmentReport,
     Severity,
     Tier,
-    TierSummary,
     VectorResult,
     Verdict,
 )

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 from adversarial3.core import AssessmentReport, BaseReporter
 
 

@@ -46,23 +46,25 @@ jobs:
               [sys.executable, 'run.py', '--all', '--backend', 'stub', '--output-dir', out],
               capture_output=True, text=True
           )
-          # Surface the subprocess output on failure so the assertion is
-          # diagnosable. Previously capture_output hid run.py's stdout/stderr,
-          # leaving only a bare 'AssertionError' when the run exited non-zero.
-          if r.returncode != 0:
-              print('--- run.py STDOUT ---', flush=True)
-              print(r.stdout, flush=True)
-              print('--- run.py STDERR ---', flush=True)
-              print(r.stderr, flush=True)
-          assert r.returncode == 0, f'Stub run should exit 0, got {r.returncode}'
+          # Always surface subprocess output + report contents so any
+          # assertion failure is diagnosable. Previously capture_output
+          # hid run.py's stdout/stderr, leaving only a bare AssertionError.
+          print('=== run.py return code:', r.returncode, flush=True)
+          print('=== run.py STDOUT ===', flush=True)
+          print(r.stdout, flush=True)
+          print('=== run.py STDERR ===', flush=True)
+          print(r.stderr, flush=True)
           reports = [f for f in os.listdir(out) if f.endswith('.json')]
-          assert len(reports) == 1
+          print('=== report files:', reports, flush=True)
+          assert r.returncode == 0, f'Stub run should exit 0, got {r.returncode}'
+          assert len(reports) == 1, f'Expected 1 report, got {len(reports)}: {reports}'
           with open(os.path.join(out, reports[0])) as f:
               data = json.load(f)
           clean = [r for r in data['results'] if r['verdict'] == 'clean']
           flagged = [r for r in data['results'] if r['verdict'] == 'flagged']
-          assert len(clean) == 0, f'Stub should not produce CLEAN, got {len(clean)}'
-          assert len(flagged) == 0, f'Stub should not produce FLAGGED, got {len(flagged)}'
+          print('=== verdicts:', [(r['vector_id'], r['verdict']) for r in data['results']], flush=True)
+          assert len(clean) == 0, f'Stub should not produce CLEAN, got {len(clean)}: {[r[\"vector_id\"] for r in clean]}'
+          assert len(flagged) == 0, f'Stub should not produce FLAGGED, got {len(flagged)}: {[r[\"vector_id\"] for r in flagged]}'
           print(f'Stub honesty verified: 0 CLEAN, 0 FLAGGED, exit 0')
           "
 

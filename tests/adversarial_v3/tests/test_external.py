@@ -6,20 +6,18 @@ without requiring network or browser access.
 
 from __future__ import annotations
 
-import pytest
-
+from adversarial3.core import Tier, Verdict
 from adversarial3.vectors.external import (
     SCANNER_TARGETS,
     VENDOR_TARGETS,
-    _parse_sannysoft,
-    _parse_incolumitas,
-    _parse_creepjs,
     _parse_browserscan,
     _parse_cloudflare_demo,
+    _parse_creepjs,
     _parse_datadome_demo,
+    _parse_incolumitas,
+    _parse_sannysoft,
     get_external_targets,
 )
-from adversarial3.core import Tier, Verdict
 
 
 class TestSannysoftParser:

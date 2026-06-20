@@ -9,7 +9,6 @@ from __future__ import annotations
 import re
 
 import pytest
-
 from adversarial3.backends import StubBackend
 from adversarial3.core import (
     EvaluationContext,
@@ -18,7 +17,7 @@ from adversarial3.core import (
     VectorResult,
     Verdict,
 )
-from adversarial3.vectors import ALL_VECTORS, VECTORS_BY_TIER
+from adversarial3.vectors import ALL_VECTORS
 from adversarial3.vectors.automation import AUTOMATION_VECTORS
 from adversarial3.vectors.behavioral import BEHAVIORAL_VECTORS
 from adversarial3.vectors.controlled import CONTROLLED_VECTORS

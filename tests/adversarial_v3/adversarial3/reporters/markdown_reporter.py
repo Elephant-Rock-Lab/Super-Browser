@@ -8,8 +8,6 @@ from adversarial3.core import (
     AssessmentReport,
     BaseReporter,
     Severity,
-    TierSummary,
-    VectorResult,
     Verdict,
     severity_emoji,
     verdict_emoji,

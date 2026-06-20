@@ -7,9 +7,6 @@ behavioral recording harness is available.
 
 from __future__ import annotations
 
-import time
-from typing import Any
-
 from adversarial3.core import (
     BaseVector,
     EvaluationContext,

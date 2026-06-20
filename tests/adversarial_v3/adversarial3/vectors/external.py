@@ -12,18 +12,14 @@ These are gated behind environment variables:
 from __future__ import annotations
 
 import os
-import time
 from typing import Any
 
 from adversarial3.core import (
-    BaseVector,
-    EvaluationContext,
     Severity,
     Tier,
     VectorResult,
     Verdict,
 )
-
 
 # ---------------------------------------------------------------------------
 # Parser functions (offline-testable, take evaluated JS results)

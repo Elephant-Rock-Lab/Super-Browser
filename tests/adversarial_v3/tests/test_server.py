@@ -8,9 +8,7 @@ from __future__ import annotations
 import json
 import urllib.request
 
-import pytest
-
-from adversarial3.server import ControlledDetectionServer, _compute_verdict, RequestSignals
+from adversarial3.server import ControlledDetectionServer, RequestSignals, _compute_verdict
 
 
 class TestComputeVerdict:

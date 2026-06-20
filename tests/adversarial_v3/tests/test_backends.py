@@ -6,7 +6,6 @@ Verifies stub backend behavior, protocol compliance, and canned responses.
 from __future__ import annotations
 
 import pytest
-
 from adversarial3.backends import StubBackend, create_backend
 from adversarial3.core import BrowserBackend, Page
 
