@@ -66,6 +66,7 @@ class AssessmentHarness:
         tiers: list[Tier] | None = None,
         vectors: list[str] | None = None,
         skip_interaction: bool = True,
+        record_behavior: bool = False,
         run_id: str | None = None,
     ) -> AssessmentReport:
         run_id = run_id or str(uuid.uuid4())[:8]
@@ -83,8 +84,20 @@ class AssessmentHarness:
             print("Browser backend: " + backend.__class__.__name__)
 
             async with backend:
-                selected = self._select_vectors(tiers, vectors, skip_interaction)
+                # When the caller asks to record behavioral telemetry, include
+                # the interaction-requiring vectors regardless of the default
+                # skip_interaction filter. The two concerns (record? filter?)
+                # stay explicit: without record_behavior the default behavior
+                # is unchanged and behavioral vectors stay SKIPPED.
+                effective_skip_interaction = (
+                    False if record_behavior else skip_interaction
+                )
+                selected = self._select_vectors(
+                    tiers, vectors, effective_skip_interaction,
+                )
                 print("Vectors to run: " + str(len(selected)))
+                if record_behavior:
+                    print("Behavioral telemetry recording: enabled")
 
                 # --- Phase 1: Navigate to controlled server ---
                 # This captures request headers (for network vectors) and
@@ -93,6 +106,7 @@ class AssessmentHarness:
                 page: Page | None = None
                 captured_headers: dict[str, Any] = {}
                 controlled_verdict: dict[str, Any] | None = None
+                behavioral_telemetry: Any = None
 
                 needs_browser = any(v.requires_browser for v in selected)
                 if needs_browser:
@@ -114,6 +128,30 @@ class AssessmentHarness:
                     except Exception as e:
                         print("Browser navigation failed: " + str(e))
 
+                # --- Phase 1.5: Record behavioral telemetry (opt-in) ---
+                # Only when the caller requested it AND a real page exists.
+                # Under a stub (no page) this is skipped, leaving telemetry
+                # as None so behavioral vectors return SKIPPED -- preserving
+                # the honest-stub invariant.
+                if record_behavior and page is not None:
+                    try:
+                        from adversarial3.behavioral_telemetry import record_telemetry
+
+                        behavioral_telemetry = await record_telemetry(page)
+                        event_counts = (
+                            len(behavioral_telemetry.mouse),
+                            len(behavioral_telemetry.keystrokes),
+                            len(behavioral_telemetry.scroll),
+                        )
+                        print(
+                            "Behavioral telemetry captured: "
+                            + str(event_counts[0]) + " mouse, "
+                            + str(event_counts[1]) + " keys, "
+                            + str(event_counts[2]) + " scroll events"
+                        )
+                    except Exception as e:
+                        print("Behavioral telemetry recording failed: " + str(e))
+
                 # --- Phase 2: Evaluate vectors ---
                 results: list[VectorResult] = []
                 for vector in selected:
@@ -122,7 +160,10 @@ class AssessmentHarness:
                         browser=backend,
                         server_url=server_url,
                         headers=captured_headers,
-                        metadata={"controlled_verdict": controlled_verdict},
+                        metadata={
+                            "controlled_verdict": controlled_verdict,
+                            "behavioral_telemetry": behavioral_telemetry,
+                        },
                     )
                     result = await self._evaluate_vector(vector, ctx)
                     results.append(result)
