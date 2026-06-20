@@ -13,7 +13,16 @@ from adversarial3.core import BrowserBackend, JSUnsupportedError, Page
 
 
 class PlaywrightBackend:
-    """Playwright-based browser backend."""
+    """Playwright-based browser backend.
+
+    Also serves as the Patchright backend: Patchright is API-compatible
+    with Playwright, so passing ``playwright_module="patchright"`` (or
+    letting ``create_backend("patchright")`` do it) launches Patchright
+    rather than vanilla Playwright. The two must NOT be silently
+    interchangeable — ``create_backend("patchright")`` explicitly
+    imports patchright and raises if it is absent, instead of falling
+    through to Playwright and certifying the wrong backend.
+    """
 
     def __init__(
         self,
@@ -21,15 +30,21 @@ class PlaywrightBackend:
         headless: bool = True,
         browser_type: str = "chromium",
         launch_args: dict[str, Any] | None = None,
+        playwright_module: str = "playwright",
     ) -> None:
         self._headless = headless
         self._browser_type = browser_type
         self._launch_args = launch_args or {}
+        self._playwright_module = playwright_module
         self._playwright = None
         self._browser = None
 
     async def __aenter__(self) -> BrowserBackend:
-        from playwright.async_api import async_playwright
+        mod = __import__(
+            f"{self._playwright_module}.async_api",
+            fromlist=["async_playwright"],
+        )
+        async_playwright = getattr(mod, "async_playwright")
         self._playwright = await async_playwright().start()
         launcher = getattr(self._playwright, self._browser_type)
         self._browser = await launcher.launch(
@@ -168,16 +183,19 @@ class SuperBrowserBackend:
         from super_browser import SuperBrowser
         from super_browser.config import (
             AgentConfig, Config, ConsistencyConfig,
-            NetworkConfig, SessionConfig, StealthConfig,
+            NetworkConfig, SessionConfig,
         )
         from super_browser.testing import MockLLMClient
 
+        # Config field is ``browser=`` (not ``session=``). Stealth and
+        # behavioral features are toggled on the AgentConfig flags
+        # (``enable_stealth``), not on StealthConfig — StealthConfig only
+        # carries stealth *parameters*, not an on/off switch.
         config = Config(
-            session=SessionConfig(headless=self._headless, backend=self._backend),
-            stealth=StealthConfig(enabled=True, ejecta_enabled=True),
+            browser=SessionConfig(headless=self._headless, backend=self._backend),
             consistency=ConsistencyConfig(enabled=True, seed="adversarial3"),
             network=NetworkConfig(browser_fetch=False, llm_via_browser=False),
-            agent=AgentConfig(behavioral_enabled=True),
+            agent=AgentConfig(enable_stealth=True),
         )
         self._sb = SuperBrowser(config=config, llm_client=MockLLMClient())
         await self._sb.start()
@@ -191,12 +209,21 @@ class SuperBrowserBackend:
 
     async def close(self) -> None:
         if self._sb:
-            await self._sb.close()
+            # Facade teardown is stop(), not close(). close() does not
+            # exist on SuperBrowser.
+            await self._sb.stop()
             self._sb = None
 
 
 class _SuperBrowserPage:
-    """Page adapter for SuperBrowser's evaluate API."""
+    """Page adapter over the facade's underlying EnginePage.
+
+    JS evaluation goes through ``sb._page.engine_page.evaluate()``, the
+    PatchrightPage that satisfies the EnginePage protocol. The facade
+    itself has no public evaluate(); reaching into the page handle is
+    the supported internal route (mirrors the working adapter in the
+    adversarial v1 harness, tests/adversarial/conftest.py).
+    """
 
     def __init__(self, sb: Any) -> None:
         self._sb = sb
@@ -207,8 +234,14 @@ class _SuperBrowserPage:
         self._url = url
 
     async def evaluate(self, expression: str) -> Any:
-        result = await self._sb.evaluate(expression)
-        return result.value if hasattr(result, "value") else result
+        page = getattr(self._sb, "_page", None)
+        engine_page = getattr(page, "engine_page", None)
+        if engine_page is None:
+            raise JSUnsupportedError(
+                "SuperBrowserBackend page has no engine_page; SDK not started or "
+                "backend does not expose EnginePage.evaluate()."
+            )
+        return await engine_page.evaluate(expression)
 
     async def screenshot(self, *, path: str | None = None, full_page: bool = False) -> bytes | None:
         return b""
@@ -249,8 +282,23 @@ def create_backend(
         return PlaywrightBackend(headless=headless, **kwargs)
 
     if name == "patchright":
-        # Patchright is a drop-in replacement for Playwright
-        return PlaywrightBackend(headless=headless, **kwargs)
+        # Patchright is API-compatible with Playwright but is a distinct,
+        # stealth-patched distribution. We must NOT silently fall through
+        # to Playwright: a green Patchright run that actually measured
+        # vanilla Playwright is a false certification. Import patchright
+        # explicitly and raise if it is absent.
+        try:
+            import patchright  # noqa: F401
+        except ImportError as e:
+            raise ImportError(
+                "Backend 'patchright' requested but the patchright package is "
+                "not installed. Install it (`pip install patchright`) or select "
+                "a different backend. Patchright is NOT interchangeable with "
+                "playwright for stealth measurement."
+            ) from e
+        return PlaywrightBackend(
+            headless=headless, playwright_module="patchright", **kwargs
+        )
 
     if name == "superbrowser":
         return SuperBrowserBackend(headless=headless, **kwargs)

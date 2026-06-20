@@ -75,7 +75,11 @@ jobs:
       - name: Install SuperBrowser (for superbrowser backend)
         if: github.event.inputs.backend == 'superbrowser'
         run: |
-          pip install superbrowser-sdk[all]
+          # Install the SDK from the checked-out repository, NOT from PyPI.
+          # `pip install superbrowser-sdk[all]` would validate the published
+          # package while the PR's src/ tree went unimported — a false
+          # certification. `.[all]` installs the code under review.
+          pip install '.[all]'
           python -m patchright install --with-deps chromium
       - name: Run controlled tier
         working-directory: tests/adversarial_v3

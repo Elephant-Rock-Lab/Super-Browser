@@ -25,7 +25,15 @@ class HistoryTracker:
                 str(ts.tier): ts.score for ts in report.tier_summaries
             },
             "total_vectors": len(report.results),
-            "critical_failures": len([r for r in report.results if r.severity.name == "CRITICAL" and r.verdict.name != "CLEAN"]),
+            # Must match the failure predicate used by scoring/reporting:
+            # CRITICAL severity AND FLAGGED verdict. The previous form
+            # (verdict != CLEAN) counted INCONCLUSIVE and CHALLENGED as
+            # failures, which inflated the trend and made an honest
+            # stub run record spurious critical_failures.
+            "critical_failures": len([
+                r for r in report.results
+                if r.severity.name == "CRITICAL" and r.verdict.name == "FLAGGED"
+            ]),
         }
 
         history: list[dict[str, Any]] = []
