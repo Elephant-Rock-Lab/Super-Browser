@@ -182,8 +182,11 @@ class SuperBrowserBackend:
     async def __aenter__(self) -> BrowserBackend:
         from super_browser import SuperBrowser
         from super_browser.config import (
-            AgentConfig, Config, ConsistencyConfig,
-            NetworkConfig, SessionConfig,
+            AgentConfig,
+            Config,
+            ConsistencyConfig,
+            NetworkConfig,
+            SessionConfig,
         )
         from super_browser.testing import MockLLMClient
 

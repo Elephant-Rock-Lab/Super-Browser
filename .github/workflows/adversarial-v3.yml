@@ -46,6 +46,14 @@ jobs:
               [sys.executable, 'run.py', '--all', '--backend', 'stub', '--output-dir', out],
               capture_output=True, text=True
           )
+          # Surface the subprocess output on failure so the assertion is
+          # diagnosable. Previously capture_output hid run.py's stdout/stderr,
+          # leaving only a bare 'AssertionError' when the run exited non-zero.
+          if r.returncode != 0:
+              print('--- run.py STDOUT ---', flush=True)
+              print(r.stdout, flush=True)
+              print('--- run.py STDERR ---', flush=True)
+              print(r.stderr, flush=True)
           assert r.returncode == 0, f'Stub run should exit 0, got {r.returncode}'
           reports = [f for f in os.listdir(out) if f.endswith('.json')]
           assert len(reports) == 1
@@ -95,6 +103,18 @@ jobs:
             --tier fingerprint --tier automation --tier ejector --tier network --tier controlled \
             --backend ${{ github.event.inputs.backend }} \
             --output-dir /tmp/adv3-reports
+      - name: Run SuperBrowser backend smoke tests
+        # The real-backend merge gate. SB_AD3_SMOKE=1 un-skips the 8
+        # tests in test_superbrowser_backend.py that instantiate
+        # SuperBrowserBackend against the checked-out SDK. These catch
+        # constructor/lifecycle/evaluate drift before a manual run can
+        # falsely certify a broken backend.
+        if: github.event.inputs.backend == 'superbrowser'
+        working-directory: tests/adversarial_v3
+        env:
+          SB_AD3_SMOKE: '1'
+        run: |
+          PYTHONPATH=.:../../src python -m pytest tests/test_superbrowser_backend.py -v --tb=short
       - name: Upload reports
         uses: actions/upload-artifact@v4
         if: always()

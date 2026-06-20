@@ -25,7 +25,6 @@ import os
 from typing import Any
 
 import pytest
-
 from adversarial3.backends import SuperBrowserBackend
 from adversarial3.core import BrowserBackend, Page
 
