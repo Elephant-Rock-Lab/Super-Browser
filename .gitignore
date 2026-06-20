@@ -76,3 +76,7 @@ stress-results/
 tests/e2e/artifacts/e2e-history.json
 tests/e2e/artifacts/e2e-trend.md
 adversarial-results/
+
+# Adversarial v3 artifacts
+tests/adversarial_v3/adversarial-results/
+tests/adversarial_v3/.pytest_cache/
