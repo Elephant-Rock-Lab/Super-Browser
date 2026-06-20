@@ -180,7 +180,10 @@ def _print_info() -> None:
         "cryptography": "security",
         "mcp": "mcp",
         "httpx": "cloud",
-        "Pillow": "vision",
+        # Pillow ships in the [patchright] extra (for screenshot encoding);
+        # there is no [vision] extra -- the previous suggestion pointed users
+        # at a non-existent install target.
+        "Pillow": "patchright",
     }
     for mod, extra in deps.items():
         try:

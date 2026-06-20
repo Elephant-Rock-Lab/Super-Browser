@@ -43,6 +43,7 @@ classifiers = [
 
 [project.scripts]
 superbrowser = "super_browser.cli:main"
+superbrowser-mcp = "super_browser.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/Octo-Lex/Super-Browser"
@@ -69,7 +70,7 @@ cdp = [
     "aiohttp>=3.9",
 ]
 all = [
-    "superbrowser-sdk[patchright,playwright,selenium,cdp,security,anthropic,openai,cloud]",
+    "superbrowser-sdk[patchright,playwright,selenium,cdp,security,anthropic,openai,cloud,mcp]",
 ]
 dev = [
     "pytest>=9.0",
@@ -89,6 +90,12 @@ openai = [
 ]
 security = [
     "cryptography>=42.0",
+]
+mcp = [
+    # Phase 1 read-only MCP server (stdio). The mcp dependency is light
+    # (no transitive browser deps) and is covered by import + entrypoint
+    # tests in tests/test_mcp_server.py. See docs/mcp.md and RFC #178.
+    "mcp>=1.0",
 ]
 cloud = [
     "httpx>=0.27",
