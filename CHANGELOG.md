@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bug Fixes
+
+- `BrowserSession.start()` now passes `locale` to `new_context()`, fixing the missing `Accept-Language` header regression (T5-002, #198). Added `locale` field to `SessionConfig` (default `"en-US"`); `locale=None` omits the key for engine defaults.
+
 ### MCP Server — Phase 2
 
 - Restored tested MCP server (`superbrowser-mcp`, `python -m super_browser.mcp_server`) over stdio (#179).

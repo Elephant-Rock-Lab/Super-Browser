@@ -121,10 +121,17 @@ class BrowserSession:
 
             self._browser = await self._playwright.chromium.launch(**kwargs)
 
-        self._context = await self._browser.new_context(
-            viewport={"width": self._config.viewport[0], "height": self._config.viewport[1]},
-            user_agent=self._config.user_agent,
-        )
+        context_kwargs: dict[str, Any] = {
+            "viewport": {
+                "width": self._config.viewport[0],
+                "height": self._config.viewport[1],
+            },
+            "user_agent": self._config.user_agent,
+        }
+        if self._config.locale:
+            context_kwargs["locale"] = self._config.locale
+
+        self._context = await self._browser.new_context(**context_kwargs)
 
         await self._finalise_start()
         return self._state
