@@ -764,6 +764,20 @@ def _require_no_args(arguments: dict[str, Any]) -> None:
 # ============================================================================
 
 
+def _tools_for_policy(policy: MCPSessionPolicy) -> list[types.Tool]:
+    """Return the tool list a server should advertise for the given policy.
+
+    Read-only tools are always advertised. Write tools are advertised only
+    when ``policy.allow_writes`` is True. Extracted so tests can assert on
+    the advertisement without spawning the stdio loop.
+    """
+    tools = list(PHASE1_TOOLS)
+    if policy.allow_writes:
+        tools += list(PHASE2B_TOOLS)
+        tools += list(PHASE2B_WAVE2_TOOLS)
+    return tools
+
+
 def build_server(
     runtime: MCPBrowserRuntime | None = None,
     *,
@@ -793,21 +807,24 @@ def build_server(
     dispatcher = ToolDispatcher(runtime, authorizer=authorizer)
     server = Server("super-browser")
 
+    def _advertised_tools() -> list[types.Tool]:
+        return _tools_for_policy(policy)
+
     @server.list_tools()
     async def list_tools() -> list[types.Tool]:
-        tools = list(PHASE1_TOOLS)
-        if policy.allow_writes:
-            tools += list(PHASE2B_TOOLS)
-            tools += list(PHASE2B_WAVE2_TOOLS)
-        return tools
+        return _advertised_tools()
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent]:
         return await dispatcher.dispatch(name, arguments)
 
-    # Attach runtime + policy so tests / callers can reach them via the server.
+    # Attach runtime, policy, dispatcher, and authorizer so tests can exercise
+    # the actual server-owned advertisement and dispatch paths without
+    # spawning the stdio loop.
     server._sb_runtime = runtime  # type: ignore[attr-defined]
     server._sb_policy = policy  # type: ignore[attr-defined]
+    server._sb_dispatcher = dispatcher  # type: ignore[attr-defined]
+    server._sb_authorizer = authorizer  # type: ignore[attr-defined]
     return server
 
 
