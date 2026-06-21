@@ -31,6 +31,7 @@ class SessionConfig:
     proxy: Optional[str] = None
     viewport: tuple[int, int] = (1280, 720)
     user_agent: Optional[str] = None
+    locale: Optional[str] = "en-US"
     default_timeout: float = 30.0
     navigation_timeout: float = 30.0
     discovery_timeout: float = 30.0
