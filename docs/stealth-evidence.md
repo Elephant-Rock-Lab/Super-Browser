@@ -1,11 +1,11 @@
 # Stealth Evidence — Controlled Server + Scanner Targets
 
-**Date:** 2026-06-21
-**Commit:** `569b379`
+**Date:** 2026-06-21 (refreshed after locale fix)
+**Commit:** `7cf2e97`
 **OS:** Windows 10 (build 26200)
 **Python:** 3.12.1
 **Patchright:** 1.60.1 | **Playwright:** 1.60.0
-**Chromium:** Playright-managed build (chromium-1223)
+**Chromium:** Playwright-managed build (chromium-1223)
 
 ## Methodology
 
@@ -16,7 +16,7 @@ backends using identical tier/vector selections:
 2. **Raw Playwright** — baseline with no stealth configuration
 
 Both backends launched headless Chromium on the same machine. The suite
-evaluated 24 vectors across 6 internal tiers plus 4 external scanner targets.
+evaluated 25 vectors across 6 internal tiers plus 4 external scanner targets.
 
 ### Targets included
 
@@ -78,7 +78,7 @@ SB_ADV=1 python run.py \
 | T3-007 | Iframe Injection Consistency | clean | clean | = |
 | T3-008 | Navigation Persistence | clean | clean | = |
 | T5-001 | Header Ordering Consistency | inconclusive | inconclusive | = |
-| T5-002 | Accept-Language Presence | clean | **flagged** | **REGRESSED** |
+| T5-002 | Accept-Language Presence | clean | clean | = |
 | T5-003 | sec-ch-ua Header Presence | clean | clean | = |
 | T6-001 | Controlled Detection Target | flagged | flagged | = |
 | ext_sannysoft | Sannysoft bot detection | **flagged** | **clean** | **IMPROVED** |
@@ -90,16 +90,23 @@ SB_ADV=1 python run.py \
 
 | Metric | Raw Playwright | Super-Browser |
 |---|---|---|
-| Vectors passed (clean) | 14/25 | 15/25 |
-| Vectors flagged | 9 | 8 |
+| Vectors passed (clean) | 14/25 | **16/25** |
+| Vectors flagged | 9 | 7 |
 | Inconclusive | 2 | 2 |
 | Improved vs baseline | — | 2 |
-| Regressed vs baseline | — | 1 |
+| Regressed vs baseline | — | 0 |
 
 The adversarial suite observed fewer detection signals for Super-Browser than
-raw Playwright on the controlled/scanner targets tested. The improvement is
-narrow (2 vectors improved, 1 regressed, 21 unchanged) and does not constitute
-full evasion.
+raw Playwright on the controlled/scanner targets tested. Super-Browser improved
+on 2 vectors with no regressions. The improvement does not constitute full
+evasion.
+
+### Change from prior run
+
+The prior run (commit `569b379`, pre-locale-fix) reported T5-002 as a
+Super-Browser regression (Accept-Language absent). After the locale fix (#199,
+commit `7cf2e97`), T5-002 is clean on both backends. The comparison is now
+2 improved, 0 regressed, 23 unchanged.
 
 ## Key findings
 
@@ -135,14 +142,6 @@ full evasion.
 4. **BrowserScan (ext_browserscan)** — Both flagged. BrowserScan detects both
    backends, likely through headless indicators + WebGL renderer analysis.
 
-### Regression: Accept-Language Presence (T5-002)
-
-Super-Browser was flagged where Playwright was clean. This is likely because
-the stealth config's fingerprint-consistency engine modifies the Accept-Language
-header to match the configured locale, and the network vector's probe detected
-a header value it considered anomalous. This is a real regression worth
-investigating — stealth changes should not introduce new detection signals.
-
 ## Known limitations
 
 - **Headless mode only.** Both runs used headless Chromium. Headed mode
@@ -162,8 +161,6 @@ investigating — stealth changes should not introduce new detection signals.
 
 ## Next steps
 
-- **Investigate T5-002 regression** — the Accept-Language change introduced by
-  the stealth config is creating a new detection signal. File as a bug.
 - **Run headed-mode comparison** — the README recommends headed mode; the suite
   should be run headed to see how many headless-specific flags resolve.
 - **Vendor-target evaluation** — a separate, explicitly-gated pass against
