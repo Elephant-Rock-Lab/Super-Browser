@@ -80,3 +80,9 @@ adversarial-results/
 # Adversarial v3 artifacts
 tests/adversarial_v3/adversarial-results/
 tests/adversarial_v3/.pytest_cache/
+
+# Research / competitive-analysis snapshots (one-time, not living docs)
+analysis/
+
+# Agent UI-state config (workspace-local, not SDK artifacts)
+labels/
