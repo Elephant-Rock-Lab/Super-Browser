@@ -1,14 +1,17 @@
-# Super Browser MCP Server (Phase 1 — read-only)
+# Super Browser MCP Server
 
-Super Browser exposes a subset of its browser inspection surface over the
+Super Browser exposes its browser inspection and control surface over the
 [Model Context Protocol](https://modelcontextprotocol.io) so that AI coding
-agents (Claude, Cursor, etc.) can observe a page without scripting Python.
+agents (Claude, Cursor, etc.) can observe and interact with a page without
+scripting Python.
 
-**Phase 1 is read-only.** There are no navigation, click, fill, or arbitrary-JS
-tools. Side-effecting tools are deferred to Phase 2, where they will sit behind
-the SDK's `SecurityManager` (allowed/blocked origins, confirmation, audit log).
+The stdio server advertises **six read-only tools** by default. When
+constructed with a write-enabled `MCPSessionPolicy`, it advertises **seven
+additional side-effecting tools**; each write call is still checked by
+`MCPSessionPolicy` and `SecurityManager` before it can reach the browser.
+
 See [RFC #178](https://github.com/Octo-Lex/Super-Browser/issues/178) for the
-design and phasing.
+design history.
 
 > `screenshot` captures the rendered page contents as the browser sees them. There is no automatic redaction; callers decide when to invoke it.
 
@@ -31,7 +34,9 @@ superbrowser-mcp
 python -m super_browser.mcp_server
 ```
 
-Both start a **stdio** server (no HTTP/SSE in Phase 1).
+Both start a **stdio** server. The default server advertises 6 read-only
+tools and recognizes (but refuses) write-tool calls with a structured policy
+refusal.
 
 ## Client configuration
 
@@ -74,10 +79,12 @@ Or, if you prefer the module form:
 }
 ```
 
-## Phase 1 tools
+## Tools
 
 All tools return structured JSON (`{"ok": bool, ...}`) as `TextContent`. The
 screenshot tool additionally returns an `ImageContent` block.
+
+### Read-only tools (always advertised)
 
 | Tool | Args | Behavior | Lazy-starts browser? |
 |---|---|---|---|
@@ -88,34 +95,84 @@ screenshot tool additionally returns an `ImageContent` block.
 | `screenshot` | `full_page` (optional, default `false`) | Base64 PNG of the viewport or full page. | Yes |
 | `list_tabs` | none | Snapshot of open tabs. | Yes |
 
+### Write tools (advertised when writes are enabled)
+
+| Tool | Args | Security level |
+|---|---|---|
+| `navigate` | `url` (required), `wait_until` (optional) | SENSITIVE — URL passed to `SecurityManager` for domain allow/block enforcement |
+| `scroll` | `direction` (optional), `amount` (optional) | SENSITIVE |
+| `press_key` | `key` (required) | SENSITIVE |
+| `click` | `target` (required), `description` (optional) | SENSITIVE |
+| `fill` | `target` (required), `value` (required), `clear_first` (optional), `description` (optional) | SENSITIVE |
+| `open_tab` | `url` (optional) | SENSITIVE — URL passed to `SecurityManager` when provided |
+| `close_tab` | `tab_id` (required) | SENSITIVE |
+
+`fill` sends only the literal value supplied by the caller. It does not
+retrieve, infer, store, or auto-fill credentials.
+
+### Asymmetric default behavior
+
+The default server behavior is intentionally asymmetric:
+
+- **`list_tools()`** advertises only the 6 read-only tools.
+- **`call_tool()`** still recognizes write-tool names and returns a structured
+  policy refusal (`refusal.reason = "writes are disabled"`), not an "Unknown
+  tool" error.
+
+This means clients don't see write tools by default, but manual or
+unadvertised write calls are handled cleanly rather than misclassified.
+
+### Permission model (write tools)
+
+Every write-tool call passes through a central authorization path before
+reaching the browser:
+
+1. **Write-enabled check** — `MCPSessionPolicy.allow_writes` must be `True`
+2. **Action-count check** — `actions_used` must not exceed `max_actions`
+3. **Timeout-budget check** — session elapsed time must not exceed `timeout_seconds`
+4. **`SecurityManager.check_action()`** — domain allow/block lists, action policy, injection detection, redaction
+5. **Audit log** — every write attempt (allowed or denied) is recorded
+
+All denials return structured JSON as normal MCP content, never raised:
+
+```json
+{
+  "ok": false,
+  "refusal": {
+    "tool": "navigate",
+    "blocked_by": "security_manager",
+    "reason": "domain_filter",
+    "security_level": "sensitive"
+  }
+}
+```
+
 ### Lifecycle
 
 - One browser per server process.
 - The browser lazy-starts on the first browser-dependent tool call
-  (`observe`, `extract_text`, `screenshot`, `list_tabs`).
+  (`observe`, `extract_text`, `screenshot`, `list_tabs`, or any write tool
+  that reaches the facade after authorization).
 - `browser_status` and `current_url` are safe to call before startup and do
   **not** force a launch.
 - On server close, the runtime calls `SuperBrowser.stop()` to tear down.
 
-## What's not here (Phase 2+)
+## Still excluded
 
-The following are **deliberately absent** from Phase 1 and will return a
-structured "Unknown tool" error if invoked:
+The following are not implemented and will return a structured "Unknown tool"
+error:
 
-`navigate`, `click`, `fill`, `scroll`, `press_key`, `open_tab`, `close_tab`,
 `download`, `upload`, `act`, arbitrary JS execution.
 
-Phase 2 will add the write/navigation tools behind the SDK's existing
-`SecurityManager` (domain allow/block lists, action policy, confirmation
-callback, redaction, dangerous-command approval) — there is intentionally no
-MCP-specific permission layer.
+`act` (the LLM agent loop) is the highest-side-effect tool and will require
+a separate design pass before implementation.
 
 ## Errors
 
 Errors are returned as structured JSON, never raised across the MCP boundary:
 
 ```json
-{"ok": false, "error": "Unknown tool: 'navigate'. Available: [...]" }
+{"ok": false, "error": "Unknown tool: '__missing__'. Available: [...]" }
 ```
 
 Argument-validation errors use the `invalid_arguments` key:
@@ -129,5 +186,5 @@ Argument-validation errors use the `invalid_arguments` key:
 - Design: [RFC #178](https://github.com/Octo-Lex/Super-Browser/issues/178)
 - The deleted prior server (`a370cf9`) is recoverable from git history for
   reference — it shipped 10 tools including 6 side-effecting ones with no
-  permission model and no tests. This Phase 1 server is the deliberate
-  correction: read-only first, tested, permissioned later.
+  permission model and no tests. The current server is the deliberate
+  correction: tested, permissioned, with structured refusals and audit logging.

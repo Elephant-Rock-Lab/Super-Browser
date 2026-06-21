@@ -23,6 +23,7 @@ import pytest
 from super_browser.mcp_server import (
     PHASE1_TOOLS,
     MCPBrowserRuntime,
+    MCPSessionPolicy,
     ToolDispatcher,
     _image_content,
     _require_no_args,
@@ -31,14 +32,18 @@ from super_browser.mcp_server import (
     build_server,
 )
 
-# Expected Phase 1 tool set (decision #2).
-EXPECTED_TOOL_NAMES = {
+# Read-only tool set (always advertised).
+READ_ONLY_TOOL_NAMES = {
     "browser_status", "current_url", "observe",
     "extract_text", "screenshot", "list_tabs",
 }
-# Explicitly excluded from both Phase 1 and Phase 2 -- these are NEVER tools.
-# (navigate/click/fill/scroll/press_key/open_tab/close_tab ARE known Phase 2
-# write tools now -- they're gated by the permission substrate, not excluded.)
+# Write tool set (advertised only when allow_writes=True).
+WRITE_TOOL_NAMES = {
+    "navigate", "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
+}
+# All 13 tools when writes are enabled.
+ALL_TOOL_NAMES = READ_ONLY_TOOL_NAMES | WRITE_TOOL_NAMES
+# NEVER tools — genuinely absent from all phases.
 EXCLUDED_TOOL_NAMES = {
     "download", "upload", "act", "eval", "execute_js",
 }
@@ -50,11 +55,12 @@ EXCLUDED_TOOL_NAMES = {
 
 
 class TestToolListing:
-    def test_exposes_exactly_phase1_tools(self):
+    def test_read_only_set_excludes_write_tools(self):
         names = {t.name for t in PHASE1_TOOLS}
-        assert names == EXPECTED_TOOL_NAMES
+        assert names == READ_ONLY_TOOL_NAMES
+        assert not (names & WRITE_TOOL_NAMES)
 
-    def test_no_side_effecting_tools_present(self):
+    def test_read_only_set_excludes_never_tools(self):
         names = {t.name for t in PHASE1_TOOLS}
         assert not (names & EXCLUDED_TOOL_NAMES)
 
@@ -375,6 +381,14 @@ class TestSerialization:
 
 
 class TestServerWiring:
+    """Server-level wiring: list_tools advertisement, call_tool dispatch,
+    and policy/authorizer injection.
+
+    Default behavior is intentionally asymmetric:
+    - list_tools() advertises only 6 read-only tools.
+    - call_tool() recognizes write-tool names and returns structured refusal.
+    """
+
     def test_build_server_attaches_runtime(self):
         runtime = MCPBrowserRuntime()
         server = build_server(runtime)
@@ -384,3 +398,90 @@ class TestServerWiring:
     def test_build_server_default_runtime(self):
         server = build_server()
         assert isinstance(server._sb_runtime, MCPBrowserRuntime)  # type: ignore[attr-defined]
+
+    def test_build_server_attaches_policy(self):
+        server = build_server()
+        assert hasattr(server, "_sb_policy")  # type: ignore[attr-defined]
+        assert server._sb_policy.allow_writes is False  # type: ignore[attr-defined]
+
+    def test_build_server_attaches_dispatcher_and_authorizer(self):
+        """The server owns a dispatcher wired with an authorizer — tests must
+        exercise this path, not construct fresh dispatchers."""
+        server = build_server()
+        assert hasattr(server, "_sb_dispatcher")  # type: ignore[attr-defined]
+        assert hasattr(server, "_sb_authorizer")  # type: ignore[attr-defined]
+        assert server._sb_authorizer is not None  # type: ignore[attr-defined]
+
+    def test_default_server_advertises_exactly_6_read_only_tools(self):
+        """Default build_server() advertises exactly the 6 read-only tools,
+        verified through the actual advertisement function, not a constant."""
+        from super_browser.mcp_server import _tools_for_policy
+
+        server = build_server()
+        policy = server._sb_policy  # type: ignore[attr-defined]
+        advertised = _tools_for_policy(policy)
+        advertised_names = {t.name for t in advertised}
+        assert advertised_names == READ_ONLY_TOOL_NAMES
+        assert len(advertised) == 6
+
+    def test_write_enabled_server_advertises_exactly_13_tools(self):
+        """build_server(policy=allow_writes=True) advertises all 13 tools,
+        verified through the actual advertisement function."""
+        from super_browser.mcp_server import _tools_for_policy
+
+        server = build_server(policy=MCPSessionPolicy(allow_writes=True))
+        policy = server._sb_policy  # type: ignore[attr-defined]
+        advertised = _tools_for_policy(policy)
+        advertised_names = {t.name for t in advertised}
+        assert advertised_names == ALL_TOOL_NAMES
+        assert len(advertised) == 13
+
+    @pytest.mark.asyncio
+    async def test_default_server_dispatch_returns_refusal_not_unknown(self):
+        """Default server: dispatching a write tool through the server-owned
+        dispatcher returns 'writes are disabled' refusal, not 'Unknown tool'.
+        This exercises the actual ToolDispatcher build_server() constructed."""
+        server = build_server()
+        dispatcher = server._sb_dispatcher  # type: ignore[attr-defined]
+        result = await dispatcher.dispatch("navigate", {"url": "https://example.com"})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "refusal" in payload
+        assert payload["refusal"]["reason"] == "writes are disabled"
+
+    @pytest.mark.asyncio
+    async def test_write_enabled_server_security_manager_deny_blocks_navigate(self):
+        """build_server(allow_writes=True, security_manager=...) with a
+        blocking SecurityManager: navigate to a blocked domain returns
+        blocked_by='security_manager' and the facade is never called.
+
+        This exercises the full server-owned path: authorizer →
+        SecurityManager.check_action() → structured refusal."""
+        from super_browser.security import SecurityManager
+        from super_browser.security.types import SecurityConfig
+
+        sm = SecurityManager(SecurityConfig(
+            domain_filter_enabled=True,
+            domain_blocklist=("evil.com",),
+            injection_detection_enabled=False,
+            redaction_enabled=False,
+        ))
+
+        fake_sb = MagicMock()
+        fake_sb.navigate = AsyncMock()
+        runtime = MCPBrowserRuntime()
+        runtime._sb = fake_sb  # type: ignore[assignment]
+
+        server = build_server(
+            runtime,
+            policy=MCPSessionPolicy(allow_writes=True),
+            security_manager=sm,
+        )
+        # Dispatch through the server-owned dispatcher (not a fresh one).
+        dispatcher = server._sb_dispatcher  # type: ignore[attr-defined]
+        result = await dispatcher.dispatch("navigate", {"url": "https://evil.com"})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert payload["refusal"]["blocked_by"] == "security_manager"
+        # Facade must not have been called.
+        fake_sb.navigate.assert_not_called()

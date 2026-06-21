@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### MCP Server — Phase 2
+
+- Restored tested MCP server (`superbrowser-mcp`, `python -m super_browser.mcp_server`) over stdio (#179).
+- Permission substrate: `MCPSessionPolicy`, `MCPAuthorizer`, `MCPAuditEntry` — central 5-step authorization path (write-enabled → action-count → timeout → `SecurityManager` → audit) (#183).
+- Write tools: `navigate`, `scroll`, `press_key`, `click`, `fill`, `open_tab`, `close_tab` — all gated by `MCPSessionPolicy.allow_writes` (default `False`) and routed through `SecurityManager` before reaching the facade (#184, #185).
+- `build_server()` now accepts `policy` and `security_manager` kwargs; `list_tools()` advertises write tools only when `allow_writes=True`.
+- Default server behavior is asymmetric: `list_tools()` advertises 6 read-only tools; `call_tool()` recognizes write-tool names and returns a structured policy refusal (not "unknown tool").
+- `fill` sends only the literal caller-supplied value — does not retrieve, infer, store, or auto-fill credentials.
+- Structured refusals, domain allow/block enforcement, audit logging for all write attempts (allowed and denied).
+- Still excluded: `download`, `upload`, `act`, arbitrary JS execution.
+
 ## [2.2.1] — 2026-06-17
 
 ### Overview

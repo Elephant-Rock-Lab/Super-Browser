@@ -114,13 +114,34 @@ async def test_list_tabs_returns_list(started_runtime):
 
 
 @pytest.mark.asyncio
-async def test_unknown_tool_rejected_under_real_runtime(started_runtime):
-    # Even against a real browser, the Phase 1 surface rejects writes.
+async def test_genuinely_unknown_tool_rejected_under_real_runtime(started_runtime):
+    """A tool that doesn't exist in any phase is rejected as unknown."""
     dispatcher = ToolDispatcher(started_runtime)
-    result = await dispatcher.dispatch("navigate", {"url": "https://malicious"})
+    result = await dispatcher.dispatch("__missing_tool__", {})
     payload = json.loads(result[0].text)
     assert payload["ok"] is False
-    assert "navigate" in payload["error"]
+    assert "Unknown tool" in payload["error"]
+
+
+@pytest.mark.asyncio
+async def test_known_write_tool_refused_when_writes_disabled(started_runtime):
+    """navigate is a known write tool — calling it through a default
+    build_server() returns a structured refusal ('writes are disabled'),
+    not an 'Unknown tool' error. This is the asymmetric default behavior:
+    known-but-gated ≠ unknown.
+
+    Uses the actual server-owned dispatcher from build_server(), not a
+    raw ToolDispatcher with no authorizer (which returns a different
+    refusal message: 'write tools not configured')."""
+    from super_browser.mcp_server import build_server
+
+    server = build_server(started_runtime)
+    dispatcher = server._sb_dispatcher  # type: ignore[attr-defined]
+    result = await dispatcher.dispatch("navigate", {"url": "https://example.com"})
+    payload = json.loads(result[0].text)
+    assert payload["ok"] is False
+    assert "refusal" in payload
+    assert payload["refusal"]["reason"] == "writes are disabled"
 
 
 @pytest.mark.asyncio

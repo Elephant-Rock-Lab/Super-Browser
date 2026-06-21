@@ -1,12 +1,12 @@
-"""MCP server exposing read-only SuperBrowser tools over stdio (Phase 1).
+"""MCP server exposing SuperBrowser read-only and write tools over stdio.
 
 This is a *tested, permissioned* restoration of the MCP server that was
 deleted in ``a370cf9`` ("untested, 290 lines"). The deleted server shipped
-10 tools including 6 side-effecting ones with no permission model; this
-Phase 1 server ships only read-only inspection tools, with a central
-dispatcher, lifecycle encapsulation, and a mandatory test gate.
+10 tools including 6 side-effecting ones with no permission model; the current
+server ships read-only inspection tools by default and gated write tools when
+a write-enabled MCPSessionPolicy is provided.
 
-Phase 1 tool set (all read-only):
+Read-only tools (always advertised):
     observe         - page state (URL, title, interactive elements)
     extract_text    - text content, optionally scoped to a selector
     screenshot      - base64 PNG
@@ -14,9 +14,17 @@ Phase 1 tool set (all read-only):
     current_url     - current URL only (no lazy browser start)
     browser_status  - runtime status (works before browser startup)
 
-Explicitly NOT in Phase 1 (deferred to Phase 2, behind SecurityManager):
-    navigate, click, fill, scroll, press_key, open_tab, close_tab,
-    download, upload, act, arbitrary JS execution.
+Write tools (advertised when allow_writes=True, gated by MCPSessionPolicy +
+SecurityManager):
+    navigate        - go to a URL (domain allow/block enforced)
+    scroll          - scroll the page
+    press_key       - press a keyboard key
+    click           - click an element by selector
+    fill            - fill a form field (literal caller-supplied value only)
+    open_tab        - open a new tab
+    close_tab       - close a tab by ID
+
+Still excluded: download, upload, act, arbitrary JS execution.
 
 Run via:
     python -m super_browser.mcp_server
@@ -39,7 +47,7 @@ from mcp.server.stdio import stdio_server
 logger = logging.getLogger("super_browser.mcp")
 
 # ============================================================================
-# Tool schema definitions (Phase 1: read-only only)
+# Tool schema definitions — read-only tools
 # ============================================================================
 
 PHASE1_TOOLS: list[types.Tool] = [
@@ -91,7 +99,7 @@ PHASE1_TOOLS: list[types.Tool] = [
 _PHASE1_TOOL_NAMES = frozenset(t.name for t in PHASE1_TOOLS)
 
 
-# --- Phase 2B: basic write tools (navigate, scroll, press_key) ---
+# --- Write tools: navigation and input (navigate, scroll, press_key) ---
 
 PHASE2B_TOOLS: list[types.Tool] = [
     types.Tool(
@@ -134,7 +142,7 @@ PHASE2B_TOOLS: list[types.Tool] = [
 _PHASE2B_TOOL_NAMES = frozenset(t.name for t in PHASE2B_TOOLS)
 
 
-# --- Phase 2B wave 2: element + tab write tools ---
+# --- Write tools: elements and tabs (click, fill, open_tab, close_tab) ---
 
 PHASE2B_WAVE2_TOOLS: list[types.Tool] = [
     types.Tool(
@@ -326,19 +334,18 @@ def _image_content(png_bytes: bytes, mime: str = "image/png") -> types.ImageCont
 
 
 # ============================================================================
-# Permission substrate (Phase 2A)
+# Permission substrate
 # ============================================================================
 
-# Write-tool names that Phase 2 will expose. Phase 2A declares the set so the
-# authorizer can route any of them through the permission path, but the
-# dispatcher's 2A write handlers only prove the gate works (no facade call
-# yet). Phase 2B wires the real handlers.
+# Write-tool names that the server recognizes. All are gated by the
+# permission substrate — advertised only when allow_writes=True, and
+# every call routes through MCPAuthorizer before reaching the facade.
 WRITE_TOOL_NAMES = frozenset({
     "navigate", "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
 })
 
-# Default security level per write tool. `fill` is SENSITIVE in 2A; it becomes
-# DANGEROUS only if later tied to credential stores (decision recorded on #180).
+# Default security level per write tool. `fill` is SENSITIVE by default; it
+# becomes DANGEROUS only if later tied to credential stores (#180).
 WRITE_TOOL_SECURITY_LEVELS: dict[str, str] = {
     "navigate": "sensitive", "scroll": "sensitive", "press_key": "sensitive",
     "click": "sensitive", "fill": "sensitive", "open_tab": "sensitive",
@@ -351,7 +358,7 @@ class MCPSessionPolicy:
     """Per-session write-tool policy. Mutable: ``actions_used`` increments as
     writes are authorized.
 
-    Defaults keep Phase 1 behavior unchanged: ``allow_writes=False`` means the
+    Defaults are default-deny: ``allow_writes=False`` means the
     permission path refuses every write tool until an explicit caller (config,
     constructor, or CLI flag) opts in.
     """
@@ -405,8 +412,8 @@ class MCPAuthorizer:
     """Central write-tool authorization: write-enabled → count → timeout →
     SecurityManager → audit.
 
-    Phase 2B's write handlers MUST call :meth:`authorize` before any facade
-    dispatch. Phase 1 read-only tools do not route through here.
+    Write handlers MUST call :meth:`authorize` before any facade dispatch.
+    Read-only tools do not route through here.
     """
 
     def __init__(
@@ -517,10 +524,9 @@ class MCPAuthorizer:
 class ToolDispatcher:
     """Central tool dispatcher.
 
-    Phase 1 read-only tools are allow-by-construction (no side effects), so
-    no permission check runs for them. Phase 2 write tools MUST go through
-    ``MCPAuthorizer.authorize()`` before reaching a handler — and in Phase
-    2A the write handlers only prove the gate works (no facade call yet).
+    Read-only tools are allow-by-construction (no side effects), so no
+    permission check runs for them. Write tools MUST go through
+    ``MCPAuthorizer.authorize()`` before reaching a handler.
     """
 
     def __init__(
@@ -555,9 +561,9 @@ class ToolDispatcher:
         """Authorize, then dispatch to the write handler.
 
         Authorization happens before ANY facade/browser call. If denied,
-        the facade is never touched. Phase 2B implements navigate/scroll/
-        press_key; the remaining write tools (click/fill/open_tab/close_tab)
-        return a 'not yet implemented' note after authorization succeeds.
+        the facade is never touched. All 7 write tools (navigate, scroll,
+        press_key, click, fill, open_tab, close_tab) have real handlers
+        that call the facade after the authorizer approves.
         """
         if self.authorizer is None:
             return _text_content({
@@ -640,7 +646,7 @@ class ToolDispatcher:
                 return _error_content("'tab_id' is required and must be a non-negative integer", kind="invalid_arguments")
         return None
 
-    # --- Phase 2B write handlers (called only after authorization) ---
+    # --- Write handlers: navigation and input (called only after authorization) ---
 
     async def _tool_navigate(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
@@ -666,7 +672,7 @@ class ToolDispatcher:
         ar = await controller.keypress(arguments["key"])
         return _text_content(_serialize_action_result(ar))
 
-    # --- Phase 2B wave 2 write handlers (called only after authorization) ---
+    # --- Write handlers: elements and tabs (called only after authorization) ---
 
     async def _tool_click(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
@@ -758,27 +764,67 @@ def _require_no_args(arguments: dict[str, Any]) -> None:
 # ============================================================================
 
 
-def build_server(runtime: MCPBrowserRuntime | None = None) -> Server:
-    """Construct the MCP Server wired to the Phase 1 tool set.
+def _tools_for_policy(policy: MCPSessionPolicy) -> list[types.Tool]:
+    """Return the tool list a server should advertise for the given policy.
+
+    Read-only tools are always advertised. Write tools are advertised only
+    when ``policy.allow_writes`` is True. Extracted so tests can assert on
+    the advertisement without spawning the stdio loop.
+    """
+    tools = list(PHASE1_TOOLS)
+    if policy.allow_writes:
+        tools += list(PHASE2B_TOOLS)
+        tools += list(PHASE2B_WAVE2_TOOLS)
+    return tools
+
+
+def build_server(
+    runtime: MCPBrowserRuntime | None = None,
+    *,
+    policy: MCPSessionPolicy | None = None,
+    security_manager: Any | None = None,
+) -> Server:
+    """Construct the MCP Server wired to read-only and/or write tools.
+
+    Default behavior is intentionally asymmetric:
+    - ``list_tools()`` advertises only the 6 read-only tools.
+    - ``call_tool()`` still recognizes write-tool names and returns a
+      structured policy refusal (not an "unknown tool" error), so manual
+      or unadvertised write calls are handled cleanly.
+
+    When constructed with ``policy=MCPSessionPolicy(allow_writes=True)``,
+    the server advertises all 13 tools and routes write calls through the
+    ``MCPAuthorizer`` (``MCPSessionPolicy`` → ``SecurityManager`` → audit).
 
     Factored out so tests can drive the server object without spawning the
-    stdio loop, and so the runtime can be injected (mocked) for unit tests.
+    stdio loop, and so the runtime and policy can be injected.
     """
     if runtime is None:
         runtime = MCPBrowserRuntime()
-    dispatcher = ToolDispatcher(runtime)
+    if policy is None:
+        policy = MCPSessionPolicy()
+    authorizer = MCPAuthorizer(policy, security_manager=security_manager)
+    dispatcher = ToolDispatcher(runtime, authorizer=authorizer)
     server = Server("super-browser")
+
+    def _advertised_tools() -> list[types.Tool]:
+        return _tools_for_policy(policy)
 
     @server.list_tools()
     async def list_tools() -> list[types.Tool]:
-        return list(PHASE1_TOOLS)
+        return _advertised_tools()
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent]:
         return await dispatcher.dispatch(name, arguments)
 
-    # Attach the runtime so tests / callers can reach it via the server.
+    # Attach runtime, policy, dispatcher, and authorizer so tests can exercise
+    # the actual server-owned advertisement and dispatch paths without
+    # spawning the stdio loop.
     server._sb_runtime = runtime  # type: ignore[attr-defined]
+    server._sb_policy = policy  # type: ignore[attr-defined]
+    server._sb_dispatcher = dispatcher  # type: ignore[attr-defined]
+    server._sb_authorizer = authorizer  # type: ignore[attr-defined]
     return server
 
 
