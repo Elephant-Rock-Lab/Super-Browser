@@ -91,6 +91,49 @@ PHASE1_TOOLS: list[types.Tool] = [
 _PHASE1_TOOL_NAMES = frozenset(t.name for t in PHASE1_TOOLS)
 
 
+# --- Phase 2B: basic write tools (navigate, scroll, press_key) ---
+
+PHASE2B_TOOLS: list[types.Tool] = [
+    types.Tool(
+        name="navigate",
+        description="Navigate the browser to a URL. Side-effecting: routed through the permission gate (domain allow/block lists apply).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Destination URL."},
+                "wait_until": {"type": "string", "description": "Wait condition: load, domcontentloaded, or networkidle.", "default": "domcontentloaded"},
+            },
+            "required": ["url"],
+        },
+    ),
+    types.Tool(
+        name="scroll",
+        description="Scroll the page in a direction. Side-effecting: routed through the permission gate.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "direction": {"type": "string", "enum": ["up", "down", "left", "right"], "default": "down"},
+                "amount": {"type": "integer", "description": "Scroll amount (units/pages).", "default": 3},
+            },
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="press_key",
+        description="Press a keyboard key. Side-effecting: routed through the permission gate. Can submit forms depending on the key.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "key": {"type": "string", "description": "Key to press (e.g. 'Enter', 'Tab', 'Escape')."},
+            },
+            "required": ["key"],
+        },
+    ),
+]
+
+_PHASE2B_TOOL_NAMES = frozenset(t.name for t in PHASE2B_TOOLS)
+
+
 # ============================================================================
 # Browser runtime lifecycle (encapsulated, not module globals)
 # ============================================================================
@@ -453,14 +496,14 @@ class ToolDispatcher:
     async def _dispatch_write(
         self, name: str, arguments: dict[str, Any],
     ) -> list[types.TextContent | types.ImageContent]:
-        """Authorize, then (in 2A) prove the gate without facade side effects.
+        """Authorize, then dispatch to the write handler.
 
-        Phase 2B will replace the 'not implemented' return with real write
-        handlers that call the facade only after ``authorize()`` succeeds.
+        Authorization happens before ANY facade/browser call. If denied,
+        the facade is never touched. Phase 2B implements navigate/scroll/
+        press_key; the remaining write tools (click/fill/open_tab/close_tab)
+        return a 'not yet implemented' note after authorization succeeds.
         """
         if self.authorizer is None:
-            # No authorizer attached means writes are not configured at all:
-            # refuse with the structured shape rather than silently allowing.
             return _text_content({
                 "ok": False,
                 "refusal": {
@@ -469,20 +512,90 @@ class ToolDispatcher:
                     "security_level": WRITE_TOOL_SECURITY_LEVELS.get(name, "sensitive"),
                 },
             })
+
+        # Argument validation BEFORE authorization — invalid args must not
+        # consume action budget.
+        validation_error = self._validate_write_args(name, arguments)
+        if validation_error is not None:
+            return validation_error
+
         url = str(arguments.get("url", ""))
         result = await self.authorizer.authorize(
             tool=name, arguments=arguments, url=url,
         )
         if not result.allowed:
             return _refusal_content(name, result)
-        # 2A gate-prove path: authorized, but no facade call yet.
+
+        # Dispatch to the real handler (only after authorization succeeded).
+        handler = getattr(self, f"_tool_{name}", None)
+        if handler is not None:
+            try:
+                return await handler(arguments)
+            except Exception as e:  # noqa: BLE001 -- structured error, no crash
+                logger.exception("MCP write tool %s failed", name)
+                return _error_content(f"{type(e).__name__}: {e}", kind="error")
+
+        # Authorized but not yet implemented (click/fill/open_tab/close_tab).
         return _text_content({
             "ok": True,
             "authorized": True,
             "tool": name,
-            "note": "permission substrate (Phase 2A): authorized; tool implementation lands in Phase 2B",
+            "note": "authorized; tool implementation pending (Phase 2B wave 2)",
             "actions_used": self.authorizer.policy.actions_used,
         })
+
+    # --- argument validation (before authorization, before budget consumed) ---
+
+    @staticmethod
+    def _validate_write_args(
+        name: str, arguments: dict[str, Any],
+    ) -> list[types.TextContent] | None:
+        """Return a structured error if args are invalid, else None."""
+        if name == "navigate":
+            url = arguments.get("url")
+            if not isinstance(url, str) or not url.strip():
+                return _error_content("'url' is required and must be a non-empty string", kind="invalid_arguments")
+            wait_until = arguments.get("wait_until", "domcontentloaded")
+            if not isinstance(wait_until, str) or wait_until not in ("load", "domcontentloaded", "networkidle"):
+                return _error_content("'wait_until' must be one of: load, domcontentloaded, networkidle", kind="invalid_arguments")
+        elif name == "scroll":
+            direction = arguments.get("direction", "down")
+            if direction not in ("up", "down", "left", "right"):
+                return _error_content("'direction' must be one of: up, down, left, right", kind="invalid_arguments")
+            amount = arguments.get("amount", 3)
+            if not isinstance(amount, int) or amount < 1:
+                return _error_content("'amount' must be a positive integer", kind="invalid_arguments")
+        elif name == "press_key":
+            key = arguments.get("key")
+            if not isinstance(key, str) or not key.strip():
+                return _error_content("'key' is required and must be a non-empty string", kind="invalid_arguments")
+        return None
+
+    # --- Phase 2B write handlers (called only after authorization) ---
+
+    async def _tool_navigate(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        ar = await sb.navigate(arguments["url"], wait_until=arguments.get("wait_until", "domcontentloaded"))
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_scroll(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        controller = getattr(sb, "_controller", None)
+        if controller is None:
+            return _error_content("browser has no active controller", kind="error")
+        ar = await controller.scroll(
+            direction=arguments.get("direction", "down"),
+            amount=arguments.get("amount", 3),
+        )
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_press_key(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        controller = getattr(sb, "_controller", None)
+        if controller is None:
+            return _error_content("browser has no active controller", kind="error")
+        ar = await controller.keypress(arguments["key"])
+        return _text_content(_serialize_action_result(ar))
 
     # --- read-only tools (none of these lazy-start except where noted) ---
 
