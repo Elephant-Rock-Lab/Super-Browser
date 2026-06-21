@@ -45,6 +45,11 @@ def _make_dispatcher(
     """Build a dispatcher with a mocked facade. Returns (dispatcher, fake_sb)."""
     fake_sb = MagicMock()
     fake_sb.navigate = AsyncMock(return_value=MagicMock(ok=True, data={"url": "https://example.com"}, error=None, meta=None))
+    # Wave 2 methods (added so cross-wave regression tests don't hit plain MagicMock).
+    fake_sb.click = AsyncMock(return_value=MagicMock(ok=True, data={}, error=None, meta=None))
+    fake_sb.fill = AsyncMock(return_value=MagicMock(ok=True, data={}, error=None, meta=None))
+    fake_sb.open_tab = AsyncMock(return_value=MagicMock(ok=True, data={"tab_id": 1}, error=None, meta=None))
+    fake_sb.close_tab = AsyncMock(return_value=MagicMock(ok=True, data={}, error=None, meta=None))
     fake_sb._controller = MagicMock()
     fake_sb._controller.scroll = AsyncMock(return_value=MagicMock(ok=True, data={}, error=None, meta=None))
     fake_sb._controller.keypress = AsyncMock(return_value=MagicMock(ok=True, data={}, error=None, meta=None))
@@ -233,14 +238,13 @@ class TestPhase1AndWave2:
         assert names == {"navigate", "scroll", "press_key"}
 
     @pytest.mark.asyncio
-    async def test_wave2_tools_authorized_but_not_yet_implemented(self):
-        """click/fill/open_tab/close_tab authorize but return 'pending' note."""
-        dispatcher, _ = _make_dispatcher(allow_writes=True)
-        result = await dispatcher.dispatch("click", {"selector": "#btn"})
-        payload = json.loads(result[0].text)
-        assert payload["ok"] is True
-        assert payload["authorized"] is True
-        assert "pending" in payload["note"]
+    async def test_wave2_tools_have_real_handlers(self):
+        """click/fill/open_tab/close_tab now have real handlers (wave 2 landed).
+        They call the facade, not a 'pending' note."""
+        dispatcher, fake_sb = _make_dispatcher(allow_writes=True)
+        # click should reach the facade, not return a placeholder.
+        await dispatcher.dispatch("click", {"target": "#btn"})
+        fake_sb.click.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_read_tools_unaffected_by_write_config(self):

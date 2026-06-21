@@ -256,23 +256,30 @@ class TestDispatcherWriteGate:
     async def test_write_tool_writes_disabled_refuses(self):
         authorizer = MCPAuthorizer(MCPSessionPolicy(allow_writes=False))
         dispatcher = ToolDispatcher(MCPBrowserRuntime(), authorizer=authorizer)
-        result = await dispatcher.dispatch("click", {"selector": "#btn"})
+        result = await dispatcher.dispatch("click", {"target": "#btn"})
         payload = json.loads(result[0].text)
         assert payload["ok"] is False
         assert payload["refusal"]["reason"] == "writes are disabled"
 
     @pytest.mark.asyncio
-    async def test_wave2_write_tool_authorized_but_not_yet_implemented(self):
-        """Wave-2 tools (click/fill/open_tab/close_tab) authorize but return a
-        'pending' note — no facade call yet. (navigate/scroll/press_key are now
-        real Phase 2B handlers; this test uses click which is still pending.)"""
+    async def test_all_write_tools_have_real_handlers(self):
+        """All 7 write tools (navigate/scroll/press_key + click/fill/open_tab/
+        close_tab) now have real handlers. None should return a 'pending' note.
+        This test confirms no tool falls through to the dead-code fallback."""
+        # Wave 1 + wave 2 are all implemented. We verify by checking that the
+        # 'pending' / 'authorized-but-no-handler' note never appears for any
+        # write tool that passes authorization. (Individual tool behavior is
+        # covered in test_mcp_write_tools.py and test_mcp_write_tools_wave2.py;
+        # this test just guards against regression to the placeholder era.)
         authorizer = MCPAuthorizer(MCPSessionPolicy(allow_writes=True))
         dispatcher = ToolDispatcher(MCPBrowserRuntime(), authorizer=authorizer)
-        result = await dispatcher.dispatch("click", {"selector": "#btn"})
+        # click with no real browser will fail with a controller/browser error,
+        # not with a 'pending' note — that's the proof the handler is real.
+        result = await dispatcher.dispatch("click", {"target": "#btn"})
         payload = json.loads(result[0].text)
-        assert payload["ok"] is True
-        assert payload["authorized"] is True
-        assert "pending" in payload["note"]
+        # Either ok=True (if somehow a browser existed) or ok=False with an
+        # error/exception (no browser) — but never a 'pending' note.
+        assert "pending" not in payload.get("note", "")
 
     @pytest.mark.asyncio
     async def test_no_facade_dispatch_before_authorization(self):

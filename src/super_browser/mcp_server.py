@@ -134,6 +134,62 @@ PHASE2B_TOOLS: list[types.Tool] = [
 _PHASE2B_TOOL_NAMES = frozenset(t.name for t in PHASE2B_TOOLS)
 
 
+# --- Phase 2B wave 2: element + tab write tools ---
+
+PHASE2B_WAVE2_TOOLS: list[types.Tool] = [
+    types.Tool(
+        name="click",
+        description="Click an element by CSS selector. Side-effecting: routed through the permission gate.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "CSS selector for the element to click."},
+                "description": {"type": "string", "description": "Optional human-readable note about what is being clicked."},
+            },
+            "required": ["target"],
+        },
+    ),
+    types.Tool(
+        name="fill",
+        description="Fill a form field with a value. Sends only the literal value supplied by the caller — does not retrieve, infer, store, or auto-fill credentials. Side-effecting: routed through the permission gate.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "CSS selector for the input element."},
+                "value": {"type": "string", "description": "Value to type into the field."},
+                "clear_first": {"type": "boolean", "description": "Clear the field before filling (default: true).", "default": True},
+                "description": {"type": "string", "description": "Optional human-readable note."},
+            },
+            "required": ["target", "value"],
+        },
+    ),
+    types.Tool(
+        name="open_tab",
+        description="Open a new browser tab, optionally navigating to a URL. When a URL is provided, domain allow/block lists apply. Side-effecting: routed through the permission gate.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Optional URL to navigate the new tab to."},
+            },
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="close_tab",
+        description="Close a browser tab by ID. Side-effecting: routed through the permission gate.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "tab_id": {"type": "integer", "description": "The tab ID to close (from list_tabs)."},
+            },
+            "required": ["tab_id"],
+        },
+    ),
+]
+
+_PHASE2B_WAVE2_TOOL_NAMES = frozenset(t.name for t in PHASE2B_WAVE2_TOOLS)
+
+
 # ============================================================================
 # Browser runtime lifecycle (encapsulated, not module globals)
 # ============================================================================
@@ -535,14 +591,8 @@ class ToolDispatcher:
                 logger.exception("MCP write tool %s failed", name)
                 return _error_content(f"{type(e).__name__}: {e}", kind="error")
 
-        # Authorized but not yet implemented (click/fill/open_tab/close_tab).
-        return _text_content({
-            "ok": True,
-            "authorized": True,
-            "tool": name,
-            "note": "authorized; tool implementation pending (Phase 2B wave 2)",
-            "actions_used": self.authorizer.policy.actions_used,
-        })
+        # Should never reach here: every WRITE_TOOL_NAMES entry has a handler.
+        return _error_content(f"Tool {name!r} authorized but has no handler", kind="error")
 
     # --- argument validation (before authorization, before budget consumed) ---
 
@@ -569,6 +619,25 @@ class ToolDispatcher:
             key = arguments.get("key")
             if not isinstance(key, str) or not key.strip():
                 return _error_content("'key' is required and must be a non-empty string", kind="invalid_arguments")
+        elif name == "click":
+            target = arguments.get("target")
+            if not isinstance(target, str) or not target.strip():
+                return _error_content("'target' is required and must be a non-empty string", kind="invalid_arguments")
+        elif name == "fill":
+            target = arguments.get("target")
+            if not isinstance(target, str) or not target.strip():
+                return _error_content("'target' is required and must be a non-empty string", kind="invalid_arguments")
+            value = arguments.get("value")
+            if not isinstance(value, str):
+                return _error_content("'value' is required and must be a string", kind="invalid_arguments")
+        elif name == "open_tab":
+            url = arguments.get("url")
+            if url is not None and (not isinstance(url, str) or not url.strip()):
+                return _error_content("'url' must be a non-empty string if provided", kind="invalid_arguments")
+        elif name == "close_tab":
+            tab_id = arguments.get("tab_id")
+            if not isinstance(tab_id, int) or tab_id < 0:
+                return _error_content("'tab_id' is required and must be a non-negative integer", kind="invalid_arguments")
         return None
 
     # --- Phase 2B write handlers (called only after authorization) ---
@@ -595,6 +664,37 @@ class ToolDispatcher:
         if controller is None:
             return _error_content("browser has no active controller", kind="error")
         ar = await controller.keypress(arguments["key"])
+        return _text_content(_serialize_action_result(ar))
+
+    # --- Phase 2B wave 2 write handlers (called only after authorization) ---
+
+    async def _tool_click(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        ar = await sb.click(
+            arguments["target"],
+            description=arguments.get("description"),
+        )
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_fill(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        ar = await sb.fill(
+            arguments["target"],
+            arguments["value"],
+            clear_first=arguments.get("clear_first", True),
+            description=arguments.get("description"),
+        )
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_open_tab(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        url = arguments.get("url")
+        ar = await sb.open_tab(url)
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_close_tab(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        ar = await sb.close_tab(arguments["tab_id"])
         return _text_content(_serialize_action_result(ar))
 
     # --- read-only tools (none of these lazy-start except where noted) ---
