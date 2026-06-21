@@ -358,3 +358,88 @@ class TestURLFormatting:
             await client.check("1.2.3.4")
 
         assert captured_url[0] == "https://api.test/check-all"
+
+
+# ---------------------------------------------------------------------------
+# Non-blocking regression test (#165 item 1)
+# ---------------------------------------------------------------------------
+
+
+class TestNonBlockingCheck:
+    """Prove check() does not block the event loop while _fetch runs in executor.
+
+    The issue (#165 item 1) asked for a test demonstrating that when
+    ``provider_url`` is configured, ``check()`` offloads blocking I/O to a
+    thread executor and the event loop stays responsive. The existing tests
+    all mock ``_fetch`` synchronously (bypassing the executor), so they
+    don't cover this contract.
+
+    Strategy: patch ``_fetch`` with a function that sleeps, then run a
+    concurrent coroutine that updates a flag. If the event loop is blocked
+    (i.e., ``_fetch`` ran synchronously instead of in the executor), the
+    concurrent coroutine won't make progress during the sleep.
+    """
+
+    @pytest.mark.asyncio
+    async def test_concurrent_coroutine_progresses_during_fetch(self) -> None:
+        """A concurrent task must make progress while check() awaits _fetch."""
+        import asyncio
+
+        client = IPReputationClient(
+            provider_url="https://api.test/{ip}/json/",
+            timeout=10.0,
+        )
+
+        progress_log: list[str] = []
+
+        async def background_task() -> None:
+            """A task that runs concurrently and records progress."""
+            for i in range(5):
+                progress_log.append(f"tick-{i}")
+                await asyncio.sleep(0.01)
+
+        def slow_fetch(url: str) -> dict:
+            # Simulate blocking network I/O. If this runs on the event loop
+            # thread (not in executor), background_task cannot progress.
+            time.sleep(0.15)
+            return {"ip": "1.2.3.4", "risk_score": 0.0}
+
+        bg_task = asyncio.create_task(background_task())
+        with patch.object(client, "_fetch", side_effect=slow_fetch):
+            result = await client.check("1.2.3.4")
+
+        await bg_task
+
+        # check() must have succeeded (not timed out or errored).
+        assert result.verdict == ReputationVerdict.CLEAN
+
+        # background_task must have made progress while _fetch was sleeping.
+        # If _fetch blocked the event loop, progress_log would be empty or
+        # contain only the first entry (set before the blocking call started).
+        assert len(progress_log) >= 3, (
+            f"Event loop was blocked during check(); background task only "
+            f"progressed to {progress_log}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_fetch_runs_off_event_loop_thread(self) -> None:
+        """_fetch must execute in a worker thread, not the event loop thread."""
+        import threading
+
+        client = IPReputationClient(
+            provider_url="https://api.test/{ip}/json/",
+        )
+        main_thread = threading.current_thread()
+        fetch_thread: list[threading.Thread] = []
+
+        def thread_check_fetch(url: str) -> dict:
+            fetch_thread.append(threading.current_thread())
+            return {"ip": "1.2.3.4", "risk_score": 10.0}
+
+        with patch.object(client, "_fetch", side_effect=thread_check_fetch):
+            await client.check("1.2.3.4")
+
+        assert len(fetch_thread) == 1
+        assert fetch_thread[0] is not main_thread, (
+            "_fetch ran on the event loop thread — executor offload is broken"
+        )
