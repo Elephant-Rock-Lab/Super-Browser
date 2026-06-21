@@ -4,7 +4,9 @@
 [![PyPI](https://img.shields.io/pypi/v/superbrowser-sdk?color=blue)](https://pypi.org/project/superbrowser-sdk/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](https://github.com/Octo-Lex/Super-Browser/blob/main/LICENSE)
 
-**Super Browser** is an anti-detection agent browser SDK. It wraps browser automation (Patchright, Playwright, Selenium, or raw CDP) in an agent-first API with stealth, budget governance, security guardrails, and structured error recovery. MCP is a transport, the agent SDK is the user-facing layer, and stealth is the foundation.
+**Super Browser** is an agent-first, security-gated, anti-detection browser SDK built on top of existing automation engines. It wraps Patchright, Playwright, Selenium, or raw CDP behind one async facade with stealth defaults, multi-backend support, structured errors, budget governance, an MCP server with permissioned write tools, and an adversarial detection test suite that measures stealth honestly.
+
+> **Stealth evidence:** The adversarial suite shows Super-Browser at **16/25 clean** vs raw Playwright's **14/25** on controlled server + scanner targets, with `navigator.webdriver` and Sannysoft resolved and **0 regressions**. See [`docs/stealth-evidence.md`](docs/stealth-evidence.md) for the full comparison table and known limitations.
 
 ## Installation
 
@@ -30,6 +32,14 @@ pip install superbrowser-sdk[selenium]        # Enterprise CI
 # Or everything
 pip install superbrowser-sdk[all]
 ```
+
+For the MCP server (stdio, for Claude Desktop / Cursor integration):
+
+```bash
+pip install superbrowser-sdk[mcp,patchright]
+```
+
+See [`docs/mcp.md`](docs/mcp.md) for the 13-tool surface and client configuration.
 
 For specific LLM providers:
 
@@ -176,26 +186,28 @@ Additional subsystems:
 |-----------|---------|
 | **Self-Healing Selectors** | Automatically recovers from broken CSS/XPath selectors using fuzzy matching |
 | **Stealth Mode** | Anti-detection patches (navigator properties, WebDriver flags, viewport fingerprint) |
-| **Output Budget** | Caps token usage per action to prevent runaway LLM costs |
-| **Security Guardrails** | URL allow/deny lists, domain validation, sensitive-input redaction |
+| **Adversarial Detection Suite** | 25-vector test harness that measures stealth honestly against controlled server + real scanners. See [`docs/stealth-evidence.md`](docs/stealth-evidence.md). |
+| **Output Budget** | Caps token usage per action to prevent runaway LLM costs (daily, per-action, per-turn scopes) |
+| **Security Guardrails** | URL allow/deny lists, domain validation, sensitive-input redaction, structured refusals before side effects |
+| **MCP Server** | 13-tool stdio server (6 read-only + 7 write tools behind `MCPSessionPolicy` + `SecurityManager`). See [`docs/mcp.md`](docs/mcp.md). |
 | **Structured Results** | Every action returns a typed `ActionResult` with timing, method used, and error category |
+| **Behavioral Synthesis** | Bézier mouse paths, lognormal keystroke delays, inertial scroll from a deterministic seed |
 | **Vision** | Screenshot-based fallback for pages that resist DOM inspection |
 
 Full API documentation lives in [`docs/`](docs/).
 
 ## What's New (Unreleased)
 
-### Agent Streaming, Default Tooling, and Security Perimeter
+### MCP Server, Adversarial Suite, Stealth Evidence
 
-Nine waves of production-control improvements merged to `main`:
-
+- **MCP Server** — Permissioned stdio server with 13 tools (6 read-only + 7 write). Write tools route through `MCPSessionPolicy` → `SecurityManager` → audit before reaching the browser. Default is read-only advertisement; writes opt-in via `build_server(policy=MCPSessionPolicy(allow_writes=True))`. See [`docs/mcp.md`](docs/mcp.md).
+- **Adversarial Detection Suite** — 25-vector assessment harness across 6 tiers (fingerprint, automation, ejecta, behavioral, network, controlled) plus external scanners. Honest stub semantics (`JSUnsupportedError` → INCONCLUSIVE, never fabricated). See [`tests/adversarial_v3/`](tests/adversarial_v3/).
+- **Stealth Evidence** — Published comparison: Super-Browser **16/25 clean** vs raw Playwright **14/25** on controlled server + scanner targets. `navigator.webdriver` and Sannysoft resolved; 0 regressions. See [`docs/stealth-evidence.md`](docs/stealth-evidence.md).
+- **Behavioral Telemetry** — Mouse/keystroke/scroll analysis vectors replace permanent SKIPPED with real telemetry-driven verdicts when `--record-behavior` is enabled.
 - **Streaming API** — `act_stream()` yields `StreamEvent` for real-time agent progress. Provider token streaming for OpenAI and Anthropic.
 - **Default Tooling** — 10 built-in tools auto-registered on startup (7 controller + 3 facade). Agents work out-of-box.
-- **Prompt Isolation** — Tool API removed from `<untrusted-screen-content>` wrappers.
 - **Security Perimeter** — All 12 side-effecting facade methods enforce `SecurityManager` before reaching the browser.
 - **Controller Rebinding** — Tools late-bind to current controller after tab switches.
-
-See the [Security Guardrails](#security-guardrails), [Streaming](#streaming), and [Default Agent Tooling](#default-agent-tooling) sections above.
 
 ## What's New in v1.9
 
