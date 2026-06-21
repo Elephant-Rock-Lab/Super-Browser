@@ -262,17 +262,17 @@ class TestDispatcherWriteGate:
         assert payload["refusal"]["reason"] == "writes are disabled"
 
     @pytest.mark.asyncio
-    async def test_write_tool_authorized_returns_2a_note(self):
-        """In 2A, an authorized write returns the gate-prove note (no facade
-        call). This is the proof that authorization succeeded without side
-        effects."""
+    async def test_wave2_write_tool_authorized_but_not_yet_implemented(self):
+        """Wave-2 tools (click/fill/open_tab/close_tab) authorize but return a
+        'pending' note — no facade call yet. (navigate/scroll/press_key are now
+        real Phase 2B handlers; this test uses click which is still pending.)"""
         authorizer = MCPAuthorizer(MCPSessionPolicy(allow_writes=True))
         dispatcher = ToolDispatcher(MCPBrowserRuntime(), authorizer=authorizer)
-        result = await dispatcher.dispatch("scroll", {"direction": "down"})
+        result = await dispatcher.dispatch("click", {"selector": "#btn"})
         payload = json.loads(result[0].text)
         assert payload["ok"] is True
         assert payload["authorized"] is True
-        assert "Phase 2B" in payload["note"]
+        assert "pending" in payload["note"]
 
     @pytest.mark.asyncio
     async def test_no_facade_dispatch_before_authorization(self):
