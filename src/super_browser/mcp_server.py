@@ -28,7 +28,8 @@ from __future__ import annotations
 import base64
 import json
 import logging
-from dataclasses import asdict, is_dataclass
+import time
+from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any
 
 from mcp import types
@@ -226,24 +227,220 @@ def _image_content(png_bytes: bytes, mime: str = "image/png") -> types.ImageCont
 
 
 # ============================================================================
+# Permission substrate (Phase 2A)
+# ============================================================================
+
+# Write-tool names that Phase 2 will expose. Phase 2A declares the set so the
+# authorizer can route any of them through the permission path, but the
+# dispatcher's 2A write handlers only prove the gate works (no facade call
+# yet). Phase 2B wires the real handlers.
+WRITE_TOOL_NAMES = frozenset({
+    "navigate", "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
+})
+
+# Default security level per write tool. `fill` is SENSITIVE in 2A; it becomes
+# DANGEROUS only if later tied to credential stores (decision recorded on #180).
+WRITE_TOOL_SECURITY_LEVELS: dict[str, str] = {
+    "navigate": "sensitive", "scroll": "sensitive", "press_key": "sensitive",
+    "click": "sensitive", "fill": "sensitive", "open_tab": "sensitive",
+    "close_tab": "sensitive",
+}
+
+
+@dataclass
+class MCPSessionPolicy:
+    """Per-session write-tool policy. Mutable: ``actions_used`` increments as
+    writes are authorized.
+
+    Defaults keep Phase 1 behavior unchanged: ``allow_writes=False`` means the
+    permission path refuses every write tool until an explicit caller (config,
+    constructor, or CLI flag) opts in.
+    """
+
+    allow_writes: bool = False
+    max_actions: int = 25
+    timeout_seconds: float = 120.0
+    started_at_monotonic: float = field(default_factory=time.monotonic)
+    actions_used: int = 0
+
+
+@dataclass(frozen=True)
+class MCPAuditEntry:
+    """One audit record per write-tool attempt (allowed OR denied)."""
+
+    timestamp_ms: float
+    tool: str
+    arguments: dict[str, Any]
+    security_level: str
+    allowed: bool
+    blocked_by: str | None
+    reason: str | None
+
+
+@dataclass(frozen=True)
+class MCPAuthorizationResult:
+    """Outcome of the central authorization path."""
+
+    allowed: bool
+    security_level: str
+    blocked_by: str | None  # e.g. "mcp_policy", "action_count", "timeout", "security_manager"
+    reason: str | None
+
+
+def _refusal_content(
+    tool: str, result: MCPAuthorizationResult,
+) -> list[types.TextContent]:
+    """Structured refusal returned as normal MCP content (never raised)."""
+    return _text_content({
+        "ok": False,
+        "refusal": {
+            "tool": tool,
+            "blocked_by": result.blocked_by,
+            "reason": result.reason,
+            "security_level": result.security_level,
+        },
+    })
+
+
+class MCPAuthorizer:
+    """Central write-tool authorization: write-enabled → count → timeout →
+    SecurityManager → audit.
+
+    Phase 2B's write handlers MUST call :meth:`authorize` before any facade
+    dispatch. Phase 1 read-only tools do not route through here.
+    """
+
+    def __init__(
+        self,
+        policy: MCPSessionPolicy,
+        security_manager: Any | None = None,
+    ) -> None:
+        self.policy = policy
+        self.security_manager = security_manager
+        self.audit_log: list[MCPAuditEntry] = []
+
+    async def authorize(
+        self,
+        *,
+        tool: str,
+        arguments: dict[str, Any],
+        url: str = "",
+        security_level: str | None = None,
+    ) -> MCPAuthorizationResult:
+        level = security_level or WRITE_TOOL_SECURITY_LEVELS.get(tool, "sensitive")
+
+        # 1. Write-enabled gate.
+        if not self.policy.allow_writes:
+            result = MCPAuthorizationResult(
+                allowed=False, security_level=level,
+                blocked_by="mcp_policy", reason="writes are disabled",
+            )
+            self._record(tool, arguments, level, result)
+            return result
+
+        # 2. Action-count budget.
+        if self.policy.actions_used >= self.policy.max_actions:
+            result = MCPAuthorizationResult(
+                allowed=False, security_level=level,
+                blocked_by="action_count",
+                reason=f"max_actions ({self.policy.max_actions}) exceeded",
+            )
+            self._record(tool, arguments, level, result)
+            return result
+
+        # 3. Timeout budget.
+        elapsed = time.monotonic() - self.policy.started_at_monotonic
+        if elapsed > self.policy.timeout_seconds:
+            result = MCPAuthorizationResult(
+                allowed=False, security_level=level,
+                blocked_by="timeout",
+                reason=f"timeout_seconds ({self.policy.timeout_seconds}) exceeded",
+            )
+            self._record(tool, arguments, level, result)
+            return result
+
+        # 4. SecurityManager (reusable SDK layer; not an MCP-only system).
+        if self.security_manager is not None:
+            try:
+                from super_browser.security.types import SecurityLevel
+
+                sec_level = SecurityLevel(level)
+                url_for_check = url or arguments.get("url", "")
+                sec_result = await self.security_manager.check_action(
+                    tool, arguments, str(url_for_check), sec_level,
+                )
+                if not sec_result.passed:
+                    result = MCPAuthorizationResult(
+                        allowed=False, security_level=level,
+                        blocked_by="security_manager",
+                        reason=sec_result.blocked_by or "denied by security policy",
+                    )
+                    self._record(tool, arguments, level, result)
+                    return result
+            except Exception as e:  # noqa: BLE001 -- a security-layer failure must deny, not crash
+                result = MCPAuthorizationResult(
+                    allowed=False, security_level=level,
+                    blocked_by="security_manager",
+                    reason=f"security check raised: {type(e).__name__}: {e}",
+                )
+                self._record(tool, arguments, level, result)
+                return result
+
+        # 5. Allowed: consume one action and record.
+        self.policy.actions_used += 1
+        result = MCPAuthorizationResult(
+            allowed=True, security_level=level,
+            blocked_by=None, reason=None,
+        )
+        self._record(tool, arguments, level, result)
+        return result
+
+    def _record(
+        self, tool: str, arguments: dict[str, Any], level: str,
+        result: MCPAuthorizationResult,
+    ) -> None:
+        self.audit_log.append(MCPAuditEntry(
+            timestamp_ms=time.time() * 1000.0,
+            tool=tool,
+            arguments=dict(arguments),
+            security_level=level,
+            allowed=result.allowed,
+            blocked_by=result.blocked_by,
+            reason=result.reason,
+        ))
+
+
+# ============================================================================
 # Tool dispatcher (one central path, so permissions can hook in later)
 # ============================================================================
 
 
 class ToolDispatcher:
-    """Central read-only tool dispatcher.
+    """Central tool dispatcher.
 
-    Phase 1 tools are allow-by-construction (no side effects), so no
-    permission check runs here. Phase 2 will route side-effecting tools
-    through ``SecurityManager.check_action()`` before dispatch.
+    Phase 1 read-only tools are allow-by-construction (no side effects), so
+    no permission check runs for them. Phase 2 write tools MUST go through
+    ``MCPAuthorizer.authorize()`` before reaching a handler — and in Phase
+    2A the write handlers only prove the gate works (no facade call yet).
     """
 
-    def __init__(self, runtime: MCPBrowserRuntime) -> None:
+    def __init__(
+        self,
+        runtime: MCPBrowserRuntime,
+        authorizer: MCPAuthorizer | None = None,
+    ) -> None:
         self.runtime = runtime
+        self.authorizer = authorizer
 
     async def dispatch(self, name: str, arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent]:
+        # Write tools route through the permission path first.
+        if name in WRITE_TOOL_NAMES:
+            return await self._dispatch_write(name, arguments)
         if name not in _PHASE1_TOOL_NAMES:
-            return _error_content(f"Unknown tool: {name!r}. Available: {sorted(_PHASE1_TOOL_NAMES)}", kind="error")
+            return _error_content(
+                f"Unknown tool: {name!r}. Available: {sorted(_PHASE1_TOOL_NAMES | WRITE_TOOL_NAMES)}",
+                kind="error",
+            )
         handler = getattr(self, f"_tool_{name}", None)
         if handler is None:
             return _error_content(f"Tool {name!r} has no handler", kind="error")
@@ -252,6 +449,40 @@ class ToolDispatcher:
         except Exception as e:  # noqa: BLE001 -- structured error, no crash
             logger.exception("MCP tool %s failed", name)
             return _error_content(f"{type(e).__name__}: {e}", kind="error")
+
+    async def _dispatch_write(
+        self, name: str, arguments: dict[str, Any],
+    ) -> list[types.TextContent | types.ImageContent]:
+        """Authorize, then (in 2A) prove the gate without facade side effects.
+
+        Phase 2B will replace the 'not implemented' return with real write
+        handlers that call the facade only after ``authorize()`` succeeds.
+        """
+        if self.authorizer is None:
+            # No authorizer attached means writes are not configured at all:
+            # refuse with the structured shape rather than silently allowing.
+            return _text_content({
+                "ok": False,
+                "refusal": {
+                    "tool": name, "blocked_by": "mcp_policy",
+                    "reason": "write tools not configured on this server",
+                    "security_level": WRITE_TOOL_SECURITY_LEVELS.get(name, "sensitive"),
+                },
+            })
+        url = str(arguments.get("url", ""))
+        result = await self.authorizer.authorize(
+            tool=name, arguments=arguments, url=url,
+        )
+        if not result.allowed:
+            return _refusal_content(name, result)
+        # 2A gate-prove path: authorized, but no facade call yet.
+        return _text_content({
+            "ok": True,
+            "authorized": True,
+            "tool": name,
+            "note": "permission substrate (Phase 2A): authorized; tool implementation lands in Phase 2B",
+            "actions_used": self.authorizer.policy.actions_used,
+        })
 
     # --- read-only tools (none of these lazy-start except where noted) ---
 
