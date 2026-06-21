@@ -36,10 +36,11 @@ EXPECTED_TOOL_NAMES = {
     "browser_status", "current_url", "observe",
     "extract_text", "screenshot", "list_tabs",
 }
-# Explicitly excluded -- none of these may be present.
+# Explicitly excluded from both Phase 1 and Phase 2 -- these are NEVER tools.
+# (navigate/click/fill/scroll/press_key/open_tab/close_tab ARE known Phase 2
+# write tools now -- they're gated by the permission substrate, not excluded.)
 EXCLUDED_TOOL_NAMES = {
-    "navigate", "click", "fill", "scroll", "press_key",
-    "open_tab", "close_tab", "download", "upload", "act", "eval",
+    "download", "upload", "act", "eval", "execute_js",
 }
 
 
@@ -83,11 +84,11 @@ class TestDispatcherErrors:
     async def test_unknown_tool_returns_structured_error(self):
         runtime = MCPBrowserRuntime()
         dispatcher = ToolDispatcher(runtime)
-        result = await dispatcher.dispatch("navigate", {"url": "https://x"})
+        result = await dispatcher.dispatch("nonexistent_tool", {})
         payload = json.loads(result[0].text)
         assert payload["ok"] is False
         assert "Unknown tool" in payload["error"]
-        assert "navigate" in payload["error"]
+        assert "nonexistent_tool" in payload["error"]
 
     @pytest.mark.asyncio
     async def test_excluded_tools_are_not_dispatched(self):
