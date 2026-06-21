@@ -92,9 +92,9 @@ security = [
     "cryptography>=42.0",
 ]
 mcp = [
-    # Phase 1 read-only MCP server (stdio). The mcp dependency is light
-    # (no transitive browser deps) and is covered by import + entrypoint
-    # tests in tests/test_mcp_server.py. See docs/mcp.md and RFC #178.
+    # MCP server (stdio). The mcp dependency is light (no transitive
+    # browser deps) and is covered by tests in tests/test_mcp_*.py.
+    # See docs/mcp.md and RFC #178.
     "mcp>=1.0",
 ]
 cloud = [
