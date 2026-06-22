@@ -65,7 +65,7 @@ async def main():
     })
 
     # 3. Create the facade and run
-    async with SuperBrowser(llm_client=llm) as sb:
+    async with SuperBrowser(config=cfg, llm_client=llm) as sb:
         page = await sb.navigate("https://example.com")
         heading = await sb.extract("the page heading", selector="h1")
         print(f"Heading: {heading.data.extracted}")
@@ -191,7 +191,7 @@ Additional subsystems:
 | **Security Guardrails** | URL allow/deny lists, domain validation, sensitive-input redaction, structured refusals before side effects |
 | **MCP Server** | 13-tool stdio server (6 read-only + 7 write tools behind `MCPSessionPolicy` + `SecurityManager`). See [`docs/mcp.md`](docs/mcp.md). |
 | **Structured Results** | Every action returns a typed `ActionResult` with timing, method used, and error category |
-| **Behavioral Synthesis** | Bézier mouse paths, lognormal keystroke delays, inertial scroll from a deterministic seed |
+| **Behavioral Synthesis** | Bézier mouse paths, seeded human-like keystroke timing, inertial scroll from a deterministic seed |
 | **Vision** | Screenshot-based fallback for pages that resist DOM inspection |
 
 Full API documentation lives in [`docs/`](docs/).

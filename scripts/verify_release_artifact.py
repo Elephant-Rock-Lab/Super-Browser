@@ -101,13 +101,19 @@ def main() -> int:
     # ------------------------------------------------------------------
     # 2. Console script entry point
     # ------------------------------------------------------------------
-    print(f"\n{BOLD}2. Console script{RESET}")
+    print(f"\n{BOLD}2. Console scripts{RESET}")
 
     if "superbrowser = super_browser.cli:main" in entry_points:
         _ok("Entry point: superbrowser = super_browser.cli:main")
     else:
         _fail(f"Entry point missing or incorrect:\n  {entry_points}")
         failures.append("entry-point")
+
+    if "superbrowser-mcp = super_browser.mcp_server:main" in entry_points:
+        _ok("Entry point: superbrowser-mcp = super_browser.mcp_server:main")
+    else:
+        _fail("Entry point superbrowser-mcp missing or incorrect")
+        failures.append("entry-point-mcp")
 
     # ------------------------------------------------------------------
     # 3. [all] extra self-reference
