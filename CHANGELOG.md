@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] — 2026-06-22
+
+### Fixed
+
+- Fixed `superbrowser-mcp` / `python -m super_browser.mcp_server` startup crash caused by `logging.Stderr` (which does not exist in Python's stdlib); the MCP server entry point now configures logging with `sys.stderr`.
+- Added entry-point bootstrap coverage so the MCP console-script path is exercised directly.
+
 ## [2.3.0] — 2026-06-22
 
 ### Bug Fixes
