@@ -1,34 +1,27 @@
-"""MCP server exposing SuperBrowser read-only and write tools over stdio.
+"""MCP server exposing SuperBrowser over stdio using a four-tier tool model.
 
 This is a *tested, permissioned* restoration of the MCP server that was
 deleted in ``a370cf9`` ("untested, 290 lines"). The deleted server shipped
 10 tools including 6 side-effecting ones with no permission model; the current
-server ships read-only inspection tools by default and gated write tools when
-a write-enabled MCPSessionPolicy is provided.
+server partitions its surface into tiers and gates each appropriately.
 
-Read-only tools (always advertised):
-    observe         - page state (URL, title, interactive elements)
-    extract_text    - text content, optionally scoped to a selector
-    screenshot      - base64 PNG
-    list_tabs       - open tabs
-    current_url     - current URL only (no lazy browser start)
-    browser_status  - runtime status (works before browser startup)
+Default tools: inspect (browser_status, current_url, observe, extract_text,
+screenshot, list_tabs) + navigation (navigate, wait_for).
 
-Write tools (advertised when allow_writes=True, gated by MCPSessionPolicy +
-SecurityManager):
-    navigate        - go to a URL (domain allow/block enforced)
-    scroll          - scroll the page
-    press_key       - press a keyboard key
-    click           - click an element by selector
-    fill            - fill a form field (literal caller-supplied value only)
-    open_tab        - open a new tab
-    close_tab       - close a tab by ID
+Action tools (scroll, press_key, click, fill, open_tab, close_tab):
+hidden unless action mode is enabled via --allow-actions or
+SB_MCP_ALLOW_ACTIONS=1|true|yes|on.
+
+Navigation is always security-checked (injection detection and secret
+redaction by default; domain allow/block lists when
+SB_MCP_DOMAIN_ALLOWLIST or SB_MCP_DOMAIN_BLOCKLIST is set). It does not
+consume the action budget.
 
 Still excluded: download, upload, act, arbitrary JS execution.
 
 Run via:
     python -m super_browser.mcp_server
-    superbrowser-mcp
+    superbrowser-mcp [--allow-actions]
 """
 
 from __future__ import annotations
@@ -36,9 +29,10 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import sys
 import time
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any
 
 from mcp import types
@@ -98,6 +92,39 @@ PHASE1_TOOLS: list[types.Tool] = [
 ]
 
 _PHASE1_TOOL_NAMES = frozenset(t.name for t in PHASE1_TOOLS)
+
+
+# --- Navigation-tier tool: wait_for (page-acquisition / read workflow) ---
+
+NAVIGATION_AUX_TOOLS: list[types.Tool] = [
+    types.Tool(
+        name="wait_for",
+        description=(
+            "Wait for a page condition: selector present, text visible, URL "
+            "reached, or load state. Navigation-tier tool (default-allowed; "
+            "does not consume the action budget)."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "selector": {"type": "string", "description": "CSS selector to wait for."},
+                "text": {"type": "string", "description": "Text to wait for in the page body."},
+                "url": {"type": "string", "description": "URL pattern to wait for (glob)."},
+                "load_state": {
+                    "type": "string",
+                    "enum": ["load", "domcontentloaded", "networkidle"],
+                },
+                "timeout_ms": {
+                    "type": "integer", "default": 10000,
+                    "description": "Max wait time (ms). Must be 100-60000.",
+                },
+            },
+            "required": [],
+        },
+    ),
+]
+
+_NAVIGATION_AUX_TOOL_NAMES = frozenset(t.name for t in NAVIGATION_AUX_TOOLS)
 
 
 # --- Write tools: navigation and input (navigate, scroll, press_key) ---
@@ -197,6 +224,42 @@ PHASE2B_WAVE2_TOOLS: list[types.Tool] = [
 ]
 
 _PHASE2B_WAVE2_TOOL_NAMES = frozenset(t.name for t in PHASE2B_WAVE2_TOOLS)
+
+
+# --- Four-tier tool model (P1) ---
+#
+# The tool surface is partitioned into three advertised tiers (Inspect,
+# Navigation, Action) plus a future High-risk tier. The advertised-default
+# surface is Inspect + Navigation (reading requires page acquisition).
+#
+#   Inspect tier     - no page mutation (always advertised)
+#   Navigation tier  - page acquisition / read workflow (always advertised)
+#   Action tier      - page interaction (requires allow_actions)
+#   High-risk tier   - JS, files, storage, credentials (future, per-capability)
+#
+# Navigation mutates browser state (page acquisition) but is default-allowed
+# because reading requires a page to read. It is security-checked (injection,
+# redaction, domain policy when configured) but NOT action-gated and does NOT
+# consume the action budget.
+
+# Inspect-tier tools: the existing read-only set.
+INSPECT_TOOLS: list[types.Tool] = list(PHASE1_TOOLS)
+INSPECT_TOOL_NAMES = frozenset(t.name for t in INSPECT_TOOLS)
+
+# Navigation-tier tools: page acquisition (navigate) + read condition (wait_for).
+# `navigate` is lifted out of the write-tool gate into its own dispatch path.
+NAVIGATE_TOOL = PHASE2B_TOOLS[0]  # the navigate Tool definition lives here
+NAVIGATION_TOOLS: list[types.Tool] = [NAVIGATE_TOOL, *NAVIGATION_AUX_TOOLS]
+NAVIGATION_TOOL_NAMES = frozenset(t.name for t in NAVIGATION_TOOLS)
+
+# Action-tier tools: page interaction (requires allow_actions).
+# navigate is removed from the action set; scroll/press_key remain.
+ACTION_TOOLS: list[types.Tool] = [*PHASE2B_TOOLS[1:], *PHASE2B_WAVE2_TOOLS]
+ACTION_TOOL_NAMES = frozenset(t.name for t in ACTION_TOOLS)
+
+# Default advertised surface: Inspect + Navigation.
+DEFAULT_TOOLS: list[types.Tool] = [*INSPECT_TOOLS, *NAVIGATION_TOOLS]
+DEFAULT_TOOL_NAMES = frozenset(t.name for t in DEFAULT_TOOLS)
 
 
 # ============================================================================
@@ -338,37 +401,70 @@ def _image_content(png_bytes: bytes, mime: str = "image/png") -> types.ImageCont
 # Permission substrate
 # ============================================================================
 
-# Write-tool names that the server recognizes. All are gated by the
-# permission substrate — advertised only when allow_writes=True, and
-# every call routes through MCPAuthorizer before reaching the facade.
-WRITE_TOOL_NAMES = frozenset({
-    "navigate", "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
-})
+# Action-tool names (formerly "write tools"). navigate has been lifted into
+# the Navigation tier; these six are the action-budget-gated set. Retained
+# under the old name for backward-compat with older imports.
+WRITE_TOOL_NAMES = frozenset(ACTION_TOOL_NAMES)
 
-# Default security level per write tool. `fill` is SENSITIVE by default; it
+# Default security level per action tool. `fill` is SENSITIVE by default; it
 # becomes DANGEROUS only if later tied to credential stores (#180).
 WRITE_TOOL_SECURITY_LEVELS: dict[str, str] = {
-    "navigate": "sensitive", "scroll": "sensitive", "press_key": "sensitive",
-    "click": "sensitive", "fill": "sensitive", "open_tab": "sensitive",
-    "close_tab": "sensitive",
+    name: "sensitive" for name in ACTION_TOOL_NAMES
 }
+# navigate is still SENSITIVE (used by the navigation dispatch path's audit).
+NAVIGATION_SECURITY_LEVELS: dict[str, str] = {name: "sensitive" for name in NAVIGATION_TOOL_NAMES}
 
 
-@dataclass
+@dataclass(init=False)
 class MCPSessionPolicy:
-    """Per-session write-tool policy. Mutable: ``actions_used`` increments as
-    writes are authorized.
+    """Per-session tool policy across the four tiers.
 
-    Defaults are default-deny: ``allow_writes=False`` means the
-    permission path refuses every write tool until an explicit caller (config,
-    constructor, or CLI flag) opts in.
+    ``allow_actions`` is the primary knob: it gates the Action tier
+    (scroll/press_key/click/fill/open_tab/close_tab). ``allow_writes`` is a
+    backward-compatibility alias for callers written before the tier split
+    (released code may still pass ``allow_writes=True``). When both are
+    supplied, ``allow_writes`` wins (legacy callers expect their explicit
+    value to take effect).
+
+    Navigation-tier tools (navigate, wait_for) are default-allowed and are
+    NOT controlled by this flag. The Inspect tier is always allowed.
+
+    Mutable: ``actions_used`` increments as action-tier calls are authorized.
     """
 
-    allow_writes: bool = False
-    max_actions: int = 25
-    timeout_seconds: float = 120.0
-    started_at_monotonic: float = field(default_factory=time.monotonic)
-    actions_used: int = 0
+    allow_actions: bool
+    max_actions: int
+    timeout_seconds: float
+    started_at_monotonic: float
+    actions_used: int
+
+    def __init__(
+        self,
+        *,
+        allow_actions: bool = False,
+        allow_writes: bool | None = None,
+        max_actions: int = 25,
+        timeout_seconds: float = 120.0,
+        started_at_monotonic: float | None = None,
+        actions_used: int = 0,
+    ) -> None:
+        # Legacy callers passed allow_writes; honor it when explicit.
+        if allow_writes is not None:
+            allow_actions = allow_writes
+        self.allow_actions = allow_actions
+        self.max_actions = max_actions
+        self.timeout_seconds = timeout_seconds
+        self.started_at_monotonic = started_at_monotonic or time.monotonic()
+        self.actions_used = actions_used
+
+    @property
+    def allow_writes(self) -> bool:
+        """Backward-compat alias for ``allow_actions``."""
+        return self.allow_actions
+
+    @allow_writes.setter
+    def allow_writes(self, value: bool) -> None:
+        self.allow_actions = value
 
 
 @dataclass(frozen=True)
@@ -436,11 +532,13 @@ class MCPAuthorizer:
     ) -> MCPAuthorizationResult:
         level = security_level or WRITE_TOOL_SECURITY_LEVELS.get(tool, "sensitive")
 
-        # 1. Write-enabled gate.
-        if not self.policy.allow_writes:
+        # 1. Action-enabled gate. (allow_writes is a compat alias; reads the
+        #    same underlying flag. Message says "actions are disabled" because
+        #    the Action tier is what this gate protects.)
+        if not self.policy.allow_actions:
             result = MCPAuthorizationResult(
                 allowed=False, security_level=level,
-                blocked_by="mcp_policy", reason="writes are disabled",
+                blocked_by="mcp_policy", reason="actions are disabled",
             )
             self._record(tool, arguments, level, result)
             return result
@@ -516,6 +614,35 @@ class MCPAuthorizer:
             reason=result.reason,
         ))
 
+    def record_audit(
+        self,
+        *,
+        tool: str,
+        arguments: dict[str, Any],
+        security_level: str,
+        allowed: bool,
+        blocked_by: str | None = None,
+        reason: str | None = None,
+    ) -> MCPAuthorizationResult:
+        """Public audit helper for navigation-tier entries.
+
+        Navigation tools bypass the action-budget authorization path but still
+        need audit records (for both approvals and denials). This constructs the
+        ``MCPAuthorizationResult``, records it, and returns it so the caller can
+        pass it straight to ``_refusal_content()`` without rebinding.
+
+        Does NOT touch ``policy.actions_used`` — navigation does not consume the
+        action budget.
+        """
+        result = MCPAuthorizationResult(
+            allowed=allowed,
+            security_level=security_level,
+            blocked_by=blocked_by,
+            reason=reason,
+        )
+        self._record(tool, arguments, security_level, result)
+        return result
+
 
 # ============================================================================
 # Tool dispatcher (one central path, so permissions can hook in later)
@@ -539,49 +666,134 @@ class ToolDispatcher:
         self.authorizer = authorizer
 
     async def dispatch(self, name: str, arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent]:
-        # Write tools route through the permission path first.
-        if name in WRITE_TOOL_NAMES:
-            return await self._dispatch_write(name, arguments)
-        if name not in _PHASE1_TOOL_NAMES:
-            return _error_content(
-                f"Unknown tool: {name!r}. Available: {sorted(_PHASE1_TOOL_NAMES | WRITE_TOOL_NAMES)}",
-                kind="error",
+        # Action tier: gated by allow_actions + full authorization path.
+        if name in ACTION_TOOL_NAMES:
+            return await self._dispatch_action(name, arguments)
+        # Navigation tier: default-allowed, security-checked, audited, but
+        # NOT action-gated or action-budgeted.
+        if name in NAVIGATION_TOOL_NAMES:
+            return await self._dispatch_navigation(name, arguments)
+        # Inspect tier: allow-by-construction, no permission check.
+        if name in INSPECT_TOOL_NAMES:
+            handler = getattr(self, f"_tool_{name}", None)
+            if handler is None:
+                return _error_content(f"Tool {name!r} has no handler", kind="error")
+            try:
+                return await handler(arguments)
+            except Exception as e:  # noqa: BLE001 -- structured error, no crash
+                logger.exception("MCP tool %s failed", name)
+                return _error_content(f"{type(e).__name__}: {e}", kind="error")
+        # Unknown tool.
+        return _error_content(
+            f"Unknown tool: {name!r}. Available: {sorted(DEFAULT_TOOL_NAMES | ACTION_TOOL_NAMES)}",
+            kind="error",
+        )
+
+    async def _dispatch_navigation(
+        self, name: str, arguments: dict[str, Any],
+    ) -> list[types.TextContent | types.ImageContent]:
+        """Navigation-tier dispatch: validate → SecurityManager check (navigate
+        only) → audit → handler.
+
+        Navigation does NOT require ``allow_actions``, does NOT increment
+        ``actions_used``, and does NOT go through action-count/timeout checks.
+        navigate IS security-checked (injection + redaction + domain policy
+        when a SecurityManager is configured). Both approvals and denials are
+        audited via ``record_audit()``.
+        """
+        # 1. Validate args before any browser/security call. Invalid args must
+        #    not produce an audit entry.
+        validation_error = self._validate_navigation_args(name, arguments)
+        if validation_error is not None:
+            return validation_error
+
+        # 2. navigate: domain + injection + redaction check via SecurityManager,
+        #    then audit the outcome (approval OR denial). Navigation approvals
+        #    are ALWAYS audited, regardless of whether a SecurityManager is
+        #    configured. wait_for needs no security check (it reads).
+        if name == "navigate":
+            url = str(arguments.get("url", ""))
+
+            if self.authorizer is None:
+                # Navigation requires an authorizer for audit. If none is
+                # attached, refuse with a policy error (does not reach handler).
+                return _text_content({
+                    "ok": False,
+                    "refusal": {
+                        "tool": "navigate", "blocked_by": "mcp_policy",
+                        "reason": "navigation not configured on this server",
+                        "security_level": "sensitive",
+                    },
+                })
+
+            if self.authorizer.security_manager is not None:
+                from super_browser.security.types import SecurityLevel
+
+                sec_result = await self.authorizer.security_manager.check_action(
+                    "navigate", arguments, url, SecurityLevel.SENSITIVE,
+                )
+                if not sec_result.passed:
+                    # Audit the denial via the PUBLIC helper and reuse the
+                    # returned MCPAuthorizationResult for the refusal body.
+                    result = self.authorizer.record_audit(
+                        tool="navigate",
+                        arguments=arguments,
+                        security_level="sensitive",
+                        allowed=False,
+                        blocked_by="security_manager",
+                        reason=sec_result.blocked_by or "denied by security policy",
+                    )
+                    return _refusal_content("navigate", result)
+
+            # Audit the approval (whether or not a SecurityManager ran).
+            self.authorizer.record_audit(
+                tool="navigate",
+                arguments=arguments,
+                security_level="sensitive",
+                allowed=True,
             )
+
+        # 3. Execute the handler (after validation + security).
         handler = getattr(self, f"_tool_{name}", None)
         if handler is None:
             return _error_content(f"Tool {name!r} has no handler", kind="error")
         try:
             return await handler(arguments)
         except Exception as e:  # noqa: BLE001 -- structured error, no crash
-            logger.exception("MCP tool %s failed", name)
+            logger.exception("MCP navigation tool %s failed", name)
             return _error_content(f"{type(e).__name__}: {e}", kind="error")
 
-    async def _dispatch_write(
+    async def _dispatch_action(
         self, name: str, arguments: dict[str, Any],
     ) -> list[types.TextContent | types.ImageContent]:
-        """Authorize, then dispatch to the write handler.
+        """Action-tier dispatch: validate → action gate → authorize → handler.
 
-        Authorization happens before ANY facade/browser call. If denied,
-        the facade is never touched. All 7 write tools (navigate, scroll,
-        press_key, click, fill, open_tab, close_tab) have real handlers
-        that call the facade after the authorizer approves.
+        Authorization happens before ANY facade/browser call. If denied, the
+        facade is never touched. All 6 action tools (scroll, press_key, click,
+        fill, open_tab, close_tab) have real handlers that call the facade
+        after the authorizer approves.
         """
+        # 1. Validate args before authorization (invalid args must not consume
+        #    the action budget).
+        validation_error = self._validate_action_args(name, arguments)
+        if validation_error is not None:
+            return validation_error
+
+        # 2. No authorizer configured -> action tools not available.
         if self.authorizer is None:
             return _text_content({
                 "ok": False,
                 "refusal": {
                     "tool": name, "blocked_by": "mcp_policy",
-                    "reason": "write tools not configured on this server",
-                    "security_level": WRITE_TOOL_SECURITY_LEVELS.get(name, "sensitive"),
+                    "reason": "action tools not configured on this server",
+                    "security_level": "sensitive",
                 },
             })
 
-        # Argument validation BEFORE authorization — invalid args must not
-        # consume action budget.
-        validation_error = self._validate_write_args(name, arguments)
-        if validation_error is not None:
-            return validation_error
-
+        # 3. Full authorization path: action-gate → action-count → timeout →
+        #    SecurityManager → audit. The action-gate denial is audited here
+        #    (reason="actions are disabled"), preserving the audit-on-deny
+        #    contract.
         url = str(arguments.get("url", ""))
         result = await self.authorizer.authorize(
             tool=name, arguments=arguments, url=url,
@@ -589,70 +801,209 @@ class ToolDispatcher:
         if not result.allowed:
             return _refusal_content(name, result)
 
-        # Dispatch to the real handler (only after authorization succeeded).
+        # 4. Execute handler.
         handler = getattr(self, f"_tool_{name}", None)
         if handler is not None:
             try:
                 return await handler(arguments)
             except Exception as e:  # noqa: BLE001 -- structured error, no crash
-                logger.exception("MCP write tool %s failed", name)
+                logger.exception("MCP action tool %s failed", name)
                 return _error_content(f"{type(e).__name__}: {e}", kind="error")
 
-        # Should never reach here: every WRITE_TOOL_NAMES entry has a handler.
+        # Should never reach here: every ACTION_TOOL_NAMES entry has a handler.
         return _error_content(f"Tool {name!r} authorized but has no handler", kind="error")
 
     # --- argument validation (before authorization, before budget consumed) ---
 
     @staticmethod
-    def _validate_write_args(
+    def _validate_navigation_args(
         name: str, arguments: dict[str, Any],
     ) -> list[types.TextContent] | None:
-        """Return a structured error if args are invalid, else None."""
+        """Return a structured error if args are invalid, else None.
+
+        Covers navigate (existing rules) and wait_for (new rules). Validation
+        runs BEFORE any security check and produces NO audit entry.
+        """
         if name == "navigate":
             url = arguments.get("url")
             if not isinstance(url, str) or not url.strip():
-                return _error_content("'url' is required and must be a non-empty string", kind="invalid_arguments")
+                return _error_content(
+                    "'url' is required and must be a non-empty string",
+                    kind="invalid_arguments",
+                )
             wait_until = arguments.get("wait_until", "domcontentloaded")
             if not isinstance(wait_until, str) or wait_until not in ("load", "domcontentloaded", "networkidle"):
-                return _error_content("'wait_until' must be one of: load, domcontentloaded, networkidle", kind="invalid_arguments")
-        elif name == "scroll":
+                return _error_content(
+                    "'wait_until' must be one of: load, domcontentloaded, networkidle",
+                    kind="invalid_arguments",
+                )
+            return None
+
+        if name == "wait_for":
+            # timeout_ms: integer, 100 <= x <= 60000. Reject bool (int subtype).
+            timeout_ms = arguments.get("timeout_ms", 10000)
+            if not isinstance(timeout_ms, int) or isinstance(timeout_ms, bool):
+                return _error_content(
+                    "'timeout_ms' must be an integer",
+                    kind="invalid_arguments",
+                )
+            if timeout_ms < 100 or timeout_ms > 60000:
+                return _error_content(
+                    "'timeout_ms' must be between 100 and 60000",
+                    kind="invalid_arguments",
+                )
+            # Exactly one condition. (P1 rationale: deterministic single-condition
+            # results; compound waits can be added later as an explicit AND mode.)
+            conditions = [
+                key for key in ("selector", "text", "url", "load_state")
+                if isinstance(arguments.get(key), str) and arguments[key].strip()
+            ]
+            if len(conditions) != 1:
+                return _error_content(
+                    "Provide exactly one of: selector, text, url, load_state",
+                    kind="invalid_arguments",
+                )
+            if "load_state" in conditions and \
+                    arguments["load_state"] not in ("load", "domcontentloaded", "networkidle"):
+                return _error_content(
+                    "'load_state' must be one of: load, domcontentloaded, networkidle",
+                    kind="invalid_arguments",
+                )
+            return None
+
+        return None
+
+    @staticmethod
+    def _validate_action_args(
+        name: str, arguments: dict[str, Any],
+    ) -> list[types.TextContent] | None:
+        """Return a structured error if args are invalid, else None.
+
+        This is the navigate-free subset of the former ``_validate_write_args``.
+        Covers: scroll, press_key, click, fill, open_tab, close_tab.
+        """
+        if name == "scroll":
             direction = arguments.get("direction", "down")
             if direction not in ("up", "down", "left", "right"):
-                return _error_content("'direction' must be one of: up, down, left, right", kind="invalid_arguments")
+                return _error_content(
+                    "'direction' must be one of: up, down, left, right",
+                    kind="invalid_arguments",
+                )
             amount = arguments.get("amount", 3)
             if not isinstance(amount, int) or amount < 1:
-                return _error_content("'amount' must be a positive integer", kind="invalid_arguments")
+                return _error_content(
+                    "'amount' must be a positive integer",
+                    kind="invalid_arguments",
+                )
         elif name == "press_key":
             key = arguments.get("key")
             if not isinstance(key, str) or not key.strip():
-                return _error_content("'key' is required and must be a non-empty string", kind="invalid_arguments")
+                return _error_content(
+                    "'key' is required and must be a non-empty string",
+                    kind="invalid_arguments",
+                )
         elif name == "click":
             target = arguments.get("target")
             if not isinstance(target, str) or not target.strip():
-                return _error_content("'target' is required and must be a non-empty string", kind="invalid_arguments")
+                return _error_content(
+                    "'target' is required and must be a non-empty string",
+                    kind="invalid_arguments",
+                )
         elif name == "fill":
             target = arguments.get("target")
             if not isinstance(target, str) or not target.strip():
-                return _error_content("'target' is required and must be a non-empty string", kind="invalid_arguments")
+                return _error_content(
+                    "'target' is required and must be a non-empty string",
+                    kind="invalid_arguments",
+                )
             value = arguments.get("value")
             if not isinstance(value, str):
-                return _error_content("'value' is required and must be a string", kind="invalid_arguments")
+                return _error_content(
+                    "'value' is required and must be a string",
+                    kind="invalid_arguments",
+                )
         elif name == "open_tab":
             url = arguments.get("url")
             if url is not None and (not isinstance(url, str) or not url.strip()):
-                return _error_content("'url' must be a non-empty string if provided", kind="invalid_arguments")
+                return _error_content(
+                    "'url' must be a non-empty string if provided",
+                    kind="invalid_arguments",
+                )
         elif name == "close_tab":
             tab_id = arguments.get("tab_id")
             if not isinstance(tab_id, int) or tab_id < 0:
-                return _error_content("'tab_id' is required and must be a non-negative integer", kind="invalid_arguments")
+                return _error_content(
+                    "'tab_id' is required and must be a non-negative integer",
+                    kind="invalid_arguments",
+                )
         return None
 
-    # --- Write handlers: navigation and input (called only after authorization) ---
+    @staticmethod
+    def _validate_write_args(
+        name: str, arguments: dict[str, Any],
+    ) -> list[types.TextContent] | None:
+        """DEPRECATED alias retained for backward-compat with older callers.
+
+        Routes to the new tier-specific validator. New code should call
+        ``_validate_navigation_args`` or ``_validate_action_args`` directly.
+        """
+        if name in NAVIGATION_TOOL_NAMES:
+            return ToolDispatcher._validate_navigation_args(name, arguments)
+        return ToolDispatcher._validate_action_args(name, arguments)
+
+    # --- Navigation handlers (called after validation + security) ---
 
     async def _tool_navigate(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         ar = await sb.navigate(arguments["url"], wait_until=arguments.get("wait_until", "domcontentloaded"))
         return _text_content(_serialize_action_result(ar))
+
+    async def _tool_wait_for(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        """Wait for exactly one page condition (selector/text/url/load_state).
+
+        Reaches the raw Patchright/Playwright Page via ``sb._page.backend_page``
+        (one hop). Do NOT use ``.raw_page`` — it is deprecated and emits a
+        DeprecationWarning. This matches existing precedent in
+        ``stealth/captcha.py``, which waits on the raw page directly.
+        """
+        timeout_ms = arguments.get("timeout_ms", 10000)
+
+        sb = await self.runtime.get_browser()
+        page = getattr(sb, "_page", None)
+        if page is None:
+            return _error_content("browser has no active page", kind="error")
+
+        raw_page = getattr(page, "backend_page", None)
+        if raw_page is None:
+            return _error_content("browser page has no backend page", kind="error")
+
+        try:
+            if "selector" in arguments:
+                await raw_page.wait_for_selector(arguments["selector"], timeout=timeout_ms)
+                matched = "selector"
+            elif "text" in arguments:
+                # arg= is supported by both Patchright and Playwright (verified).
+                await raw_page.wait_for_function(
+                    "(needle) => document.body && document.body.innerText.includes(needle)",
+                    arg=arguments["text"],
+                    timeout=timeout_ms,
+                )
+                matched = "text"
+            elif "url" in arguments:
+                await raw_page.wait_for_url(arguments["url"], timeout=timeout_ms)
+                matched = "url"
+            elif "load_state" in arguments:
+                await raw_page.wait_for_load_state(arguments["load_state"], timeout=timeout_ms)
+                matched = "load_state"
+            else:
+                # Unreachable: validator guarantees exactly one condition.
+                return _error_content("no wait condition provided", kind="invalid_arguments")
+        except Exception as e:  # noqa: BLE001 -- timeouts surface as structured errors
+            return _text_content({"ok": False, "timeout": True, "reason": str(e)})
+
+        return _text_content({"ok": True, "matched": matched})
+
+    # --- Action handlers: input (called only after authorization) ---
 
     async def _tool_scroll(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
@@ -768,14 +1119,15 @@ def _require_no_args(arguments: dict[str, Any]) -> None:
 def _tools_for_policy(policy: MCPSessionPolicy) -> list[types.Tool]:
     """Return the tool list a server should advertise for the given policy.
 
-    Read-only tools are always advertised. Write tools are advertised only
-    when ``policy.allow_writes`` is True. Extracted so tests can assert on
-    the advertisement without spawning the stdio loop.
+    The default advertised surface is the Inspect + Navigation tiers (8 tools):
+    reading requires page acquisition. Action-tier tools are advertised only
+    when ``policy.allow_actions`` is True (``allow_writes`` is a compat alias).
+    Extracted so tests can assert on the advertisement without spawning the
+    stdio loop.
     """
-    tools = list(PHASE1_TOOLS)
-    if policy.allow_writes:
-        tools += list(PHASE2B_TOOLS)
-        tools += list(PHASE2B_WAVE2_TOOLS)
+    tools = list(DEFAULT_TOOLS)
+    if policy.allow_actions:
+        tools += list(ACTION_TOOLS)
     return tools
 
 
@@ -829,10 +1181,62 @@ def build_server(
     return server
 
 
-async def run_server(config: Any | None = None) -> None:
-    """Run the stdio MCP server to completion (blocks)."""
+def _env_truthy(name: str) -> bool:
+    """True if the named env var is one of the truthy sentinels.
+
+    Accepts (case-insensitive, after strip): 1, true, yes, on. Anything else
+    (including unset / empty / 0 / false) is False.
+    """
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_domain_list(name: str) -> tuple[str, ...]:
+    """Parse a comma- or whitespace-separated hostname/glob list from env.
+
+    Returns a tuple (empty if unset/blank). Used by _build_default_security_manager.
+    """
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return ()
+    parts = [p.strip() for p in raw.replace(",", " ").split()]
+    return tuple(p for p in parts if p)
+
+
+def _build_default_security_manager() -> Any:
+    """Construct a SecurityManager from environment config so navigation is
+    always security-checked.
+
+    With empty lists (the default), DomainFilter is allow-all and the manager
+    still runs injection detection + secret redaction on URL/params. Setting
+    SB_MCP_DOMAIN_BLOCKLIST or SB_MCP_DOMAIN_ALLOWLIST adds domain enforcement.
+    """
+    from super_browser.security import SecurityConfig, SecurityManager
+
+    config = SecurityConfig(
+        domain_allowlist=_parse_domain_list("SB_MCP_DOMAIN_ALLOWLIST"),
+        domain_blocklist=_parse_domain_list("SB_MCP_DOMAIN_BLOCKLIST"),
+    )
+    return SecurityManager(config)
+
+
+async def run_server(
+    config: Any | None = None,
+    *,
+    allow_actions: bool = False,
+    security_manager: Any | None = None,
+) -> None:
+    """Run the stdio MCP server to completion (blocks).
+
+    A default SecurityManager is constructed unless one is passed in, so
+    navigate is ALWAYS security-checked (injection + redaction; domain filter
+    when env lists are set).
+    """
+    if security_manager is None:
+        security_manager = _build_default_security_manager()
+
     runtime = MCPBrowserRuntime(config=config)
-    server = build_server(runtime)
+    policy = MCPSessionPolicy(allow_actions=allow_actions)
+    server = build_server(runtime, policy=policy, security_manager=security_manager)
     try:
         async with stdio_server() as (read_stream, write_stream):
             await server.run(
@@ -846,11 +1250,22 @@ async def run_server(config: Any | None = None) -> None:
 
 def main() -> None:
     """Console-script entry point: ``superbrowser-mcp``."""
+    import argparse
     import asyncio
 
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
+
+    parser = argparse.ArgumentParser(prog="superbrowser-mcp")
+    parser.add_argument(
+        "--allow-actions", action="store_true",
+        help="Enable action tools (click, fill, scroll, etc.)",
+    )
+    args, _unknown = parser.parse_known_args()
+
+    allow_actions = args.allow_actions or _env_truthy("SB_MCP_ALLOW_ACTIONS")
+
     try:
-        asyncio.run(run_server())
+        asyncio.run(run_server(allow_actions=allow_actions))
     except KeyboardInterrupt:
         pass
 

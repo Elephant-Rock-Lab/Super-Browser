@@ -77,7 +77,9 @@ class TestAuthorizerWritesDisabled:
         result = await authorizer.authorize(tool="navigate", arguments={"url": "https://x"})
         assert result.allowed is False
         assert result.blocked_by == "mcp_policy"
-        assert result.reason == "writes are disabled"
+        # P1: the action-gate message is "actions are disabled" (the gate
+        # protects the Action tier; allow_writes is a compat alias).
+        assert result.reason == "actions are disabled"
         assert result.security_level == "sensitive"
 
     @pytest.mark.asyncio
@@ -259,7 +261,7 @@ class TestDispatcherWriteGate:
         result = await dispatcher.dispatch("click", {"target": "#btn"})
         payload = json.loads(result[0].text)
         assert payload["ok"] is False
-        assert payload["refusal"]["reason"] == "writes are disabled"
+        assert payload["refusal"]["reason"] == "actions are disabled"
 
     @pytest.mark.asyncio
     async def test_all_write_tools_have_real_handlers(self):

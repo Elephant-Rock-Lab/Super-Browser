@@ -24,7 +24,7 @@ class TestMCPCallEntrypointBootstrap:
         """
         calls: list[str] = []
 
-        async def fake_run_server():
+        async def fake_run_server(*, allow_actions: bool = False, **kwargs):
             calls.append("run_server")
 
         def fake_asyncio_run(coro):
