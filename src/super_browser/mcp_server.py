@@ -36,6 +36,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import sys
 import time
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any
@@ -847,7 +848,7 @@ def main() -> None:
     """Console-script entry point: ``superbrowser-mcp``."""
     import asyncio
 
-    logging.basicConfig(level=logging.INFO, stream=logging.Stderr)
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr)
     try:
         asyncio.run(run_server())
     except KeyboardInterrupt:
