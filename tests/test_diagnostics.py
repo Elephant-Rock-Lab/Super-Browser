@@ -621,3 +621,44 @@ class TestRequestDetail:
         assert buf.request_detail("r-1")["status"] is None
         _fire_response(page, request=req, status=201, status_text="Created", ok=True)
         assert buf.request_detail("r-1")["status"] == 201
+
+
+# ============================================================================
+# Tasks 7+8: Facade wiring — buffer constructed, attached on start + tab switch
+# ============================================================================
+
+
+class TestFacadeWiring:
+    def test_superbrowser_exposes_diagnostics_property(self):
+        """A constructed SuperBrowser (pre-start) exposes a DiagnosticsBuffer."""
+        from super_browser import SuperBrowser
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        sb = SuperBrowser()
+        assert isinstance(sb.diagnostics, DiagnosticsBuffer)
+
+    def test_attach_diagnostics_helper_calls_buffer_attach(self):
+        """_attach_diagnostics(raw_page) delegates to the buffer."""
+        from super_browser import SuperBrowser
+
+        sb = SuperBrowser()
+        sb._diagnostics = MagicMock()  # type: ignore[assignment]
+        fake_page = _fake_page()
+        sb._attach_diagnostics(fake_page)
+        sb._diagnostics.attach.assert_called_once_with(fake_page)
+
+    def test_diagnostics_survives_across_attach_calls(self):
+        """Repeated _attach_diagnostics calls on different pages hit the same
+        buffer (session-wide, not per-page)."""
+        from super_browser import SuperBrowser
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        sb = SuperBrowser()
+        original = sb.diagnostics
+        p1 = _fake_page()
+        p2 = _fake_page()
+        sb._attach_diagnostics(p1)
+        sb._attach_diagnostics(p2)
+        # Same buffer instance the whole time.
+        assert sb.diagnostics is original
+        assert isinstance(sb.diagnostics, DiagnosticsBuffer)

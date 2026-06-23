@@ -80,8 +80,32 @@ class SuperBrowser:
         self._recorder: Any = None  # Optional[SessionRecorder]
         self._event_bus: Any = None  # Optional[EventBus]
         self._memory_store: Optional[MemoryStore] = None  # Set via enable_memory()
+        # Diagnostics: session-wide page-event capture (console/errors/network).
+        # Attached to every raw page via start()/_attach_page(); survives tab
+        # switches because listener closures bind to the raw Page, not PageHandle.
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+        buf_size = getattr(self._config, "event_buffer_size", 500) if self._config else 500
+        self._diagnostics = DiagnosticsBuffer(max_size=buf_size)
 
     # -- Lifecycle --
+
+    @property
+    def diagnostics(self) -> Any:
+        """Session-wide diagnostics buffer (console/page-errors/network).
+
+        Exposed for the MCP diagnostics tools and direct SDK consumers. Reads
+        are snapshots (non-destructive); see :class:`DiagnosticsBuffer`.
+        """
+        return self._diagnostics
+
+    def _attach_diagnostics(self, raw_page: Any) -> None:
+        """Wire diagnostics listeners onto a raw page.
+
+        Called from :meth:`start` (initial page) and :meth:`_attach_page`
+        (tab open/switch). Idempotent by raw-page identity inside the buffer,
+        so it is safe to call on every tab switch.
+        """
+        self._diagnostics.attach(raw_page)
 
     async def start(self) -> None:
         cfg = self._config
@@ -99,6 +123,8 @@ class SuperBrowser:
             await self._session.start()
             self._page = await self._session.new_page()
         self._controller = MultimodalController(self._page, self._page.engine_page.cdp)
+        # Wire diagnostics listeners onto the initial page.
+        self._attach_diagnostics(self._page.backend_page)
         self._running = True
         self._register_builtin_tools()
         self._configure_verification()
@@ -425,6 +451,8 @@ class SuperBrowser:
         cdp = CDPBridge(cdp_session, _SC())
         self._page = PageHandle(page_obj, cdp)
         self._controller = MultimodalController(self._page, self._page.engine_page.cdp)
+        # Wire diagnostics listeners onto the new tab/switched page.
+        self._attach_diagnostics(self._page.backend_page)
 
     # -- Multi-Tab --
 
