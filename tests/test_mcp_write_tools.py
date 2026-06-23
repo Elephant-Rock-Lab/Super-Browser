@@ -70,13 +70,14 @@ def _make_dispatcher(
 
 class TestNavigate:
     @pytest.mark.asyncio
-    async def test_denied_does_not_call_facade(self):
+    async def test_navigate_works_in_default_mode_without_allow_actions(self):
+        """navigate is navigation-tier: default-allowed, not action-gated.
+        Calling it with allow_actions=False still reaches the facade."""
         dispatcher, fake_sb = _make_dispatcher(allow_writes=False)
         result = await dispatcher.dispatch("navigate", {"url": "https://example.com"})
         payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        assert payload["refusal"]["reason"] == "writes are disabled"
-        fake_sb.navigate.assert_not_called()
+        assert payload["ok"] is True
+        fake_sb.navigate.assert_awaited_once_with("https://example.com", wait_until="domcontentloaded")
 
     @pytest.mark.asyncio
     async def test_allowed_calls_facade_navigate(self):
@@ -219,6 +220,7 @@ class TestWriteAuditAndBudget:
         await dispatcher.dispatch("scroll", {"direction": "down"})
         assert len(dispatcher.authorizer.audit_log) == 1
         assert dispatcher.authorizer.audit_log[0].allowed is False
+        assert dispatcher.authorizer.audit_log[0].reason == "actions are disabled"
 
 
 # ============================================================================

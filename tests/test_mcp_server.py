@@ -32,17 +32,24 @@ from super_browser.mcp_server import (
     build_server,
 )
 
-# Read-only tool set (always advertised).
-READ_ONLY_TOOL_NAMES = {
+# Inspect-tier tool set (always advertised).
+INSPECT_TOOL_NAMES = {
     "browser_status", "current_url", "observe",
     "extract_text", "screenshot", "list_tabs",
 }
-# Write tool set (advertised only when allow_writes=True).
-WRITE_TOOL_NAMES = {
-    "navigate", "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
+# Navigation-tier tool set (always advertised).
+NAVIGATION_TOOL_NAMES = {"navigate", "wait_for"}
+# Default advertised set: Inspect + Navigation (8 tools).
+DEFAULT_TOOL_NAMES = INSPECT_TOOL_NAMES | NAVIGATION_TOOL_NAMES
+# Action-tier tool set (advertised only when allow_actions=True).
+ACTION_TOOL_NAMES = {
+    "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
 }
-# All 13 tools when writes are enabled.
-ALL_TOOL_NAMES = READ_ONLY_TOOL_NAMES | WRITE_TOOL_NAMES
+# All 14 tools when actions are enabled.
+ALL_TOOL_NAMES = DEFAULT_TOOL_NAMES | ACTION_TOOL_NAMES
+# Backward-compat aliases for older test references.
+READ_ONLY_TOOL_NAMES = INSPECT_TOOL_NAMES
+WRITE_TOOL_NAMES = ACTION_TOOL_NAMES
 # NEVER tools — genuinely absent from all phases.
 EXCLUDED_TOOL_NAMES = {
     "download", "upload", "act", "eval", "execute_js",
@@ -412,42 +419,44 @@ class TestServerWiring:
         assert hasattr(server, "_sb_authorizer")  # type: ignore[attr-defined]
         assert server._sb_authorizer is not None  # type: ignore[attr-defined]
 
-    def test_default_server_advertises_exactly_6_read_only_tools(self):
-        """Default build_server() advertises exactly the 6 read-only tools,
-        verified through the actual advertisement function, not a constant."""
+    def test_default_server_advertises_exactly_8_default_tools(self):
+        """Default build_server() advertises exactly the 8 default tools
+        (6 inspect + 2 navigation), verified through the actual advertisement
+        function, not a constant."""
         from super_browser.mcp_server import _tools_for_policy
 
         server = build_server()
         policy = server._sb_policy  # type: ignore[attr-defined]
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
-        assert advertised_names == READ_ONLY_TOOL_NAMES
-        assert len(advertised) == 6
+        assert advertised_names == DEFAULT_TOOL_NAMES
+        assert len(advertised) == 8
 
-    def test_write_enabled_server_advertises_exactly_13_tools(self):
-        """build_server(policy=allow_writes=True) advertises all 13 tools,
+    def test_actions_enabled_server_advertises_exactly_14_tools(self):
+        """build_server(policy=allow_actions=True) advertises all 14 tools,
         verified through the actual advertisement function."""
         from super_browser.mcp_server import _tools_for_policy
 
-        server = build_server(policy=MCPSessionPolicy(allow_writes=True))
+        server = build_server(policy=MCPSessionPolicy(allow_actions=True))
         policy = server._sb_policy  # type: ignore[attr-defined]
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
         assert advertised_names == ALL_TOOL_NAMES
-        assert len(advertised) == 13
+        assert len(advertised) == 14
 
     @pytest.mark.asyncio
     async def test_default_server_dispatch_returns_refusal_not_unknown(self):
-        """Default server: dispatching a write tool through the server-owned
-        dispatcher returns 'writes are disabled' refusal, not 'Unknown tool'.
-        This exercises the actual ToolDispatcher build_server() constructed."""
+        """Default server: dispatching an ACTION tool through the server-owned
+        dispatcher returns 'actions are disabled' refusal, not 'Unknown tool'.
+        (navigate is now default-allowed, so the action gate is exercised via
+        click.) This exercises the actual ToolDispatcher build_server() built."""
         server = build_server()
         dispatcher = server._sb_dispatcher  # type: ignore[attr-defined]
-        result = await dispatcher.dispatch("navigate", {"url": "https://example.com"})
+        result = await dispatcher.dispatch("click", {"target": "#btn"})
         payload = json.loads(result[0].text)
         assert payload["ok"] is False
         assert "refusal" in payload
-        assert payload["refusal"]["reason"] == "writes are disabled"
+        assert payload["refusal"]["reason"] == "actions are disabled"
 
     @pytest.mark.asyncio
     async def test_write_enabled_server_security_manager_deny_blocks_navigate(self):

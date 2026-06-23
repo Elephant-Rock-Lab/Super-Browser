@@ -69,7 +69,7 @@ class TestClick:
         result = await dispatcher.dispatch("click", {"target": "#btn"})
         payload = json.loads(result[0].text)
         assert payload["ok"] is False
-        assert payload["refusal"]["reason"] == "writes are disabled"
+        assert payload["refusal"]["reason"] == "actions are disabled"
         fake_sb.click.assert_not_called()
 
     @pytest.mark.asyncio
@@ -240,6 +240,7 @@ class TestWave2AuditAndBudget:
         await dispatcher.dispatch("open_tab", {})
         assert len(dispatcher.authorizer.audit_log) == 1
         assert dispatcher.authorizer.audit_log[0].allowed is False
+        assert dispatcher.authorizer.audit_log[0].reason == "actions are disabled"
 
 
 # ============================================================================

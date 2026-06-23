@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — MCP Server P1: Navigation Workflows
+
+The default MCP server can now read a URL end-to-end (`navigate → wait_for →
+observe/extract_text/screenshot`) without action mode. The tool surface was
+re-partitioned into a **four-tier model**:
+
+- **Inspect tier** (always advertised): `browser_status`, `current_url`,
+  `observe`, `extract_text`, `screenshot`, `list_tabs`.
+- **Navigation tier** (always advertised): `navigate`, `wait_for` (new).
+  Navigation mutates browser state (page acquisition) but is default-allowed
+  because reading requires a page to read. It is always `SecurityManager`-checked
+  (injection detection + secret redaction; domain allow/block when env lists are
+  set) and audited (both approvals and denials), but it does **not** consume the
+  action budget.
+- **Action tier** (requires `--allow-actions` / `SB_MCP_ALLOW_ACTIONS=1`):
+  `scroll`, `press_key`, `click`, `fill`, `open_tab`, `close_tab`.
+- **High-risk tier** (not implemented): `download`, `upload`, `act`, arbitrary JS.
+
+New APIs:
+
+- `wait_for` tool: wait for exactly one page condition (`selector` / `text` /
+  `url` / `load_state`) with `timeout_ms` (100–60000, default 10000).
+- `MCPSessionPolicy.allow_actions` (primary) with `allow_writes` retained as a
+  backward-compatibility alias.
+- `MCPAuthorizer.record_audit()` — public audit helper for navigation-tier
+  entries; returns the `MCPAuthorizationResult` it constructed.
+- `--allow-actions` CLI flag and `SB_MCP_ALLOW_ACTIONS` env var
+  (truthy sentinels: `1`, `true`, `yes`, `on`).
+- `SB_MCP_DOMAIN_ALLOWLIST` / `SB_MCP_DOMAIN_BLOCKLIST` env vars for opt-in
+  domain filtering on the default stdio server (comma- or whitespace-separated;
+  glob patterns supported).
+- `run_server()` now constructs a default `SecurityManager` so navigation is
+  always security-checked; callers may pass `security_manager=` to override.
+
+### Changed
+
+- **Default advertised tool count: 6 → 8** (adds `navigate` and `wait_for`).
+- `navigate` moved from the action-gated write tier to the default-allowed
+  navigation tier.
+- Action-gate refusal message changed from `"writes are disabled"` to
+  `"actions are disabled"` (the gate protects the Action tier).
+- `_tools_for_policy()` now advertises `DEFAULT_TOOLS` (inspect + navigation)
+  by default and adds `ACTION_TOOLS` when `allow_actions` is set.
+- `main()` now uses `argparse` (previously raw `sys.argv` substring matching).
+
+### Breaking
+
+- The action-gate refusal `reason` changed from `"writes are disabled"` to
+  `"actions are disabled"`. Clients/docs pattern-matching the old string must
+  update. (`MCPSessionPolicy(allow_writes=True)` callers are otherwise
+  unaffected — the flag still enables action tools via the compat alias.)
+- The default stdio server now advertises 8 tools, not 6. Clients asserting on
+  the advertised count must update.
+
+### Internal
+
+- Tier constants: `INSPECT_TOOLS` / `NAVIGATION_TOOLS` / `ACTION_TOOLS` /
+  `DEFAULT_TOOLS` and their `_NAME` frozensets. (`PHASE1_TOOLS`,
+  `PHASE2B_TOOLS`, `PHASE2B_WAVE2_TOOLS`, and `WRITE_TOOL_NAMES` retained as
+  aliases for backward-compat imports.)
+- `_validate_write_args` split into `_validate_navigation_args` and
+  `_validate_action_args`; the old name remains as a routing alias.
+- `wait_for` reaches the raw Patchright/Playwright page via
+  `sb._page.backend_page` (one hop); the deprecated `.raw_page` accessor is
+  not used.
+
 ## [2.3.1] — 2026-06-22
 
 ### Fixed

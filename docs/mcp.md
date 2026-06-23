@@ -5,9 +5,9 @@ Super Browser exposes its browser inspection and control surface over the
 agents (Claude, Cursor, etc.) can observe and interact with a page without
 scripting Python.
 
-The stdio server advertises **six read-only tools** by default. When
-constructed with a write-enabled `MCPSessionPolicy`, it advertises **seven
-additional side-effecting tools**; each write call is still checked by
+The stdio server advertises **eight tools by default** (six inspect + two
+navigation) — enough to read a URL end-to-end. When action mode is enabled,
+it advertises **six additional action tools**; every action call is checked by
 `MCPSessionPolicy` and `SecurityManager` before it can reach the browser.
 
 See [RFC #178](https://github.com/Octo-Lex/Super-Browser/issues/178) for the
@@ -30,13 +30,21 @@ python -m patchright install chromium
 Either of:
 
 ```bash
-superbrowser-mcp
+superbrowser-mcp                       # default: 8 tools (inspect + navigation)
+superbrowser-mcp --allow-actions       # 14 tools (adds the action tier)
 python -m super_browser.mcp_server
 ```
 
-Both start a **stdio** server. The default server advertises 6 read-only
-tools and recognizes (but refuses) write-tool calls with a structured policy
-refusal.
+Both start a **stdio** server. The default server advertises 8 tools and
+recognizes (but refuses) action-tool calls with a structured policy refusal.
+
+Action mode can also be enabled via the environment:
+
+```bash
+SB_MCP_ALLOW_ACTIONS=1 superstl-browser-mcp
+```
+
+Accepted truthy values: `1`, `true`, `yes`, `on` (case-insensitive).
 
 ## Client configuration
 
@@ -67,6 +75,19 @@ Or, if you prefer the module form:
 }
 ```
 
+To enable action tools:
+
+```json
+{
+  "mcpServers": {
+    "super-browser": {
+      "command": "superbrowser-mcp",
+      "args": ["--allow-actions"]
+    }
+  }
+}
+```
+
 ### Cursor
 
 ```json
@@ -84,7 +105,10 @@ Or, if you prefer the module form:
 All tools return structured JSON (`{"ok": bool, ...}`) as `TextContent`. The
 screenshot tool additionally returns an `ImageContent` block.
 
-### Read-only tools (always advertised)
+The tool surface is partitioned into four tiers. The first two are always
+advertised; the third requires action mode; the fourth is not implemented.
+
+### Inspect tier (always advertised)
 
 | Tool | Args | Behavior | Lazy-starts browser? |
 |---|---|---|---|
@@ -95,11 +119,33 @@ screenshot tool additionally returns an `ImageContent` block.
 | `screenshot` | `full_page` (optional, default `false`) | Base64 PNG of the viewport or full page. | Yes |
 | `list_tabs` | none | Snapshot of open tabs. | Yes |
 
-### Write tools (advertised when writes are enabled)
+### Navigation tier (always advertised)
+
+Navigation mutates browser state (page acquisition) but is default-allowed
+because reading requires a page to read. It is always checked by the
+`SecurityManager` and is audited, but it does **not** consume the action
+budget and does **not** require action mode.
+
+| Tool | Args | Behavior |
+|---|---|---|
+| `navigate` | `url` (required), `wait_until` (optional) | Go to a URL. URL is passed to `SecurityManager` for injection detection, secret redaction, and domain allow/block enforcement. |
+| `wait_for` | exactly one of `selector` / `text` / `url` / `load_state`; `timeout_ms` (optional, 100–60000, default 10000) | Wait for a page condition before the next read. |
+
+`wait_for` accepts exactly one condition per call (deterministic single
+results; compound waits can be added later as an explicit AND mode).
+
+#### Read workflow
+
+```text
+navigate → wait_for → observe / extract_text / screenshot
+```
+
+This is the default-mode loop an agent uses to read a page.
+
+### Action tier (advertised when action mode is enabled)
 
 | Tool | Args | Security level |
 |---|---|---|
-| `navigate` | `url` (required), `wait_until` (optional) | SENSITIVE — URL passed to `SecurityManager` for domain allow/block enforcement |
 | `scroll` | `direction` (optional), `amount` (optional) | SENSITIVE |
 | `press_key` | `key` (required) | SENSITIVE |
 | `click` | `target` (required), `description` (optional) | SENSITIVE |
@@ -110,28 +156,66 @@ screenshot tool additionally returns an `ImageContent` block.
 `fill` sends only the literal value supplied by the caller. It does not
 retrieve, infer, store, or auto-fill credentials.
 
-### Asymmetric default behavior
+#### Action workflow
 
-The default server behavior is intentionally asymmetric:
+```bash
+superbrowser-mcp --allow-actions
+```
 
-- **`list_tools()`** advertises only the 6 read-only tools.
-- **`call_tool()`** still recognizes write-tool names and returns a structured
-  policy refusal (`refusal.reason = "writes are disabled"`), not an "Unknown
+Action calls pass through the full authorization path (action gate →
+action-count budget → timeout budget → `SecurityManager` → audit) before
+reaching the browser.
+
+### High-risk tier (not implemented)
+
+`download`, `upload`, `act` (the LLM agent loop), and arbitrary JS execution
+are not implemented. They will return a structured "Unknown tool" error and
+will require a separate design pass before implementation.
+
+## Domain filtering
+
+Navigation is always security-checked, but domain allow/block enforcement is
+**opt-in** via environment variables. With neither set, the domain filter is
+allow-all (injection detection and secret redaction still run).
+
+```bash
+# Block specific hosts (comma- or whitespace-separated; glob patterns allowed)
+SB_MCP_DOMAIN_BLOCKLIST="evil.com, *.test" superstl-browser-mcp
+
+# Restrict to an allowlist (anything not matching is denied)
+SB_MCP_DOMAIN_ALLOWLIST="example.com, docs.example.com" superstl-browser-mcp
+```
+
+When both are set, the blocklist is evaluated first; the allowlist then
+restricts the survivors.
+
+## Four-tier tool model
+
+The default server behavior partitions the surface by risk:
+
+- **`list_tools()`** advertises only the Inspect + Navigation tiers (8 tools).
+- **`call_tool()`** still recognizes action-tool names and returns a structured
+  policy refusal (`refusal.reason = "actions are disabled"`), not an "Unknown
   tool" error.
 
-This means clients don't see write tools by default, but manual or
-unadvertised write calls are handled cleanly rather than misclassified.
+This means clients don't see action tools by default, but manual or
+unadvertised action calls are handled cleanly rather than misclassified.
 
-### Permission model (write tools)
+### Permission model (action tools)
 
-Every write-tool call passes through a central authorization path before
+Every action-tier call passes through a central authorization path before
 reaching the browser:
 
-1. **Write-enabled check** — `MCPSessionPolicy.allow_writes` must be `True`
+1. **Action-enabled check** — `MCPSessionPolicy.allow_actions` must be `True`
 2. **Action-count check** — `actions_used` must not exceed `max_actions`
 3. **Timeout-budget check** — session elapsed time must not exceed `timeout_seconds`
 4. **`SecurityManager.check_action()`** — domain allow/block lists, action policy, injection detection, redaction
-5. **Audit log** — every write attempt (allowed or denied) is recorded
+5. **Audit log** — every action attempt (allowed or denied) is recorded
+
+Navigation-tier calls use a lighter path: argument validation →
+`SecurityManager.check_action()` (navigate only) → audit (both approvals and
+denials) → handler. They bypass the action gate, action-count budget, and
+timeout budget.
 
 All denials return structured JSON as normal MCP content, never raised:
 
@@ -151,21 +235,11 @@ All denials return structured JSON as normal MCP content, never raised:
 
 - One browser per server process.
 - The browser lazy-starts on the first browser-dependent tool call
-  (`observe`, `extract_text`, `screenshot`, `list_tabs`, or any write tool
-  that reaches the facade after authorization).
+  (`navigate`, `wait_for`, `observe`, `extract_text`, `screenshot`,
+  `list_tabs`, or any action tool that reaches the facade after authorization).
 - `browser_status` and `current_url` are safe to call before startup and do
   **not** force a launch.
 - On server close, the runtime calls `SuperBrowser.stop()` to tear down.
-
-## Still excluded
-
-The following are not implemented and will return a structured "Unknown tool"
-error:
-
-`download`, `upload`, `act`, arbitrary JS execution.
-
-`act` (the LLM agent loop) is the highest-side-effect tool and will require
-a separate design pass before implementation.
 
 ## Errors
 
@@ -181,10 +255,37 @@ Argument-validation errors use the `invalid_arguments` key:
 {"ok": false, "invalid_arguments": "'query' is required and must be a non-empty string"}
 ```
 
+`wait_for` timeouts return a structured timeout result:
+
+```json
+{"ok": false, "timeout": true, "reason": "Timeout 10000ms exceeded"}
+```
+
+## Behavior changes
+
+### `superbrowser-sdk` 2.4 — navigation tier
+
+Prior to 2.4, the default MCP server advertised 6 read-only tools and gated
+**all** side-effecting tools (including `navigate`) behind `allow_writes=True`.
+
+In 2.4 the tool surface was re-partitioned into four tiers:
+
+- `navigate` moved into a default-allowed **Navigation tier** (reading requires
+  page acquisition). It is still `SecurityManager`-checked and audited.
+- `wait_for` was added (navigation tier).
+- The former "write tools" became the **Action tier**, gated by
+  `allow_actions` (`--allow-actions` / `SB_MCP_ALLOW_ACTIONS`).
+- The action-gate refusal message changed from `"writes are disabled"` to
+  `"actions are disabled"`. Clients pattern-matching the old string must update.
+
+`allow_writes` remains as a backward-compatibility alias for `allow_actions`
+in `MCPSessionPolicy`; existing callers using `MCPSessionPolicy(allow_writes=True)`
+continue to work.
+
 ## Reference
 
 - Design: [RFC #178](https://github.com/Octo-Lex/Super-Browser/issues/178)
 - The deleted prior server (`a370cf9`) is recoverable from git history for
   reference — it shipped 10 tools including 6 side-effecting ones with no
   permission model and no tests. The current server is the deliberate
-  correction: tested, permissioned, with structured refusals and audit logging.
+  correction: tested, permissioned, tiered, with structured refusals and audit logging.
