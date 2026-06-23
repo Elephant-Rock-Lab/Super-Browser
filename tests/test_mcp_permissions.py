@@ -245,14 +245,17 @@ class TestAuditLog:
 
 class TestDispatcherWriteGate:
     @pytest.mark.asyncio
-    async def test_write_tool_without_authorizer_refuses(self):
-        """No authorizer attached -> writes not configured -> refuse."""
+    async def test_action_tool_without_authorizer_refuses(self):
+        """No authorizer attached -> action tools not configured -> refuse.
+
+        (navigate is now navigation-tier and default-allowed, so it is no
+        longer the right tool to exercise this gate — use an action tool.)"""
         dispatcher = ToolDispatcher(MCPBrowserRuntime(), authorizer=None)
-        result = await dispatcher.dispatch("navigate", {"url": "https://x"})
+        result = await dispatcher.dispatch("click", {"target": "#btn"})
         payload = json.loads(result[0].text)
         assert payload["ok"] is False
         assert payload["refusal"]["blocked_by"] == "mcp_policy"
-        assert payload["refusal"]["tool"] == "navigate"
+        assert payload["refusal"]["tool"] == "click"
 
     @pytest.mark.asyncio
     async def test_write_tool_writes_disabled_refuses(self):

@@ -708,23 +708,13 @@ class ToolDispatcher:
             return validation_error
 
         # 2. navigate: domain + injection + redaction check via SecurityManager,
-        #    then audit the outcome (approval OR denial). Navigation approvals
-        #    are ALWAYS audited, regardless of whether a SecurityManager is
-        #    configured. wait_for needs no security check (it reads).
-        if name == "navigate":
+        #    then audit the outcome (approval OR denial). Both the security
+        #    check and the audit are conditional on an authorizer being
+        #    attached; navigation itself is default-allowed and proceeds even
+        #    with a bare ToolDispatcher(runtime) (no audit, no security check).
+        #    wait_for needs no security check (it reads).
+        if name == "navigate" and self.authorizer is not None:
             url = str(arguments.get("url", ""))
-
-            if self.authorizer is None:
-                # Navigation requires an authorizer for audit. If none is
-                # attached, refuse with a policy error (does not reach handler).
-                return _text_content({
-                    "ok": False,
-                    "refusal": {
-                        "tool": "navigate", "blocked_by": "mcp_policy",
-                        "reason": "navigation not configured on this server",
-                        "security_level": "sensitive",
-                    },
-                })
 
             if self.authorizer.security_manager is not None:
                 from super_browser.security.types import SecurityLevel
