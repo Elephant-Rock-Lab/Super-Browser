@@ -5,9 +5,10 @@ Super Browser exposes its browser inspection and control surface over the
 agents (Claude, Cursor, etc.) can observe and interact with a page without
 scripting Python.
 
-The stdio server advertises **eight tools by default** (six inspect + two
-navigation) — enough to read a URL end-to-end. When action mode is enabled,
-it advertises **six additional action tools**; every action call is checked by
+The stdio server advertises **thirteen tools by default** (six inspect + five
+diagnostics + two navigation) — enough to read a URL end-to-end and explain
+why a read failed. When action mode is enabled, it advertises **six additional
+action tools**; every action call is checked by
 `MCPSessionPolicy` and `SecurityManager` before it can reach the browser.
 
 See [RFC #178](https://github.com/Octo-Lex/Super-Browser/issues/178) for the
@@ -30,12 +31,12 @@ python -m patchright install chromium
 Either of:
 
 ```bash
-superbrowser-mcp                       # default: 8 tools (inspect + navigation)
+superbrowser-mcp                       # default: 13 tools (inspect + diagnostics + navigation)
 superbrowser-mcp --allow-actions       # 14 tools (adds the action tier)
 python -m super_browser.mcp_server
 ```
 
-Both start a **stdio** server. The default server advertises 8 tools and
+Both start a **stdio** server. The default server advertises 13 tools and
 recognizes (but refuses) action-tool calls with a structured policy refusal.
 
 Action mode can also be enabled via the environment:
@@ -118,6 +119,21 @@ advertised; the third requires action mode; the fourth is not implemented.
 | `extract_text` | `query` (required), `selector` (optional) | Text content, optionally scoped to a CSS selector. | Yes |
 | `screenshot` | `full_page` (optional, default `false`) | Base64 PNG of the viewport or full page. | Yes |
 | `list_tabs` | none | Snapshot of open tabs. | Yes |
+| `get_console_messages` | `level` (optional), `limit` (optional, default 100) | Buffered browser console messages (snapshot, non-destructive). | Yes |
+| `get_page_errors` | `limit` (optional, default 100) | Buffered uncaught page errors with stack traces. | Yes |
+| `get_network_errors` | `url_filter` (optional), `limit` (optional, default 100) | Requests that failed (status ≥ 400, no response, or net error). | Yes |
+| `list_requests` | `url_filter` (optional), `resource_type` (optional), `limit` (optional, default 100) | All buffered request summaries; returns `request_id` for `get_request`. | Yes |
+| `get_request` | `request_id` (required) | One request's metadata (method, url, status, `header_names` — keys only, no values, no body). | Yes |
+
+The five diagnostics tools read from a session-wide ring buffer that captures
+console messages, page errors, and network requests via page-event listeners.
+Reads are **snapshots** (non-destructive): the buffer is not cleared on read.
+Diagnostics entries carry a monotonic `seq`, a `timestamp_ms`, and the
+`page_url` at the time of the event. Request records use a stable `request_id`
+(assigned by the buffer); a URL can have multiple requests, so always retrieve
+via `request_id` from `list_requests`, not by URL. **No response bodies and no
+raw header values** are returned — `get_request` exposes `header_names` (keys)
+only.
 
 ### Navigation tier (always advertised)
 
@@ -141,6 +157,24 @@ navigate → wait_for → observe / extract_text / screenshot
 ```
 
 This is the default-mode loop an agent uses to read a page.
+
+#### Debugging workflow
+
+When a read returns unexpected or empty content, the diagnostics tools explain
+why — without expanding the action surface:
+
+```text
+navigate → wait_for → extract_text / observe
+        ↓ (unexpected / empty / errored)
+get_console_messages → get_page_errors → get_network_errors
+        ↓ (inspect the evidence)
+list_requests → get_request(request_id=...)   (drill into one request)
+        ↓
+adjust selector / report failure / retry
+```
+
+Diagnostics are inspect-tier: no `--allow-actions`, no action budget, no audit
+entry, no side effects.
 
 ### Action tier (advertised when action mode is enabled)
 
@@ -193,7 +227,7 @@ restricts the survivors.
 
 The default server behavior partitions the surface by risk:
 
-- **`list_tools()`** advertises only the Inspect + Navigation tiers (8 tools).
+- **`list_tools()`** advertises only the Inspect + Navigation tiers (13 tools).
 - **`call_tool()`** still recognizes action-tool names and returns a structured
   policy refusal (`refusal.reason = "actions are disabled"`), not an "Unknown
   tool" error.
