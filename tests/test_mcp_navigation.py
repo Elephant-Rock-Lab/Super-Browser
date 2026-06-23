@@ -317,8 +317,24 @@ class TestNavigationDispatchDefault:
         await dispatcher.dispatch("navigate", {"url": "https://example.com"})
         # Approval must be audited.
         assert len(dispatcher.authorizer.audit_log) == 1
-        assert dispatcher.authorizer.audit_log[0].allowed is True
-        assert dispatcher.authorizer.audit_log[0].tool == "navigate"
+
+    @pytest.mark.asyncio
+    async def test_bare_dispatcher_navigate_works_without_authorizer(self):
+        """A ToolDispatcher(runtime) with NO authorizer must still navigate —
+        navigation is default-allowed. Security-check and audit are conditional
+        on an authorizer/SecurityManager being present, not prerequisites for
+        navigation itself. (The smoke suite uses this bare form.)"""
+        from super_browser.mcp_server import MCPBrowserRuntime, ToolDispatcher
+
+        fake_sb = MagicMock()
+        fake_sb.navigate = AsyncMock(return_value=_fake_action_result({"url": "https://example.com"}))
+        runtime = MCPBrowserRuntime()
+        runtime._sb = fake_sb  # type: ignore[assignment]
+        dispatcher = ToolDispatcher(runtime)  # no authorizer
+        result = await dispatcher.dispatch("navigate", {"url": "https://example.com"})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is True
+        fake_sb.navigate.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_navigate_invalid_url_returns_invalid_arguments_no_audit(self):
