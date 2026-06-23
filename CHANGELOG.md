@@ -17,10 +17,11 @@ re-partitioned into a **four-tier model**:
   `observe`, `extract_text`, `screenshot`, `list_tabs`.
 - **Navigation tier** (always advertised): `navigate`, `wait_for` (new).
   Navigation mutates browser state (page acquisition) but is default-allowed
-  because reading requires a page to read. It is always `SecurityManager`-checked
-  (injection detection + secret redaction; domain allow/block when env lists are
-  set) and audited (both approvals and denials), but it does **not** consume the
-  action budget.
+  because reading requires a page to read. It is `SecurityManager`-checked and
+  audited (both approvals and denials) in the default stdio / `build_server()`
+  path, but it does **not** consume the action budget. Bare
+  `ToolDispatcher(runtime)` integrations may navigate without an attached
+  authorizer; in that case no audit/security check is performed.
 - **Action tier** (requires `--allow-actions` / `SB_MCP_ALLOW_ACTIONS=1`):
   `scroll`, `press_key`, `click`, `fill`, `open_tab`, `close_tab`.
 - **High-risk tier** (not implemented): `download`, `upload`, `act`, arbitrary JS.
@@ -39,7 +40,8 @@ New APIs:
   domain filtering on the default stdio server (comma- or whitespace-separated;
   glob patterns supported).
 - `run_server()` now constructs a default `SecurityManager` so navigation is
-  always security-checked; callers may pass `security_manager=` to override.
+  security-checked in the default stdio path; callers may pass
+  `security_manager=` to override (or `None` to disable).
 
 ### Changed
 
@@ -52,14 +54,21 @@ New APIs:
   by default and adds `ACTION_TOOLS` when `allow_actions` is set.
 - `main()` now uses `argparse` (previously raw `sys.argv` substring matching).
 
-### Breaking
+### Compatibility notes
 
 - The action-gate refusal `reason` changed from `"writes are disabled"` to
-  `"actions are disabled"`. Clients/docs pattern-matching the old string must
+  `"actions are disabled"`. Clients/docs pattern-matching the old string should
   update. (`MCPSessionPolicy(allow_writes=True)` callers are otherwise
   unaffected — the flag still enables action tools via the compat alias.)
 - The default stdio server now advertises 8 tools, not 6. Clients asserting on
-  the advertised count must update.
+  the advertised count should update.
+
+### Fixed
+
+- Fixed default navigation dispatch so bare `ToolDispatcher(runtime)`
+  integrations can use `navigate` without requiring an authorizer; security
+  checks and audit still run when an authorizer/security manager is attached,
+  including the default stdio server path.
 
 ### Internal
 
