@@ -13,6 +13,7 @@ bodies, no raw header values (header keys only).
 from __future__ import annotations
 
 import time
+import weakref
 from collections import deque
 from typing import Any
 
@@ -62,8 +63,12 @@ class DiagnosticsBuffer:
         # via response.request back-reference. (Request objects are hashable by
         # identity; we key by id() to avoid holding strong refs in the dict.)
         self._req_obj_index: dict[int, str] = {}
-        # Idempotent-attach tracking by raw page identity.
-        self._attached: set[int] = set()
+        # Idempotent-attach tracking by weak page identity. A WeakSet (rather
+        # than a set[int] of id() values) ensures a page that is GC'd drops
+        # out automatically, eliminating the id()-reuse window in which a
+        # newly-allocated page reusing a freed page's address would be wrongly
+        # treated as already-attached.
+        self._attached: "weakref.WeakSet[Any]" = weakref.WeakSet()
 
     # --- internal helpers ---
 
@@ -89,16 +94,17 @@ class DiagnosticsBuffer:
     def attach(self, raw_page: Any) -> None:
         """Wire console/pageerror/request/response listeners onto ``raw_page``.
 
-        Idempotent by raw-page identity: a second call with the same page
-        object is a no-op. Safe across repeated tab switches.
+        Idempotent by weak page identity: a second call with the same page
+        object is a no-op. The weak reference means a page that is GC'd
+        drops out of the tracking set automatically, so a later page that
+        happens to reuse a freed page's memory address is NOT wrongly treated
+        as already-attached. Safe across repeated tab switches.
         """
-        page_id = id(raw_page)
-        if page_id in self._attached:
+        if raw_page in self._attached:
             return
-        self._attached.add(page_id)
+        self._attached.add(raw_page)
 
         raw_page.on("console", lambda msg: self._on_console(raw_page, msg))
-        # pageerror/request/response wired in later tasks.
         raw_page.on("pageerror", lambda err: self._on_pageerror(raw_page, err))
         raw_page.on("request", lambda req: self._on_request(raw_page, req))
         raw_page.on("response", lambda resp: self._on_response(raw_page, resp))
@@ -108,9 +114,10 @@ class DiagnosticsBuffer:
 
         Note: Playwright/Patchright does not expose listener removal on the
         Page object, so this only clears the idempotency guard. Listeners on
-        a page that is being closed are harmless (the page is GC'd).
+        a page that is being closed are harmless (the page is GC'd, and the
+        WeakSet entry drops out automatically).
         """
-        self._attached.discard(id(raw_page))
+        self._attached.discard(raw_page)
 
     # --- placeholders for later tasks ---
 

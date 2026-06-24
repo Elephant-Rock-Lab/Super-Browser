@@ -96,6 +96,39 @@ class TestBufferDataModel:
         # Two attaches with a detach between → 8 on() calls total (4 + 4).
         assert page.on.call_count == 8
 
+    def test_attach_tracks_pages_weakly_not_by_raw_id(self):
+        """The attached-set holds weak references to page objects, not raw
+        id() integers. A page that is GC'd drops out automatically, so a
+        later page that reuses a freed page's memory address is NOT wrongly
+        treated as already-attached.
+
+        This is the documented fix for the id()-reuse window. We prove weak
+        tracking by deleting the only strong reference and forcing GC; the
+        WeakSet must then be empty (or not contain a new page at the same id).
+        """
+        import gc
+        import weakref
+
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer()
+        page = _fake_page()
+        buf.attach(page)
+        assert page in buf._attached  # type: ignore[attr-defined]
+        assert isinstance(buf._attached, weakref.WeakSet)  # type: ignore[attr-defined]
+
+        # Drop the strong ref + force GC → the WeakSet entry must vanish.
+        del page
+        gc.collect()
+        assert len(buf._attached) == 0  # type: ignore[attr-defined]
+
+        # A NEW page object (even if CPython reused the address) is not treated
+        # as already-attached, so it gets its listeners registered.
+        new_page = _fake_page()
+        buf.attach(new_page)
+        assert new_page.on.call_count == 4  # registered, not skipped
+        del new_page
+
     def test_console_ring_evicts_oldest_on_overflow(self):
         from super_browser.agent.diagnostics import DiagnosticsBuffer
 
