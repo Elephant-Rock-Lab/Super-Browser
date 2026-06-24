@@ -657,6 +657,69 @@ class TestRequestDetail:
 
 
 # ============================================================================
+# Request eviction: indexes pruned, request_detail reflects eviction
+# ============================================================================
+
+
+class TestRequestEviction:
+    """When the bounded deque evicts an old request, both correlation indexes
+    (_req_index and _req_obj_index) must be pruned so request_detail() returns
+    None (→ MCP not_found) and the obj index doesn't grow unbounded."""
+
+    def test_evicted_request_not_returned_by_request_detail(self):
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer(max_size=2)
+        page = _fake_page()
+        buf.attach(page)
+        r1 = _make_request(url="https://1.local")
+        _fire_request(page, r1)
+        r2 = _make_request(url="https://2.local")
+        _fire_request(page, r2)
+        assert buf.request_detail("r-1") is not None  # still in deque
+        # Third request evicts r-1 from the size-2 deque.
+        r3 = _make_request(url="https://3.local")
+        _fire_request(page, r3)
+        assert buf.request_detail("r-1") is None  # evicted → not_found
+        assert buf.request_detail("r-2") is not None
+        assert buf.request_detail("r-3") is not None
+
+    def test_evicted_request_obj_id_pruned_from_index(self):
+        """The _req_obj_index entry for an evicted request is removed, so the
+        index doesn't grow unbounded over the session lifetime."""
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer(max_size=1)
+        page = _fake_page()
+        buf.attach(page)
+        r1 = _make_request(url="https://1.local")
+        _fire_request(page, r1)
+        r1_obj_id = id(r1)
+        assert r1_obj_id in buf._req_obj_index  # type: ignore[attr-defined]
+        # Evict r-1.
+        r2 = _make_request(url="https://2.local")
+        _fire_request(page, r2)
+        assert r1_obj_id not in buf._req_obj_index  # type: ignore[attr-defined]
+        assert len(buf._req_obj_index) == 1  # type: ignore[attr-defined]
+
+    def test_internal_request_obj_id_not_in_public_output(self):
+        """The _request_obj_id plumbing key is stripped from requests() and
+        request_detail() — it must never leak into MCP responses."""
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer()
+        page = _fake_page()
+        buf.attach(page)
+        _fire_request(page, _make_request(url="https://x.local"))
+
+        listing = buf.requests()
+        assert "_request_obj_id" not in listing[0]
+        detail = buf.request_detail("r-1")
+        assert detail is not None
+        assert "_request_obj_id" not in detail
+
+
+# ============================================================================
 # Tasks 7+8: Facade wiring — buffer constructed, attached on start + tab switch
 # ============================================================================
 

@@ -220,6 +220,44 @@ class TestGetRequest:
         assert payload["ok"] is False
         assert "invalid_arguments" in payload
 
+    @pytest.mark.asyncio
+    async def test_evicted_request_returns_not_found(self):
+        """When a request is evicted from the bounded deque, get_request must
+        return {ok: false, reason: "not_found"}, not stale data."""
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer(max_size=1)
+        # Seed: one request that will be evicted.
+        buf._request_counter = 1
+        rec = {"seq": 1, "request_id": "r-1", "timestamp_ms": 1.0, "method": "GET",
+               "url": "https://gone.local", "resource_type": "fetch", "is_navigation": False,
+               "redirected_from": None, "status": None, "status_text": None, "ok": None,
+               "failed": False, "failure_text": None, "header_names": [], "page_url": "p",
+               "_request_obj_id": 9999}
+        buf._requests.append(rec)
+        buf._req_index["r-1"] = rec
+        buf._req_obj_index[9999] = "r-1"
+        # Now evict r-1 by appending a second request to the size-1 deque.
+        buf._request_counter = 2
+        rec2 = {"seq": 2, "request_id": "r-2", "timestamp_ms": 2.0, "method": "GET",
+                "url": "https://new.local", "resource_type": "fetch", "is_navigation": False,
+                "redirected_from": None, "status": 200, "status_text": "OK", "ok": True,
+                "failed": False, "failure_text": None, "header_names": [], "page_url": "p",
+                "_request_obj_id": 10000}
+        # Simulate the eviction path (prune-then-append).
+        evicted = buf._requests[0]
+        buf._req_index.pop(evicted.get("request_id"), None)
+        buf._req_obj_index.pop(evicted.get("_request_obj_id"), None)
+        buf._requests.append(rec2)
+        buf._req_index["r-2"] = rec2
+        buf._req_obj_index[10000] = "r-2"
+
+        dispatcher, _ = _make_dispatcher(buf)
+        result = await dispatcher.dispatch("get_request", {"request_id": "r-1"})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert payload["reason"] == "not_found"
+
 
 class TestDiagnosticsAreInspectTier:
     @pytest.mark.asyncio

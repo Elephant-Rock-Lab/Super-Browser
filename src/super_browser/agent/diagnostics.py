@@ -36,6 +36,15 @@ def _safe_call(obj: Any, attr: str, *, default: Any = None) -> Any:
         return default
 
 
+# Internal record keys that are never exposed in public snapshots/details.
+_INTERNAL_KEYS = frozenset({"_request_obj_id"})
+
+
+def _strip(record: dict) -> dict:
+    """Return a copy of ``record`` with internal plumbing keys removed."""
+    return {k: v for k, v in record.items() if k not in _INTERNAL_KEYS}
+
+
 class DiagnosticsBuffer:
     """Session-wide ring buffers for page diagnostic events.
 
@@ -177,7 +186,22 @@ class DiagnosticsBuffer:
             "failure_text": failure_text,
             "header_names": header_names,
             "page_url": getattr(raw_page, "url", None),
+            # Internal plumbing key — stripped from public output by _strip().
+            # Stored so the eviction path can prune _req_obj_index.
+            "_request_obj_id": id(request),
         }
+        # Prune both indexes BEFORE appending if this append will evict the
+        # oldest deque entry. Without this, _req_index/_req_obj_index grow
+        # unbounded for the session and request_detail() returns records that
+        # list_requests() can no longer see (eviction inconsistency).
+        if len(self._requests) == self.max_size:
+            evicted = self._requests[0]
+            evicted_rid = evicted.get("request_id")
+            if evicted_rid is not None:
+                self._req_index.pop(evicted_rid, None)
+            evicted_oid = evicted.get("_request_obj_id")
+            if evicted_oid is not None:
+                self._req_obj_index.pop(evicted_oid, None)
         self._requests.append(record)
         self._req_index[request_id] = record
         self._req_obj_index[id(request)] = request_id
@@ -239,7 +263,7 @@ class DiagnosticsBuffer:
         - ``failed_only``: requests where failed OR status>=400 OR status is None.
         - ``limit``: return the last N (None = all).
         """
-        items = list(self._requests)
+        items = [_strip(r) for r in self._requests]
         if url_filter is not None:
             items = [r for r in items if r.get("url") and url_filter in r["url"]]
         if resource_type is not None:
@@ -260,4 +284,4 @@ class DiagnosticsBuffer:
         structured ``{ok: false, reason: "not_found"}`` response.
         """
         rec = self._req_index.get(request_id)
-        return dict(rec) if rec is not None else None
+        return _strip(rec) if rec is not None else None
