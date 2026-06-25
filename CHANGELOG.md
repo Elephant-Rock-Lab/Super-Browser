@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed — Release tooling
+
+- `scripts/verify_release_artifact.py` now supports sdist (`.tar.gz`) artifacts
+  via `tarfile`, in addition to wheels (`.whl`) via `zipfile`. Previously the
+  verifier was wheel-only and threw `BadZipFile` on any sdist (hit during both
+  the v2.4.0 and v2.5.0 releases). Shared checks (distribution name, version,
+  extras, isolated install, import, CLI, README/docs scan) run for both archive
+  types; wheel-only checks (entry points, module shadowing guard) are skipped
+  for sdists with a clear "skipped" message. Unsupported archive types now fail
+  with a clear error instead of an opaque `BadZipFile`.
+
 ## [2.5.0] — 2026-06-25
 
 ### Added — MCP Server P2: Diagnostics Pack

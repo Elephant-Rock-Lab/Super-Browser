@@ -1,19 +1,27 @@
 #!/usr/bin/env python
 """Release artifact verification script.
 
-Verifies a built wheel against release-quality criteria:
-  1. Distribution name is ``superbrowser-sdk``
-  2. Import name ``super_browser`` is importable
-  3. Console script ``superbrowser`` is registered
-  4. ``[all]`` extra self-references ``superbrowser-sdk[...]``, not ``super-browser[...]``
-  5. ``superbrowser version`` exits 0 and prints the package version
-  6. README install commands use ``superbrowser-sdk``
-  7. No stale ``pip install super-browser[`` in user-facing docs
-  8. ``cli.py`` module does not exist (shadowing guard)
+Verifies a built wheel or sdist against release-quality criteria.
+
+Wheel-only checks (entry points, module shadowing guard, extras):
+  - run when the artifact is a ``.whl``
+  - skipped for sdists (``.tar.gz``) which lack ``entry_points.txt`` and the
+    flat package layout
+
+Shared checks (run for both):
+  - Distribution name is ``superbrowser-sdk``
+  - Version is present in metadata
+  - Package installs in a clean venv
+  - ``import super_browser`` works and reports the version
+  - ``superbrowser version`` CLI works
+  - CLI ``--help`` lists all subcommands
+  - README install commands use ``superbrowser-sdk``
+  - No stale ``pip install super-browser[`` in user-facing docs
 
 Usage::
 
     python scripts/verify_release_artifact.py dist/superbrowser_sdk-*.whl
+    python scripts/verify_release_artifact.py dist/superbrowser_sdk-*.tar.gz
 
 Exit code 0 = all checks passed, 1 = one or more checks failed.
 """
@@ -23,9 +31,11 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
+from typing import NamedTuple
 
 # ANSI colors (optional, gracefully degrades)
 GREEN = "\033[92m"
@@ -42,47 +52,101 @@ def _fail(msg: str) -> None:
     print(f"  {RED}✗{RESET} {msg}")
 
 
+# ---------------------------------------------------------------------------
+# Archive reading — dispatch by suffix
+# ---------------------------------------------------------------------------
+
+
+class ArchiveMeta(NamedTuple):
+    """Metadata extracted from a wheel or sdist archive."""
+
+    metadata: str           # METADATA (wheel) or PKG-INFO (sdist) content
+    entry_points: str       # entry_points.txt content (wheel only; "" for sdist)
+    names: list[str]        # member names
+    is_wheel: bool          # True for .whl, False for .tar.gz
+
+
+def _read_archive(artifact: Path) -> ArchiveMeta:
+    """Read metadata + member list from a wheel or sdist.
+
+    Raises ``ValueError`` for unsupported archive types.
+    """
+    name = artifact.name.lower()
+    if name.endswith(".whl"):
+        return _read_wheel(artifact)
+    if name.endswith(".tar.gz"):
+        return _read_sdist(artifact)
+    raise ValueError(
+        f"Unsupported archive type: {artifact.name}. "
+        "Expected a .whl wheel or a .tar.gz sdist."
+    )
+
+
+def _read_wheel(wheel_path: Path) -> ArchiveMeta:
+    with zipfile.ZipFile(wheel_path) as zf:
+        names = zf.namelist()
+        metadata_files = [n for n in names if n.endswith(".dist-info/METADATA")]
+        if not metadata_files:
+            raise ValueError("No METADATA file found in wheel")
+        metadata = zf.read(metadata_files[0]).decode("utf-8")
+        entry_files = [n for n in names if n.endswith(".dist-info/entry_points.txt")]
+        entry_points = zf.read(entry_files[0]).decode("utf-8") if entry_files else ""
+    return ArchiveMeta(metadata=metadata, entry_points=entry_points, names=names, is_wheel=True)
+
+
+def _read_sdist(sdist_path: Path) -> ArchiveMeta:
+    with tarfile.open(sdist_path, "r:gz") as tf:
+        members = tf.getnames()
+        # PKG-INFO lives at the archive root (e.g. "superbrowser_sdk-2.5.0/PKG-INFO")
+        pkg_info_files = [n for n in members if n.endswith("PKG-INFO")]
+        if not pkg_info_files:
+            raise ValueError("No PKG-INFO file found in sdist")
+        metadata = tf.extractfile(pkg_info_files[0]).read().decode("utf-8")
+    # sdists have no entry_points.txt and no flat package layout
+    return ArchiveMeta(metadata=metadata, entry_points="", names=members, is_wheel=False)
+
+
+# ---------------------------------------------------------------------------
+# Main verification flow
+# ---------------------------------------------------------------------------
+
+
 def main() -> int:
     if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <wheel-path> [README-path] [docs-dir]")
+        print(f"Usage: {sys.argv[0]} <artifact-path> [README-path] [docs-dir]")
         print("\nExample:")
         print(f"  {sys.argv[0]} dist/superbrowser_sdk-2.0.2-py3-none-any.whl README.md docs/")
+        print(f"  {sys.argv[0]} dist/superbrowser_sdk-2.0.2.tar.gz README.md docs/")
         return 1
 
-    wheel_path = Path(sys.argv[1])
+    artifact_path = Path(sys.argv[1])
     readme_path = Path(sys.argv[2]) if len(sys.argv) >= 3 else Path("README.md")
     docs_dir = Path(sys.argv[3]) if len(sys.argv) >= 4 else Path("docs")
 
-    if not wheel_path.exists():
-        print(f"{RED}Error:{RESET} Wheel not found: {wheel_path}")
+    if not artifact_path.exists():
+        print(f"{RED}Error:{RESET} Artifact not found: {artifact_path}")
+        return 1
+
+    # Read archive — fail clearly on bad type
+    try:
+        archive = _read_archive(artifact_path)
+    except ValueError as e:
+        print(f"{RED}Error:{RESET} {e}")
         return 1
 
     failures: list[str] = []
+    kind = "wheel" if archive.is_wheel else "sdist"
 
     print(f"\n{BOLD}Release Artifact Verification{RESET}")
-    print(f"  Wheel: {wheel_path}")
+    print(f"  {kind.capitalize()}: {artifact_path}")
     print()
 
+    metadata = archive.metadata
+
     # ------------------------------------------------------------------
-    # 1. Parse wheel metadata
+    # 1. Metadata (name + version)
     # ------------------------------------------------------------------
-    print(f"{BOLD}1. Wheel metadata{RESET}")
-
-    with zipfile.ZipFile(wheel_path) as zf:
-        names = zf.namelist()
-        # Find METADATA file
-        metadata_files = [n for n in names if n.endswith(".dist-info/METADATA")]
-        if not metadata_files:
-            _fail("No METADATA file found in wheel")
-            return 1
-        metadata = zf.read(metadata_files[0]).decode("utf-8")
-
-        # Find entry_points.txt
-        entry_files = [n for n in names if n.endswith(".dist-info/entry_points.txt")]
-        entry_points = zf.read(entry_files[0]).decode("utf-8") if entry_files else ""
-
-        # Check RECORD for cli.py shadowing
-        # (not needed — file listing is sufficient, kept for documentation)
+    print(f"{BOLD}1. {kind.capitalize()} metadata{RESET}")
 
     # Distribution name
     name_match = re.search(r"^Name:\s*(.+)$", metadata, re.MULTILINE)
@@ -96,27 +160,38 @@ def main() -> int:
     # Version
     version_match = re.search(r"^Version:\s*(.+)$", metadata, re.MULTILINE)
     version = version_match.group(1).strip() if version_match else "unknown"
-    _ok(f"Version: {version}")
-
-    # ------------------------------------------------------------------
-    # 2. Console script entry point
-    # ------------------------------------------------------------------
-    print(f"\n{BOLD}2. Console scripts{RESET}")
-
-    if "superbrowser = super_browser.cli:main" in entry_points:
-        _ok("Entry point: superbrowser = super_browser.cli:main")
+    if version != "unknown":
+        _ok(f"Version: {version}")
     else:
-        _fail(f"Entry point missing or incorrect:\n  {entry_points}")
-        failures.append("entry-point")
-
-    if "superbrowser-mcp = super_browser.mcp_server:main" in entry_points:
-        _ok("Entry point: superbrowser-mcp = super_browser.mcp_server:main")
-    else:
-        _fail("Entry point superbrowser-mcp missing or incorrect")
-        failures.append("entry-point-mcp")
+        _fail("Version not found in metadata")
+        failures.append("version-missing")
 
     # ------------------------------------------------------------------
-    # 3. [all] extra self-reference
+    # 2. Console script entry point (wheel only)
+    # ------------------------------------------------------------------
+    entry_points = archive.entry_points
+
+    if archive.is_wheel:
+        print(f"\n{BOLD}2. Console scripts{RESET}")
+
+        if "superbrowser = super_browser.cli:main" in entry_points:
+            _ok("Entry point: superbrowser = super_browser.cli:main")
+        else:
+            _fail(f"Entry point missing or incorrect:\n  {entry_points}")
+            failures.append("entry-point")
+
+        if "superbrowser-mcp = super_browser.mcp_server:main" in entry_points:
+            _ok("Entry point: superbrowser-mcp = super_browser.mcp_server:main")
+        else:
+            _fail("Entry point superbrowser-mcp missing or incorrect")
+            failures.append("entry-point-mcp")
+    else:
+        print(f"\n{BOLD}2. Console scripts — skipped (sdist has no entry_points.txt){RESET}")
+
+    # ------------------------------------------------------------------
+    # 3. [all] extra self-reference (wheel only — sdists include metadata
+    #    but entry-point/console checks are wheel-specific; extras ARE in
+    #    the sdist PKG-INFO, so we check them for both)
     # ------------------------------------------------------------------
     print(f"\n{BOLD}3. Extras self-reference{RESET}")
 
@@ -147,26 +222,31 @@ def main() -> int:
         failures.append("extras-all-missing")
 
     # ------------------------------------------------------------------
-    # 4. No cli.py in wheel (shadowing guard)
+    # 4. No cli.py shadowing (wheel only — sdist has source layout)
     # ------------------------------------------------------------------
-    print(f"\n{BOLD}4. Module shadowing guard{RESET}")
+    names = archive.names
 
-    cli_py_files = [n for n in names if n == "super_browser/cli.py"]
-    if not cli_py_files:
-        _ok("No cli.py module in wheel (no shadowing)")
-    else:
-        _fail("cli.py found in wheel — will shadow cli/ package")
-        failures.append("cli-shadowing")
+    if archive.is_wheel:
+        print(f"\n{BOLD}4. Module shadowing guard{RESET}")
 
-    # Verify cli/__init__.py exists
-    if "super_browser/cli/__init__.py" in names:
-        _ok("cli/__init__.py present in wheel")
+        cli_py_files = [n for n in names if n == "super_browser/cli.py"]
+        if not cli_py_files:
+            _ok("No cli.py module in wheel (no shadowing)")
+        else:
+            _fail("cli.py found in wheel — will shadow cli/ package")
+            failures.append("cli-shadowing")
+
+        # Verify cli/__init__.py exists
+        if "super_browser/cli/__init__.py" in names:
+            _ok("cli/__init__.py present in wheel")
+        else:
+            _fail("cli/__init__.py missing from wheel")
+            failures.append("cli-init-missing")
     else:
-        _fail("cli/__init__.py missing from wheel")
-        failures.append("cli-init-missing")
+        print(f"\n{BOLD}4. Module shadowing guard — skipped (sdist){RESET}")
 
     # ------------------------------------------------------------------
-    # 5. Install and runtime checks
+    # 5. Install and runtime checks (both wheel + sdist)
     # ------------------------------------------------------------------
     print(f"\n{BOLD}5. Runtime verification (isolated venv){RESET}")
 
@@ -184,16 +264,16 @@ def main() -> int:
             _fail(f"Failed to create venv: {result.stderr.strip()}")
             failures.append("venv-creation")
         else:
-            # Install the wheel
+            # Install the artifact (pip handles both .whl and .tar.gz)
             result = subprocess.run(
-                [pip, "install", "--quiet", str(wheel_path)],
+                [pip, "install", "--quiet", str(artifact_path)],
                 capture_output=True, text=True,
             )
             if result.returncode != 0:
-                _fail(f"Failed to install wheel: {result.stderr.strip()[:200]}")
-                failures.append("wheel-install")
+                _fail(f"Failed to install {kind}: {result.stderr.strip()[:200]}")
+                failures.append(f"{kind}-install")
             else:
-                _ok("Wheel installs in clean venv")
+                _ok(f"{kind.capitalize()} installs in clean venv")
 
                 # Import check
                 result = subprocess.run(
