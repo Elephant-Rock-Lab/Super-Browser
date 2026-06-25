@@ -43,16 +43,20 @@ The codebase already has a complete redaction layer:
 
 **Critical gap:** `redact_result_dict()` is wired into `ActionResult.to_dict()`
 (`results/types.py:235`) — the **Python SDK serialization path**. But the MCP
-server's `_serialize_action_result()` (`mcp_server.py`) does **not** call it.
-So the same `ActionResult` is redacted when used via the Python SDK but **not**
-when returned via MCP. The inspect tools bypass `ActionResult` entirely (they
-build response dicts directly).
+server's `_serialize_action_result()` (`mcp_server.py:432`) manually builds a
+payload from `ok`/`data`/`error`/`meta` and does **not** call
+`ActionResult.to_dict()` or `redact_result_dict()`. So the same `ActionResult`
+is redacted when serialized via the Python SDK but **not** when returned via
+MCP. Additionally, the diagnostics handlers (`_tool_get_console_messages`, etc.)
+and `_tool_current_url` build response dicts directly, bypassing
+`ActionResult` and `_serialize_action_result()` entirely.
 
 ## Design principles
 
 1. **Do not destroy utility by default.** Redaction should mask known secret
    patterns, not collapse all text. A redacted console message should still
-   show the message structure with secrets replaced by `[REDACTED:type]`.
+   show the message structure with secrets replaced by the existing markers
+   (`[REDACTED:{secret_type}:{hash6}]` or `[REDACTED:query_param]`).
 
 2. **Policy-driven, not always-on.** Redaction should be controlled by the
    `SecurityConfig` (which is already `redaction_enabled=True` by default). The
@@ -66,9 +70,14 @@ build response dicts directly).
    unredacted (Python SDK consumers get raw data) while the agent-facing MCP
    boundary applies the policy.
 
-4. **Masking format is documented and stable.** `[REDACTED:type]` (e.g.
-   `[REDACTED:api_key]`, `[REDACTED:token]`, `[REDACTED:query_param]`). Agents
-   can detect that redaction occurred without seeing the secret.
+4. **Masking format is documented and stable.** The existing redaction
+   machinery emits two marker formats, both preserved as-is:
+   - `SecretRedactor`: `[REDACTED:{secret_type}:{hash6}]` — e.g.
+     `[REDACTED:openai_key:abc123]` (includes the secret type and a 6-char
+     SHA-256 prefix for deduplication).
+   - `redact_context()`: `[REDACTED:query_param]` — for sensitive query
+     parameter values.
+   Agents can detect that redaction occurred without seeing the secret.
 
 5. **No output-shape change.** Redaction replaces string values in place; it
    does not add, remove, or rename keys. A redacted `get_console_messages`
@@ -82,12 +91,28 @@ build response dicts directly).
 | Tool | Content to redact | Mechanism |
 |---|---|---|
 | `extract_text` | extracted text body | `SecretRedactor.redact()` on the text string |
-| `observe` | title, URL | `redact_context()` on URL; `SecretRedactor.redact()` on title |
+| `observe` | title, URL | URL redaction (see below); `SecretRedactor.redact()` on title |
+| `current_url` | page URL | URL redaction (see below) |
+| `list_tabs` | tab URLs, tab titles | URL redaction on each tab URL; `SecretRedactor.redact()` on titles |
 | `get_console_messages` | `text` field per entry | `SecretRedactor.redact()` on each `text` |
 | `get_page_errors` | `message`, `stack` fields | `SecretRedactor.redact()` on each |
-| `get_network_errors` | `url`, `failure_text` | `redact_context()` on URL; `redact()` on failure_text |
-| `list_requests` | `url` per entry | `redact_context()` on each URL |
-| `get_request` | `url`, `failure_text` | `redact_context()` on URL; `redact()` on failure_text |
+| `get_network_errors` | `url`, `failure_text` | URL redaction on URL; `SecretRedactor.redact()` on failure_text |
+| `list_requests` | `url` per entry | URL redaction on each URL |
+| `get_request` | `url`, `failure_text` | URL redaction on URL; `SecretRedactor.redact()` on failure_text |
+
+**URL redaction** (two-pass, applied to all URL fields):
+1. `redact_context(url)` — redacts query parameters whose key names match
+   `_SENSITIVE_KEYS` (token, access_token, api_key, cookie, etc.).
+2. `SecretRedactor.redact(result_url)` — pattern-scans the remaining URL for
+   secret substrings in non-sensitive query keys, fragments, or URL-like
+   strings (e.g. `?code=sk-...`, `?next=https://...token...`).
+3. Preserve scheme, host, and path where possible; redact only secret
+   substrings and sensitive query values.
+
+This two-pass approach is necessary because `redact_context()` alone only
+catches secrets in *named* sensitive parameters. Secrets in innocuously-named
+query values (`?code=sk-...`) or embedded in redirect URLs would leak through
+without the `SecretRedactor` pattern scan.
 
 ### Already redacted (no change)
 
@@ -100,8 +125,10 @@ build response dicts directly).
 
 ### Out of scope
 
-- **Redaction of `screenshot` images.** Screenshots are visual; secret-detection
-  in image content is a different problem (OCR + pattern matching). Deferred.
+- **`browser_status`** — returns runtime status (running, backend name). No
+  sensitive page content expected.
+- **`screenshot`** — visual content; secret-detection in image data is a
+  different problem (OCR + pattern matching). Deferred.
 - **Redaction of element HTML/attributes in `observe`.** `observe` returns
   counts and metadata, not raw HTML. If a future tool exposes HTML, it joins
   this scope.
@@ -174,11 +201,19 @@ Plus `_SENSITIVE_KEYS` for key-name matching (cookie, auth, session_id, etc.).
   inspect output now has secrets masked. This is a **behavior change** for
   existing MCP consumers who relied on raw output. Documented in CHANGELOG.
 - **Output shape unchanged:** same keys, same structure. Only string values may
-  contain `[REDACTED:type]` markers.
-- **Disabling:** set `redaction_enabled=False` in the `SecurityConfig` passed to
-  `run_server()` / `_build_default_security_manager()`. The MCP env-var path
-  (`SB_MCP_REDACTION=0` or similar) can be added if operators need a simple
-  toggle.
+  contain redaction markers (`[REDACTED:{secret_type}:{hash6}]` from
+  `SecretRedactor`, or `[REDACTED:query_param]` from `redact_context()`).
+- **Disabling:**
+  - **Current programmatic path:** pass
+    `SecurityManager(SecurityConfig(redaction_enabled=False))` into
+    `run_server(..., security_manager=...)`. Note that `run_server()` accepts a
+    `SecurityManager`, not a `SecurityConfig`; `_build_default_security_manager()`
+    constructs a default `SecurityConfig` internally using only domain
+    allow/block lists from env.
+  - **Proposed operator/CLI path:** add `SB_MCP_REDACTION=0|false|off` env
+    toggle in the implementation PR, parsed by `_build_default_security_manager()`
+    alongside the existing domain-list env vars. This gives operators a simple
+    opt-out without constructing a custom `SecurityManager`.
 - **Backward-compat for SDK consumers:** Python SDK users calling
   `sb.extract()` / `sb.observe()` directly are unaffected — redaction applies
   only at the MCP serialization boundary.
@@ -211,27 +246,29 @@ Plus `_SENSITIVE_KEYS` for key-name matching (cookie, auth, session_id, etc.).
 
 ```text
 1. Add _redact_inspect_output() helper in mcp_server.py
-2. Wire into the 7 inspect-tier handlers (extract_text, observe, 5 diagnostics)
-3. Add SB_MCP_REDACTION env toggle (optional, if operators need it)
+2. Wire into the 9 inspect-tier handlers (extract_text, observe, current_url,
+   list_tabs, 5 diagnostics)
+3. Add SB_MCP_REDACTION env toggle (proposed in this design)
 4. Unit tests for the helper
 5. Fixture tests per tool
 6. CHANGELOG [Unreleased] — behavior change note
 7. Verify: real-browser e2e with a test page that logs a fake API key
 ```
 
-## Open questions for review
+## Resolved questions (from design review)
 
-1. **Should `observe`'s URL be redacted?** The current page URL may contain
-   secrets (e.g. `?token=...`). `redact_context()` handles this, but an agent
-   needs the URL for navigation context. Recommendation: redact query params
-   only (via `redact_context`), preserve the path/host.
+1. **Should `observe`'s URL be redacted?** **Yes.** Apply the two-pass URL
+   redaction (query-param names + secret pattern scan) while preserving scheme,
+   host, and path. The same policy applies to `current_url`, `list_tabs`,
+   diagnostics request URLs, and any future inspect-tier URL fields.
 
-2. **Should redaction be on by default in the MCP server?** The
-   `SecurityConfig` default is `redaction_enabled=True`, and `_build_default_security_manager()`
-   uses defaults. So yes, by default. But this is a behavior change — confirm
-   this is acceptable.
+2. **Should redaction be on by default in the MCP server?** **Yes.** Default-on
+   matches the existing `SecurityConfig(redaction_enabled=True)` default and is
+   the safer boundary for agent-facing MCP output. A documented opt-out is
+   required (both programmatic and env-based), because this is a behavior
+   change for MCP consumers.
 
-3. **Console messages with stack traces.** Stack traces can contain file paths,
-   line numbers, and variable values. Should only secret *patterns* be redacted
-   (leaving paths/lines intact), or should stack traces be truncated? Recommendation:
-   pattern-only (leave structure intact).
+3. **Should console stack traces be truncated?** **No.** Use pattern-only
+   redaction by default. Preserve paths, line numbers, and stack structure;
+   redact detected secret substrings only. Truncation would hurt diagnostic
+   utility and should be a separate optional limit, not the default.
