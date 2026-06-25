@@ -3,14 +3,14 @@
 
 Verifies a built wheel or sdist against release-quality criteria.
 
-Wheel-only checks (entry points, module shadowing guard, extras):
-  - run when the artifact is a ``.whl``
-  - skipped for sdists (``.tar.gz``) which lack ``entry_points.txt`` and the
-    flat package layout
+Wheel-only checks (skipped for sdists):
+  - Console script entry points (``entry_points.txt``)
+  - Module shadowing guard (no ``cli.py``; ``cli/__init__.py`` present)
 
-Shared checks (run for both):
+Shared checks (run for both wheel and sdist):
   - Distribution name is ``superbrowser-sdk``
   - Version is present in metadata
+  - ``[all]`` extra present and no stale ``super-browser[`` references
   - Package installs in a clean venv
   - ``import super_browser`` works and reports the version
   - ``superbrowser version`` CLI works
