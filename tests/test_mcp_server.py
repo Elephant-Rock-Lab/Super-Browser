@@ -32,14 +32,16 @@ from super_browser.mcp_server import (
     build_server,
 )
 
-# Inspect-tier tool set (always advertised).
+# Inspect-tier tool set (always advertised) — includes diagnostics (P2).
 INSPECT_TOOL_NAMES = {
     "browser_status", "current_url", "observe",
     "extract_text", "screenshot", "list_tabs",
+    "get_console_messages", "get_page_errors", "get_network_errors",
+    "list_requests", "get_request",
 }
 # Navigation-tier tool set (always advertised).
 NAVIGATION_TOOL_NAMES = {"navigate", "wait_for"}
-# Default advertised set: Inspect + Navigation (8 tools).
+# Default advertised set: Inspect + Navigation (13 tools).
 DEFAULT_TOOL_NAMES = INSPECT_TOOL_NAMES | NAVIGATION_TOOL_NAMES
 # Action-tier tool set (advertised only when allow_actions=True).
 ACTION_TOOL_NAMES = {
@@ -63,9 +65,14 @@ EXCLUDED_TOOL_NAMES = {
 
 class TestToolListing:
     def test_read_only_set_excludes_write_tools(self):
+        # PHASE1_TOOLS (the original 6 inspect tools) is a subset of the
+        # inspect tier (which now also includes diagnostics). The key invariant:
+        # neither the original inspect set nor the full inspect tier overlaps
+        # the action tools.
         names = {t.name for t in PHASE1_TOOLS}
-        assert names == READ_ONLY_TOOL_NAMES
+        assert names <= READ_ONLY_TOOL_NAMES
         assert not (names & WRITE_TOOL_NAMES)
+        assert not (INSPECT_TOOL_NAMES & ACTION_TOOL_NAMES)
 
     def test_read_only_set_excludes_never_tools(self):
         names = {t.name for t in PHASE1_TOOLS}
@@ -419,10 +426,10 @@ class TestServerWiring:
         assert hasattr(server, "_sb_authorizer")  # type: ignore[attr-defined]
         assert server._sb_authorizer is not None  # type: ignore[attr-defined]
 
-    def test_default_server_advertises_exactly_8_default_tools(self):
-        """Default build_server() advertises exactly the 8 default tools
-        (6 inspect + 2 navigation), verified through the actual advertisement
-        function, not a constant."""
+    def test_default_server_advertises_exactly_13_default_tools(self):
+        """Default build_server() advertises exactly the 13 default tools
+        (6 inspect + 5 diagnostics + 2 navigation), verified through the actual
+        advertisement function, not a constant."""
         from super_browser.mcp_server import _tools_for_policy
 
         server = build_server()
@@ -430,10 +437,10 @@ class TestServerWiring:
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
         assert advertised_names == DEFAULT_TOOL_NAMES
-        assert len(advertised) == 8
+        assert len(advertised) == 13
 
-    def test_actions_enabled_server_advertises_exactly_14_tools(self):
-        """build_server(policy=allow_actions=True) advertises all 14 tools,
+    def test_actions_enabled_server_advertises_exactly_19_tools(self):
+        """build_server(policy=allow_actions=True) advertises all 19 tools,
         verified through the actual advertisement function."""
         from super_browser.mcp_server import _tools_for_policy
 
@@ -442,7 +449,7 @@ class TestServerWiring:
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
         assert advertised_names == ALL_TOOL_NAMES
-        assert len(advertised) == 14
+        assert len(advertised) == 19
 
     @pytest.mark.asyncio
     async def test_default_server_dispatch_returns_refusal_not_unknown(self):

@@ -163,6 +163,63 @@ async def test_action_tool_refused_in_default_mode(started_runtime):
     assert payload["refusal"]["reason"] == "actions are disabled"
 
 
+# --- Diagnostics e2e (real browser, real page events) ---
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_list_requests_captured_navigation(started_runtime):
+    """After navigating to example.com, the diagnostics buffer should have
+    captured at least one request (the document navigation itself)."""
+    dispatcher = ToolDispatcher(started_runtime)
+    result = await dispatcher.dispatch("list_requests", {})
+    payload = json.loads(result[0].text)
+    assert payload["ok"] is True
+    assert payload["count"] >= 1
+    # At least one request references example.com.
+    urls = [r["url"] for r in payload["requests"]]
+    assert any("example.com" in u for u in urls), f"no example.com request in {urls}"
+    # Every entry has the required fields.
+    for r in payload["requests"]:
+        for k in ("request_id", "method", "url", "resource_type", "page_url"):
+            assert k in r, f"missing {k}"
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_get_request_detail_round_trip(started_runtime):
+    """list_requests → get_request(request_id) round-trips against a real page."""
+    dispatcher = ToolDispatcher(started_runtime)
+    listing = json.loads((await dispatcher.dispatch("list_requests", {}))[0].text)
+    # Pick the first request_id.
+    rid = listing["requests"][0]["request_id"]
+    detail = json.loads((await dispatcher.dispatch("get_request", {"request_id": rid}))[0].text)
+    assert detail["ok"] is True
+    assert detail["request"]["request_id"] == rid
+    # No response body leaks into the detail.
+    assert "body" not in detail["request"]
+    # No raw header VALUES (only header_names keys).
+    assert "Bearer" not in json.dumps(detail["request"])
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_console_messages_well_formed(started_runtime):
+    """get_console_messages returns a well-formed result (may be empty on a
+    quiet page, but the shape must be valid)."""
+    dispatcher = ToolDispatcher(started_runtime)
+    result = await dispatcher.dispatch("get_console_messages", {})
+    payload = json.loads(result[0].text)
+    assert payload["ok"] is True
+    assert isinstance(payload["messages"], list)
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_snapshot_is_non_destructive(started_runtime):
+    """Two reads return the same request count (non-destructive)."""
+    dispatcher = ToolDispatcher(started_runtime)
+    first = json.loads((await dispatcher.dispatch("list_requests", {}))[0].text)
+    second = json.loads((await dispatcher.dispatch("list_requests", {}))[0].text)
+    assert first["count"] == second["count"]
+
+
 @pytest.mark.asyncio
 async def test_shutdown_idempotent_after_smoke(started_runtime):
     # The fixture yields a runtime; after the smoke run, shutdown must be

@@ -242,8 +242,75 @@ _PHASE2B_WAVE2_TOOL_NAMES = frozenset(t.name for t in PHASE2B_WAVE2_TOOLS)
 # redaction, domain policy when configured) but NOT action-gated and does NOT
 # consume the action budget.
 
-# Inspect-tier tools: the existing read-only set.
-INSPECT_TOOLS: list[types.Tool] = list(PHASE1_TOOLS)
+# Diagnostics inspect-tier tools (P2): explainability layer for failed
+# reads/rendering. Read-only snapshots of console/page-error/network buffers.
+# No action gate, no audit, no budget. No response bodies, no raw header
+# values (header NAMES only).
+DIAGNOSTICS_TOOLS: list[types.Tool] = [
+    types.Tool(
+        name="get_console_messages",
+        description="Return buffered browser console messages (snapshot, non-destructive). Inspect-tier.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "level": {"type": "string", "description": "Filter by console type: log, error, warning, info, debug."},
+                "limit": {"type": "integer", "default": 100, "description": "Return the last N entries."},
+            },
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="get_page_errors",
+        description="Return buffered uncaught page errors with stack traces (snapshot). Inspect-tier.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "default": 100, "description": "Return the last N entries."},
+            },
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="get_network_errors",
+        description="Return buffered network requests that failed (status>=400, no response, or net error). Inspect-tier.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "url_filter": {"type": "string", "description": "Substring filter on URL."},
+                "limit": {"type": "integer", "default": 100, "description": "Return the last N entries."},
+            },
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="list_requests",
+        description="Return buffered network request summaries (request_id, method, url, status). Use request_id with get_request for detail. Inspect-tier.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "url_filter": {"type": "string", "description": "Substring filter on URL."},
+                "resource_type": {"type": "string", "description": "Exact resource type: fetch, xhr, document, image, ..."},
+                "limit": {"type": "integer", "default": 100, "description": "Return the last N entries."},
+            },
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="get_request",
+        description="Return one network request's metadata by request_id (from list_requests). No response body, header names only. Inspect-tier.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "request_id": {"type": "string", "description": "The request_id returned by list_requests."},
+            },
+            "required": ["request_id"],
+        },
+    ),
+]
+_DIAGNOSTICS_TOOL_NAMES = frozenset(t.name for t in DIAGNOSTICS_TOOLS)
+
+# Inspect-tier tools: the existing read-only set + diagnostics.
+INSPECT_TOOLS: list[types.Tool] = [*PHASE1_TOOLS, *DIAGNOSTICS_TOOLS]
 INSPECT_TOOL_NAMES = frozenset(t.name for t in INSPECT_TOOLS)
 
 # Navigation-tier tools: page acquisition (navigate) + read condition (wait_for).
@@ -1056,6 +1123,51 @@ class ToolDispatcher:
         _require_no_args(arguments)
         result = await self.runtime.current_url()
         return _text_content({"ok": True, **result})
+
+    # --- Diagnostics handlers (inspect-tier; read from sb.diagnostics) ---
+
+    async def _tool_get_console_messages(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        level = arguments.get("level")
+        limit = arguments.get("limit", 100)
+        messages = sb.diagnostics.console_messages(level=level, limit=limit)
+        return _text_content({"ok": True, "messages": messages, "count": len(messages)})
+
+    async def _tool_get_page_errors(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        limit = arguments.get("limit", 100)
+        errors = sb.diagnostics.page_errors(limit=limit)
+        return _text_content({"ok": True, "errors": errors, "count": len(errors)})
+
+    async def _tool_get_network_errors(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        url_filter = arguments.get("url_filter")
+        limit = arguments.get("limit", 100)
+        reqs = sb.diagnostics.requests(url_filter=url_filter, failed_only=True, limit=limit)
+        return _text_content({"ok": True, "requests": reqs, "count": len(reqs)})
+
+    async def _tool_list_requests(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        url_filter = arguments.get("url_filter")
+        resource_type = arguments.get("resource_type")
+        limit = arguments.get("limit", 100)
+        reqs = sb.diagnostics.requests(
+            url_filter=url_filter, resource_type=resource_type, failed_only=False, limit=limit,
+        )
+        return _text_content({"ok": True, "requests": reqs, "count": len(reqs)})
+
+    async def _tool_get_request(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        request_id = arguments.get("request_id")
+        if not isinstance(request_id, str) or not request_id.strip():
+            return _error_content(
+                "'request_id' is required and must be a non-empty string",
+                kind="invalid_arguments",
+            )
+        sb = await self.runtime.get_browser()
+        detail = sb.diagnostics.request_detail(request_id)
+        if detail is None:
+            return _text_content({"ok": False, "reason": "not_found", "request_id": request_id})
+        return _text_content({"ok": True, "request": detail})
 
     async def _tool_observe(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         _require_no_args(arguments)

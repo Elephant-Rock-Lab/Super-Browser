@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — MCP Server P2: Diagnostics Pack
+
+An explainability layer for failed reads/rendering. Five new inspect-tier
+tools let an agent inspect browser/page/network evidence when
+`navigate → wait_for → extract_text` returns unexpected content — without
+expanding the action surface. No `--allow-actions`, no action budget, no audit
+entry, no side effects.
+
+- `get_console_messages` — buffered browser console messages, filterable by
+  level.
+- `get_page_errors` — buffered uncaught page errors with stack traces.
+- `get_network_errors` — requests that failed (status ≥ 400, no response, or
+  net error).
+- `list_requests` — all buffered request summaries; returns `request_id` for
+  `get_request` follow-up.
+- `get_request` — one request's metadata by `request_id`.
+
+New `DiagnosticsBuffer` (`super_browser.agent.diagnostics`): session-wide ring
+buffers for console / page-error / network events, wired into the facade
+lifecycle (`start()` + `_attach_page()`). Survives tab switches. Exposed as
+`SuperBrowser.diagnostics`. Reads are snapshots (non-destructive); bounded
+deques (default 500, via `config.event_buffer_size`).
+
+### Design constraints (P2)
+
+- Diagnostics entries carry a monotonic `seq`, `timestamp_ms`, and `page_url`.
+- Request records use a stable `request_id` (assigned by the buffer). A URL can
+  have multiple requests (redirects, retries), so retrieval is always by
+  `request_id`, never by URL.
+- **No response bodies** and **no raw header values** are returned. `get_request`
+  exposes `header_names` (keys) only. Console text, page errors, and URLs are
+  returned as-is, matching the existing inspect-tool posture.
+- `get_request` returns a structured `{ok: false, reason: "not_found"}` when the
+  request was never buffered or evicted; it never raises.
+
+### Compatibility notes
+
+- The default stdio server now advertises **13 tools** (was 8): the 5
+  diagnostics tools are inspect-tier and always advertised. Clients asserting
+  on the advertised count should update. This is additive — no tools were
+  removed and no refusal strings changed.
+- Action mode advertises **19 tools** (was 14).
+
 ## [2.4.0] — 2026-06-23
 
 ### Added — MCP Server P1: Navigation Workflows
