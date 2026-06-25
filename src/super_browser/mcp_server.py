@@ -1122,7 +1122,105 @@ class ToolDispatcher:
     async def _tool_current_url(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         _require_no_args(arguments)
         result = await self.runtime.current_url()
-        return _text_content({"ok": True, **result})
+        payload = {"ok": True, **result}
+        return _text_content(self._redact_inspect_output(payload, url_fields=("url",)))
+
+    # --- Inspect-output redaction (P2.3) ---
+
+    # Fields whose string values should be pattern-scanned for secrets.
+    _REDACT_TEXT_FIELDS = frozenset({
+        "text", "message", "stack", "title", "failure_text",
+    })
+    # Fields treated as URLs (two-pass: redact_context + secret pattern scan).
+    _REDACT_URL_FIELDS = frozenset({"url", "page_url"})
+
+    def _redact_inspect_output(
+        self,
+        payload: dict[str, Any],
+        *,
+        url_fields: tuple[str, ...] = (),
+        list_keys: dict[str, tuple[str, ...]] | None = None,
+        nested_keys: dict[str, tuple[str, ...]] | None = None,
+    ) -> dict[str, Any]:
+        """Apply redaction policy to inspect-tier tool output at the MCP boundary.
+
+        Redacts secret patterns in known text fields (text, message, stack, title,
+        failure_text) and URLs (two-pass: redact_context for sensitive query-param
+        names, then SecretRedactor for secret substrings). No-op when no
+        SecurityManager is attached or redaction is disabled.
+
+        - ``url_fields``: top-level keys in ``payload`` whose values are URLs.
+        - ``list_keys``: maps a list-key name (e.g. "messages") to a tuple of
+          field names within each list element that should be checked for
+          text/URL redaction.
+        - ``nested_keys``: maps a single-nested-dict key name (e.g. "data",
+          "request") to a tuple of field names within that nested dict.
+        - ``list_keys``: maps a list-key name (e.g. "messages") to a tuple of
+          field names within each list element that should be checked for
+          text/URL redaction.
+
+        Output shape is preserved; only string values may contain redaction
+        markers.
+        """
+        sm = getattr(self.authorizer, "security_manager", None) if self.authorizer else None
+        if sm is None:
+            return payload  # bare dispatcher — no redaction configured
+        config = getattr(sm, "_config", None)
+        if config is not None and not getattr(config, "redaction_enabled", True):
+            return payload  # explicitly disabled
+
+        from super_browser.security.action_redaction import redact_context
+
+        def _redact_text(value: str) -> str:
+            try:
+                return sm.redact_secrets(value).redacted_text
+            except Exception:  # noqa: BLE001
+                return value
+
+        def _redact_url(value: str) -> str:
+            try:
+                scrubbed = redact_context(value)
+                return sm.redact_secrets(scrubbed).redacted_text
+            except Exception:  # noqa: BLE001
+                return value
+
+        def _redact_field(obj: dict, field: str, is_url: bool) -> None:
+            val = obj.get(field)
+            if isinstance(val, str) and val:
+                obj[field] = _redact_url(val) if is_url else _redact_text(val)
+
+        # Redact top-level fields.
+        for field in url_fields:
+            _redact_field(payload, field, is_url=True)
+        for field in self._REDACT_TEXT_FIELDS:
+            _redact_field(payload, field, is_url=False)
+        for field in self._REDACT_URL_FIELDS:
+            _redact_field(payload, field, is_url=True)
+
+        # Redact list-of-dicts entries.
+        if list_keys:
+            for list_key, inner_fields in list_keys.items():
+                items = payload.get(list_key)
+                if not isinstance(items, list):
+                    continue
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    for f in inner_fields:
+                        is_url = f in self._REDACT_URL_FIELDS or f == "url"
+                        _redact_field(item, f, is_url=is_url)
+
+        # Redact single-nested-dict entries (e.g. data.text, request.url).
+        if nested_keys:
+            for nested_key, inner_fields in nested_keys.items():
+                nested = payload.get(nested_key)
+                if not isinstance(nested, dict):
+                    continue
+                for f in inner_fields:
+                    is_url = f in self._REDACT_URL_FIELDS or f == "url"
+                    _redact_field(nested, f, is_url=is_url)
+
+        return payload
 
     # --- Diagnostics handlers (inspect-tier; read from sb.diagnostics) ---
 
@@ -1131,20 +1229,29 @@ class ToolDispatcher:
         level = arguments.get("level")
         limit = arguments.get("limit", 100)
         messages = sb.diagnostics.console_messages(level=level, limit=limit)
-        return _text_content({"ok": True, "messages": messages, "count": len(messages)})
+        payload = {"ok": True, "messages": messages, "count": len(messages)}
+        return _text_content(self._redact_inspect_output(
+            payload, list_keys={"messages": ("text",)},
+        ))
 
     async def _tool_get_page_errors(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         limit = arguments.get("limit", 100)
         errors = sb.diagnostics.page_errors(limit=limit)
-        return _text_content({"ok": True, "errors": errors, "count": len(errors)})
+        payload = {"ok": True, "errors": errors, "count": len(errors)}
+        return _text_content(self._redact_inspect_output(
+            payload, list_keys={"errors": ("message", "stack")},
+        ))
 
     async def _tool_get_network_errors(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         url_filter = arguments.get("url_filter")
         limit = arguments.get("limit", 100)
         reqs = sb.diagnostics.requests(url_filter=url_filter, failed_only=True, limit=limit)
-        return _text_content({"ok": True, "requests": reqs, "count": len(reqs)})
+        payload = {"ok": True, "requests": reqs, "count": len(reqs)}
+        return _text_content(self._redact_inspect_output(
+            payload, list_keys={"requests": ("url", "failure_text")},
+        ))
 
     async def _tool_list_requests(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
@@ -1154,7 +1261,10 @@ class ToolDispatcher:
         reqs = sb.diagnostics.requests(
             url_filter=url_filter, resource_type=resource_type, failed_only=False, limit=limit,
         )
-        return _text_content({"ok": True, "requests": reqs, "count": len(reqs)})
+        payload = {"ok": True, "requests": reqs, "count": len(reqs)}
+        return _text_content(self._redact_inspect_output(
+            payload, list_keys={"requests": ("url",)},
+        ))
 
     async def _tool_get_request(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         request_id = arguments.get("request_id")
@@ -1167,13 +1277,22 @@ class ToolDispatcher:
         detail = sb.diagnostics.request_detail(request_id)
         if detail is None:
             return _text_content({"ok": False, "reason": "not_found", "request_id": request_id})
-        return _text_content({"ok": True, "request": detail})
+        payload = {"ok": True, "request": detail}
+        # get_request nests url/failure_text under the "request" dict
+        return _text_content(self._redact_inspect_output(
+            payload, nested_keys={"request": ("url", "failure_text")},
+        ))
 
     async def _tool_observe(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         _require_no_args(arguments)
         sb = await self.runtime.get_browser()
         ar = await sb.observe()
-        return _text_content(_serialize_action_result(ar))
+        payload = _serialize_action_result(ar)
+        # observe nests URL/title under data dict
+        nested = {"data": ("url", "title")} if isinstance(payload.get("data"), dict) else None
+        return _text_content(self._redact_inspect_output(
+            payload, nested_keys=nested,
+        ))
 
     async def _tool_extract_text(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         query = arguments.get("query")
@@ -1184,7 +1303,12 @@ class ToolDispatcher:
             return _error_content("'selector' must be a string if provided", kind="invalid_arguments")
         sb = await self.runtime.get_browser()
         ar = await sb.extract(query, selector=selector)
-        return _text_content(_serialize_action_result(ar))
+        payload = _serialize_action_result(ar)
+        # extract_text nests text under data dict
+        nested = {"data": ("text",)} if isinstance(payload.get("data"), dict) else None
+        return _text_content(self._redact_inspect_output(
+            payload, nested_keys=nested,
+        ))
 
     async def _tool_screenshot(self, arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent]:
         full_page = bool(arguments.get("full_page", False))
@@ -1204,7 +1328,10 @@ class ToolDispatcher:
         _require_no_args(arguments)
         sb = await self.runtime.get_browser()
         ar = await sb.list_tabs()
-        return _text_content(_serialize_action_result(ar))
+        payload = _serialize_action_result(ar)
+        return _text_content(self._redact_inspect_output(
+            payload, list_keys={"data": ("url", "title")} if isinstance(payload.get("data"), list) else None,
+        ))
 
 
 def _require_no_args(arguments: dict[str, Any]) -> None:
@@ -1314,9 +1441,11 @@ def _build_default_security_manager() -> Any:
     """
     from super_browser.security import SecurityConfig, SecurityManager
 
+    redaction_enabled = not _env_truthy("SB_MCP_REDACTION_OFF")
     config = SecurityConfig(
         domain_allowlist=_parse_domain_list("SB_MCP_DOMAIN_ALLOWLIST"),
         domain_blocklist=_parse_domain_list("SB_MCP_DOMAIN_BLOCKLIST"),
+        redaction_enabled=redaction_enabled,
     )
     return SecurityManager(config)
 
