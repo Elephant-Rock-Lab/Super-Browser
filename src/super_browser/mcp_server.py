@@ -1423,6 +1423,18 @@ def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_redaction_enabled() -> bool:
+    """Determine whether MCP inspect-output redaction is enabled.
+
+    ``SB_MCP_REDACTION`` is a positive flag (on by default when unset).
+    Explicitly disabling requires ``0``, ``false``, ``off``, or ``no``.
+    """
+    raw = os.environ.get("SB_MCP_REDACTION")
+    if raw is None:
+        return True
+    return raw.strip().lower() not in {"0", "false", "off", "no"}
+
+
 def _parse_domain_list(name: str) -> tuple[str, ...]:
     """Parse a comma- or whitespace-separated hostname/glob list from env.
 
@@ -1445,9 +1457,9 @@ def _build_default_security_manager() -> Any:
     """
     from super_browser.security import SecurityConfig, SecurityManager
 
-    # SB_MCP_REDACTION=0|false|off disables redaction (design: inspect_redaction.md).
+    # SB_MCP_REDACTION=0|false|off|no disables redaction (design: inspect_redaction.md).
     # Default is on (matches SecurityConfig.redaction_enabled=True).
-    redaction_enabled = not _env_truthy("SB_MCP_REDACTION")
+    redaction_enabled = _env_redaction_enabled()
     config = SecurityConfig(
         domain_allowlist=_parse_domain_list("SB_MCP_DOMAIN_ALLOWLIST"),
         domain_blocklist=_parse_domain_list("SB_MCP_DOMAIN_BLOCKLIST"),

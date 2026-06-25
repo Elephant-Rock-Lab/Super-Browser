@@ -506,3 +506,39 @@ class TestPageUrlRedaction:
         result = await dispatcher.dispatch("get_request", {"request_id": "r-1"})
         payload = json.loads(result[0].text)
         assert FAKE_KEY not in payload["request"]["page_url"]
+
+
+# ============================================================================
+# SB_MCP_REDACTION env toggle semantics
+# ============================================================================
+
+
+class TestRedactionEnvToggle:
+    """SB_MCP_REDACTION is a positive flag: on by default, disabled by
+    explicit 0/false/off/no."""
+
+    def test_env_absent_defaults_to_enabled(self, monkeypatch):
+        from super_browser.mcp_server import _env_redaction_enabled
+
+        monkeypatch.delenv("SB_MCP_REDACTION", raising=False)
+        assert _env_redaction_enabled() is True
+
+    @pytest.mark.parametrize("val", ["0", "false", "off", "no"])
+    def test_explicit_disable_values(self, monkeypatch, val):
+        from super_browser.mcp_server import _env_redaction_enabled
+
+        monkeypatch.setenv("SB_MCP_REDACTION", val)
+        assert _env_redaction_enabled() is False
+
+    @pytest.mark.parametrize("val", ["1", "true", "on", "yes"])
+    def test_explicit_enable_values(self, monkeypatch, val):
+        from super_browser.mcp_server import _env_redaction_enabled
+
+        monkeypatch.setenv("SB_MCP_REDACTION", val)
+        assert _env_redaction_enabled() is True
+
+    def test_case_insensitive_disable(self, monkeypatch):
+        from super_browser.mcp_server import _env_redaction_enabled
+
+        monkeypatch.setenv("SB_MCP_REDACTION", "OFF")
+        assert _env_redaction_enabled() is False
