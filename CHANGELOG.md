@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Inspect-tier MCP tools now redact detected secrets at the MCP serialization
 boundary before returning content to the agent. Redaction is **on by default**
 (matching `SecurityConfig.redaction_enabled=True`) and can be disabled via
-`SB_MCP_REDACTION_OFF=1` (env) or `SecurityConfig(redaction_enabled=False)`
+`SB_MCP_REDACTION=0` (env) or `SecurityConfig(redaction_enabled=False)`
 (programmatic).
 
 **Tools redacted (9):** `extract_text`, `observe`, `current_url`, `list_tabs`,
@@ -38,7 +38,7 @@ boundary before returning content to the agent. Redaction is **on by default**
 
 - This is a **behavior change** for MCP consumers: inspect-tier output that
   previously contained raw secrets will now contain redaction markers. Set
-  `SB_MCP_REDACTION_OFF=1` to restore raw output.
+  `SB_MCP_REDACTION=0` to restore raw output.
 
 ### Fixed — Release tooling
 

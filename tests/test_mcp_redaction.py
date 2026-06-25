@@ -371,3 +371,138 @@ class TestRedactionDisabled:
         payload = json.loads(result[0].text)
         # Raw — the key is visible because redaction is disabled.
         assert FAKE_KEY in payload["messages"][0]["text"]
+
+
+# ============================================================================
+# Regression: diagnostics buffers stay raw after MCP redaction (deepcopy)
+# ============================================================================
+
+
+class TestBufferNotMutated:
+    """The MCP-boundary-only guarantee: redacting MCP output must NOT mutate
+    the underlying diagnostics buffer dicts."""
+
+    @pytest.mark.asyncio
+    async def test_console_buffer_stays_raw_after_redaction(self):
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer()
+        buf._console.append({"seq": 1, "timestamp_ms": 1.0, "type": "log",
+                             "text": f"token={FAKE_KEY}", "page_url": "https://x.local"})
+
+        dispatcher = _make_dispatcher(_sm_with_redaction())
+        dispatcher.runtime._sb.diagnostics = buf  # type: ignore[attr-defined]
+
+        # Redact via MCP
+        result = await dispatcher.dispatch("get_console_messages", {})
+        payload = json.loads(result[0].text)
+        assert FAKE_KEY not in payload["messages"][0]["text"]
+
+        # Buffer must still have the raw key
+        assert FAKE_KEY in buf._console[0]["text"]
+
+    @pytest.mark.asyncio
+    async def test_errors_buffer_stays_raw_after_redaction(self):
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer()
+        buf._errors.append({"seq": 1, "timestamp_ms": 1.0, "message": f"err={FAKE_KEY}",
+                            "name": "Error", "stack": None, "page_url": "https://x.local"})
+
+        dispatcher = _make_dispatcher(_sm_with_redaction())
+        dispatcher.runtime._sb.diagnostics = buf  # type: ignore[attr-defined]
+
+        result = await dispatcher.dispatch("get_page_errors", {})
+        payload = json.loads(result[0].text)
+        assert FAKE_KEY not in payload["errors"][0]["message"]
+
+        # Buffer must still have the raw key
+        assert FAKE_KEY in buf._errors[0]["message"]
+
+
+# ============================================================================
+# Nested page_url redaction
+# ============================================================================
+
+
+class TestPageUrlRedaction:
+    """page_url fields in diagnostics records must be redacted (two-pass URL)."""
+
+    @pytest.mark.asyncio
+    async def test_console_page_url_redacted(self):
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer()
+        buf._console.append({"seq": 1, "timestamp_ms": 1.0, "type": "log",
+                             "text": "clean", "page_url": f"https://x.local?token={FAKE_KEY}"})
+
+        dispatcher = _make_dispatcher(_sm_with_redaction())
+        dispatcher.runtime._sb.diagnostics = buf  # type: ignore[attr-defined]
+
+        result = await dispatcher.dispatch("get_console_messages", {})
+        payload = json.loads(result[0].text)
+        assert FAKE_KEY not in payload["messages"][0]["page_url"]
+
+    @pytest.mark.asyncio
+    async def test_page_errors_page_url_redacted(self):
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer()
+        buf._errors.append({"seq": 1, "timestamp_ms": 1.0, "message": "err",
+                            "name": "E", "stack": None,
+                            "page_url": f"https://x.local?token={FAKE_KEY}"})
+
+        dispatcher = _make_dispatcher(_sm_with_redaction())
+        dispatcher.runtime._sb.diagnostics = buf  # type: ignore[attr-defined]
+
+        result = await dispatcher.dispatch("get_page_errors", {})
+        payload = json.loads(result[0].text)
+        assert FAKE_KEY not in payload["errors"][0]["page_url"]
+
+    @pytest.mark.asyncio
+    async def test_list_requests_page_url_redacted(self):
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer()
+        buf._request_counter = 1
+        rec = {"seq": 1, "request_id": "r-1", "timestamp_ms": 1.0, "method": "GET",
+               "url": "https://clean.local", "resource_type": "fetch",
+               "is_navigation": False, "redirected_from": None, "status": 200,
+               "status_text": "OK", "ok": True, "failed": False,
+               "failure_text": None, "header_names": [],
+               "page_url": f"https://x.local?token={FAKE_KEY}",
+               "_request_obj_id": 9999}
+        buf._requests.append(rec)
+        buf._req_index["r-1"] = rec
+        buf._req_obj_index[9999] = "r-1"
+
+        dispatcher = _make_dispatcher(_sm_with_redaction())
+        dispatcher.runtime._sb.diagnostics = buf  # type: ignore[attr-defined]
+
+        result = await dispatcher.dispatch("list_requests", {})
+        payload = json.loads(result[0].text)
+        assert FAKE_KEY not in payload["requests"][0]["page_url"]
+
+    @pytest.mark.asyncio
+    async def test_get_request_page_url_redacted(self):
+        from super_browser.agent.diagnostics import DiagnosticsBuffer
+
+        buf = DiagnosticsBuffer()
+        buf._request_counter = 1
+        rec = {"seq": 1, "request_id": "r-1", "timestamp_ms": 1.0, "method": "GET",
+               "url": "https://clean.local", "resource_type": "fetch",
+               "is_navigation": False, "redirected_from": None, "status": 200,
+               "status_text": "OK", "ok": True, "failed": False,
+               "failure_text": None, "header_names": [],
+               "page_url": f"https://x.local?token={FAKE_KEY}",
+               "_request_obj_id": 9999}
+        buf._requests.append(rec)
+        buf._req_index["r-1"] = rec
+        buf._req_obj_index[9999] = "r-1"
+
+        dispatcher = _make_dispatcher(_sm_with_redaction())
+        dispatcher.runtime._sb.diagnostics = buf  # type: ignore[attr-defined]
+
+        result = await dispatcher.dispatch("get_request", {"request_id": "r-1"})
+        payload = json.loads(result[0].text)
+        assert FAKE_KEY not in payload["request"]["page_url"]

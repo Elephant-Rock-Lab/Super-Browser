@@ -1155,9 +1155,6 @@ class ToolDispatcher:
           text/URL redaction.
         - ``nested_keys``: maps a single-nested-dict key name (e.g. "data",
           "request") to a tuple of field names within that nested dict.
-        - ``list_keys``: maps a list-key name (e.g. "messages") to a tuple of
-          field names within each list element that should be checked for
-          text/URL redaction.
 
         Output shape is preserved; only string values may contain redaction
         markers.
@@ -1169,7 +1166,14 @@ class ToolDispatcher:
         if config is not None and not getattr(config, "redaction_enabled", True):
             return payload  # explicitly disabled
 
+        import copy
+
         from super_browser.security.action_redaction import redact_context
+
+        # Deep-copy before mutating so we never contaminate the caller's payload
+        # (diagnostics buffers return live dict references; mutating them would
+        # violate the MCP-boundary-only redaction guarantee).
+        payload = copy.deepcopy(payload)
 
         def _redact_text(value: str) -> str:
             try:
@@ -1231,7 +1235,7 @@ class ToolDispatcher:
         messages = sb.diagnostics.console_messages(level=level, limit=limit)
         payload = {"ok": True, "messages": messages, "count": len(messages)}
         return _text_content(self._redact_inspect_output(
-            payload, list_keys={"messages": ("text",)},
+            payload, list_keys={"messages": ("text", "page_url")},
         ))
 
     async def _tool_get_page_errors(self, arguments: dict[str, Any]) -> list[types.TextContent]:
@@ -1240,7 +1244,7 @@ class ToolDispatcher:
         errors = sb.diagnostics.page_errors(limit=limit)
         payload = {"ok": True, "errors": errors, "count": len(errors)}
         return _text_content(self._redact_inspect_output(
-            payload, list_keys={"errors": ("message", "stack")},
+            payload, list_keys={"errors": ("message", "stack", "page_url")},
         ))
 
     async def _tool_get_network_errors(self, arguments: dict[str, Any]) -> list[types.TextContent]:
@@ -1250,7 +1254,7 @@ class ToolDispatcher:
         reqs = sb.diagnostics.requests(url_filter=url_filter, failed_only=True, limit=limit)
         payload = {"ok": True, "requests": reqs, "count": len(reqs)}
         return _text_content(self._redact_inspect_output(
-            payload, list_keys={"requests": ("url", "failure_text")},
+            payload, list_keys={"requests": ("url", "page_url", "failure_text")},
         ))
 
     async def _tool_list_requests(self, arguments: dict[str, Any]) -> list[types.TextContent]:
@@ -1263,7 +1267,7 @@ class ToolDispatcher:
         )
         payload = {"ok": True, "requests": reqs, "count": len(reqs)}
         return _text_content(self._redact_inspect_output(
-            payload, list_keys={"requests": ("url",)},
+            payload, list_keys={"requests": ("url", "page_url")},
         ))
 
     async def _tool_get_request(self, arguments: dict[str, Any]) -> list[types.TextContent]:
@@ -1278,9 +1282,9 @@ class ToolDispatcher:
         if detail is None:
             return _text_content({"ok": False, "reason": "not_found", "request_id": request_id})
         payload = {"ok": True, "request": detail}
-        # get_request nests url/failure_text under the "request" dict
+        # get_request nests url/page_url/failure_text under the "request" dict
         return _text_content(self._redact_inspect_output(
-            payload, nested_keys={"request": ("url", "failure_text")},
+            payload, nested_keys={"request": ("url", "page_url", "failure_text")},
         ))
 
     async def _tool_observe(self, arguments: dict[str, Any]) -> list[types.TextContent]:
@@ -1441,7 +1445,9 @@ def _build_default_security_manager() -> Any:
     """
     from super_browser.security import SecurityConfig, SecurityManager
 
-    redaction_enabled = not _env_truthy("SB_MCP_REDACTION_OFF")
+    # SB_MCP_REDACTION=0|false|off disables redaction (design: inspect_redaction.md).
+    # Default is on (matches SecurityConfig.redaction_enabled=True).
+    redaction_enabled = not _env_truthy("SB_MCP_REDACTION")
     config = SecurityConfig(
         domain_allowlist=_parse_domain_list("SB_MCP_DOMAIN_ALLOWLIST"),
         domain_blocklist=_parse_domain_list("SB_MCP_DOMAIN_BLOCKLIST"),
