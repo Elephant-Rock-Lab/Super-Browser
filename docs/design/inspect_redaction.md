@@ -231,11 +231,14 @@ Plus `_SENSITIVE_KEYS` for key-name matching (cookie, auth, session_id, etc.).
 ### Tool-specific fixture tests
 
 - `extract_text`: fixture with an API key in the text → redacted in response
+- `observe`: fixture with a secret in title → redacted; URL query param redacted
+- `current_url`: fixture/current page URL with a token query param → URL redacted
+- `list_tabs`: fixture/tab list with secret-bearing URL/title → URL/title redacted
 - `get_console_messages`: fixture with a token in console text → redacted
 - `get_page_errors`: fixture with a secret in error message → redacted
+- `get_network_errors`: fixture with failed request URL + failure_text secret → both redacted
 - `list_requests`: fixture with a secret in URL query param → URL redacted
 - `get_request`: fixture with a secret in failure_text → redacted
-- `observe`: fixture with a secret in title → redacted
 
 ### Negative tests
 
