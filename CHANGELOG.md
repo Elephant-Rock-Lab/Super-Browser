@@ -12,9 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 `observe` now returns a `targets` array of actionable element references
 extracted from the accessibility snapshot. Each target includes:
 
-- `target` — a ref string (e.g. `@e0`) directly usable as the `target`
-  argument for `click`, `fill`, `type_text`, `hover`, `select_option`, `check`,
-  `uncheck`, and `focus`.
+- `target` — a ref string (e.g. `@e0`) usable as the `target` argument for
+  coordinate-tier action tools: `click`, `fill`, `type_text`, `hover`,
+  `select_option`. Checkbox/radio targets map to `click` (toggle-like) because
+  `check`/`uncheck` are selector-tier only and cannot resolve `@refs`.
 - `role` — the AX role (button, textbox, checkbox, combobox, link, etc.)
 - `name` — the accessible name (subject to inspect-output redaction)
 - `action_hint` — recommended action for the role (click, fill, check,

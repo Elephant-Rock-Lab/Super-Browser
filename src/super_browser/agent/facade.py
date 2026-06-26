@@ -490,13 +490,18 @@ class SuperBrowser:
             "button": "click", "link": "click", "menuitem": "click",
             "tab": "click", "treeitem": "click", "option": "click",
             "textbox": "fill", "searchbox": "fill", "spinbutton": "fill",
-            "combobox": "select_option", "checkbox": "check", "radio": "check",
+            "combobox": "select_option", "checkbox": "click", "radio": "click",
             "slider": "fill", "switch": "click",
         }
 
+        # Only include nodes whose center is resolvable (bounds present),
+        # because @refs are resolved via the coordinate tier. Nodes without
+        # bounds cannot be acted on and would produce a confusing target.
+        # Checkbox/radio map to "click" (not "check") because check/uncheck
+        # are selector-tier only and cannot resolve @refs.
         all_interactive = [
             n for n in snap.nodes.values()
-            if n.is_interactive and not n.disabled
+            if n.is_interactive and not n.disabled and n.center is not None
         ]
         _MAX_TARGETS = 50
         capped = all_interactive[:_MAX_TARGETS]

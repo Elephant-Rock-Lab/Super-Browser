@@ -188,12 +188,12 @@ class TestFacadeObserveTargets:
         from super_browser.interaction.types import AXNode, AXSnapshot
 
         sb = SuperBrowser()
-        # Mock the controller to return a snapshot with interactive nodes
         snap = AXSnapshot(url="https://test.local", title="Test")
         snap.nodes = {
-            "e0": AXNode(ref="e0", role="button", name="Submit"),
-            "e1": AXNode(ref="e1", role="textbox", name="Email"),
-            "e2": AXNode(ref="e2", role="checkbox", name="Agree", disabled=True),  # disabled — excluded
+            "e0": AXNode(ref="e0", role="button", name="Submit", bounds=(10, 10, 100, 40)),
+            "e1": AXNode(ref="e1", role="textbox", name="Email", bounds=(10, 60, 200, 40)),
+            "e2": AXNode(ref="e2", role="checkbox", name="Agree", disabled=True, bounds=(10, 110, 20, 20)),  # disabled — excluded
+            "e3": AXNode(ref="e3", role="link", name="NoBounds"),  # no bounds — excluded
         }
         sb._controller = MagicMock()
         sb._controller.capture_ax_snapshot = AsyncMock(return_value=snap)
@@ -204,14 +204,37 @@ class TestFacadeObserveTargets:
         result = await sb.observe()
         assert result.ok is True
         assert "targets" in result.data
-        # Disabled node excluded
+        # Disabled + no-bounds excluded
         assert len(result.data["targets"]) == 2
-        # Check shape
         t0 = result.data["targets"][0]
         assert t0["target"] == "@e0"
         assert t0["role"] == "button"
         assert t0["name"] == "Submit"
         assert t0["action_hint"] == "click"
+
+    @pytest.mark.asyncio
+    async def test_observe_excludes_nodes_without_bounds(self):
+        """Nodes without bounds cannot be resolved by the coordinate tier
+        and must not be advertised as actionable targets."""
+        from super_browser import SuperBrowser
+        from super_browser.interaction.types import AXNode, AXSnapshot
+
+        sb = SuperBrowser()
+        snap = AXSnapshot(url="https://test.local", title="Test")
+        snap.nodes = {
+            "e0": AXNode(ref="e0", role="button", name="HasBounds", bounds=(10, 10, 100, 40)),
+            "e1": AXNode(ref="e1", role="button", name="NoBounds"),  # excluded
+        }
+        sb._controller = MagicMock()
+        sb._controller.capture_ax_snapshot = AsyncMock(return_value=snap)
+        sb._page = MagicMock()
+        sb._page.url = "https://test.local"
+        sb._page.title = AsyncMock(return_value="Test")
+
+        result = await sb.observe()
+        targets = result.data["targets"]
+        assert len(targets) == 1
+        assert targets[0]["name"] == "HasBounds"
 
     @pytest.mark.asyncio
     async def test_observe_caps_at_50_targets(self):
@@ -221,7 +244,7 @@ class TestFacadeObserveTargets:
         sb = SuperBrowser()
         snap = AXSnapshot(url="https://test.local", title="Test")
         snap.nodes = {
-            f"e{i}": AXNode(ref=f"e{i}", role="button", name=f"Btn{i}")
+            f"e{i}": AXNode(ref=f"e{i}", role="button", name=f"Btn{i}", bounds=(0, 0, 10, 10))
             for i in range(60)
         }
         sb._controller = MagicMock()
@@ -242,11 +265,11 @@ class TestFacadeObserveTargets:
         sb = SuperBrowser()
         snap = AXSnapshot(url="https://test.local", title="Test")
         snap.nodes = {
-            "e0": AXNode(ref="e0", role="button", name="B"),
-            "e1": AXNode(ref="e1", role="textbox", name="T"),
-            "e2": AXNode(ref="e2", role="combobox", name="C"),
-            "e3": AXNode(ref="e3", role="checkbox", name="Ch"),
-            "e4": AXNode(ref="e4", role="link", name="L"),
+            "e0": AXNode(ref="e0", role="button", name="B", bounds=(0, 0, 10, 10)),
+            "e1": AXNode(ref="e1", role="textbox", name="T", bounds=(0, 0, 10, 10)),
+            "e2": AXNode(ref="e2", role="combobox", name="C", bounds=(0, 0, 10, 10)),
+            "e3": AXNode(ref="e3", role="checkbox", name="Ch", bounds=(0, 0, 10, 10)),
+            "e4": AXNode(ref="e4", role="link", name="L", bounds=(0, 0, 10, 10)),
         }
         sb._controller = MagicMock()
         sb._controller.capture_ax_snapshot = AsyncMock(return_value=snap)
@@ -259,5 +282,48 @@ class TestFacadeObserveTargets:
         assert hints["button"] == "click"
         assert hints["textbox"] == "fill"
         assert hints["combobox"] == "select_option"
-        assert hints["checkbox"] == "check"
+        # checkbox maps to click (toggle-like) because check() is selector-only
+        assert hints["checkbox"] == "click"
         assert hints["link"] == "click"
+
+
+# ============================================================================
+# End-to-end: observe ref consumed by an action tool (coordinate tier)
+# ============================================================================
+
+
+class TestObserveRefConsumedByAction:
+    """Prove that a ref returned by observe can actually be consumed by an
+    action tool — not just that it starts with '@'."""
+
+    @pytest.mark.asyncio
+    async def test_click_resolves_ref_from_observe(self):
+        """The coordinate-tier _resolve_to_coordinates resolves @refs via the
+        AX snapshot. Mock the controller so click receives the ref, resolves
+        it, and dispatches a CDP mouse event."""
+        from super_browser import SuperBrowser
+        from super_browser.interaction.types import AXNode, AXSnapshot
+
+        sb = SuperBrowser()
+        snap = AXSnapshot(url="https://test.local", title="Test")
+        snap.nodes = {
+            "e0": AXNode(ref="e0", role="button", name="Submit", bounds=(100, 200, 50, 30)),
+        }
+        sb._controller = MagicMock()
+        sb._controller.capture_ax_snapshot = AsyncMock(return_value=snap)
+        sb._controller._ax_snapshot = snap
+        sb._controller._resolve_to_coordinates = AsyncMock(return_value=(125.0, 215.0))
+        sb._controller.click = AsyncMock(return_value=MagicMock(ok=True, data={}, error=None, meta=None))
+        sb._page = MagicMock()
+        sb._page.url = "https://test.local"
+        sb._page.title = AsyncMock(return_value="Test")
+
+        # 1. observe
+        obs = await sb.observe()
+        ref = obs.data["targets"][0]["target"]
+        assert ref == "@e0"
+
+        # 2. click with that ref
+        click_result = await sb._controller.click(ref)
+        assert click_result.ok is True
+        sb._controller.click.assert_awaited_once_with("@e0")
