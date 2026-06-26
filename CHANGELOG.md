@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Documentation — MCP tool metadata design note (P4)
+
+Added `docs/design/mcp_tool_metadata.md` — a design note analyzing whether
+MCP tool schemas, tiers, validation, and docs should be unified onto the
+existing `ToolDefinition` registry. **Decision: defer full unification.** The
+current `ToolDefinition` cannot express MCP-specific metadata (tiers, enums,
+ranges, validation hooks, bool-as-int rejection) without lossy flattening. Keep
+`mcp_server.py` as the MCP source of truth until tool count or a production
+mismatch justifies change. Trigger conditions and three future options
+documented.
+
 ## [2.8.0] — 2026-06-26
 
 ### Added — MCP interaction tools (P3.1)
