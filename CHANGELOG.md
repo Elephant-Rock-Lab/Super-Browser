@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — MCP inspect-output redaction (P2.3)
+
+Inspect-tier MCP tools now redact detected secrets at the MCP serialization
+boundary before returning content to the agent. Redaction is **on by default**
+(matching `SecurityConfig.redaction_enabled=True`) and can be disabled via
+`SB_MCP_REDACTION=0` (env) or `SecurityConfig(redaction_enabled=False)`
+(programmatic).
+
+**Tools redacted (9):** `extract_text`, `observe`, `current_url`, `list_tabs`,
+`get_console_messages`, `get_page_errors`, `get_network_errors`, `list_requests`,
+`get_request`.
+
+**What gets redacted:**
+- Text fields (text, message, stack, title, failure_text) — secret patterns
+  detected by `SecretRedactor` (API keys, JWTs, passwords, PEM keys, etc.) are
+  replaced with `[REDACTED:{type}:{hash6}]` markers.
+- URL fields — two-pass: `redact_context()` redacts sensitive query-parameter
+  values (`[REDACTED:query_param]`), then `SecretRedactor` pattern-scans for
+  secrets in non-sensitive keys/fragments.
+
+**What does NOT change:**
+- Output shape (same keys/structure; only string values may contain markers).
+- Python SDK consumers (`sb.extract()`, `sb.observe()`, `sb.diagnostics`) —
+  redaction applies only at the MCP boundary, not the SDK path.
+- `screenshot` (visual content), `browser_status` (no sensitive content).
+- DiagnosticsBuffer capture behavior, facade outputs.
+
+### Compatibility notes
+
+- This is a **behavior change** for MCP consumers: inspect-tier output that
+  previously contained raw secrets will now contain redaction markers. Set
+  `SB_MCP_REDACTION=0` to restore raw output.
+
 ### Fixed — Release tooling
 
 - `scripts/verify_release_artifact.py` now supports sdist (`.tar.gz`) artifacts
