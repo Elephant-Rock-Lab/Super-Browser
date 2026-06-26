@@ -1126,6 +1126,11 @@ class TestSwitchTabTool:
         payload = json.loads(result[0].text)
         assert payload["ok"] is False
         assert "invalid_arguments" in payload
+        # Bool (bool is an int subtype in Python — must be rejected)
+        result = await dispatcher.dispatch("switch_tab", {"tab_id": True})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "invalid_arguments" in payload
         # Facade must never be called for invalid args
         fake_sb.switch_tab.assert_not_called()
 

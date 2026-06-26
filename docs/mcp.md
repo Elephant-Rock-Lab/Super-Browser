@@ -6,7 +6,7 @@ agents (Claude, Cursor, etc.) can observe and interact with a page without
 scripting Python.
 
 The stdio server advertises **fourteen tools by default** (six inspect + five
-diagnostics + two navigation) — enough to read a URL end-to-end and explain
+diagnostics + three navigation) — enough to read a URL end-to-end and explain
 why a read failed. When action mode is enabled, it advertises **six additional
 action tools**; every action call is checked by
 `MCPSessionPolicy` and `SecurityManager` before it can reach the browser.
@@ -32,7 +32,7 @@ Either of:
 
 ```bash
 superbrowser-mcp                       # default: 14 tools (inspect + diagnostics + navigation)
-superbrowser-mcp --allow-actions       # 14 tools (adds the action tier)
+superbrowser-mcp --allow-actions       # 20 tools (adds the action tier)
 python -m super_browser.mcp_server
 ```
 
@@ -137,10 +137,12 @@ only.
 
 ### Navigation tier (always advertised)
 
-Navigation mutates browser state (page acquisition) but is default-allowed
-because reading requires a page to read. It is always checked by the
-`SecurityManager` and is audited, but it does **not** consume the action
-budget and does **not** require action mode.
+Navigation mutates browser state (page/context acquisition) but is
+default-allowed because reading requires page/context acquisition. `navigate`
+is checked and audited at the MCP boundary when a SecurityManager is
+configured. `switch_tab` delegates to the facade, which applies its configured
+facade security policy. Navigation tools do **not** consume the action budget
+and do **not** require action mode.
 
 | Tool | Args | Behavior |
 |---|---|---|
