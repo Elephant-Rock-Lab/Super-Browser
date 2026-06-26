@@ -347,41 +347,18 @@ class MultimodalController:
         *,
         description: Optional[str] = None,
     ) -> ActionResult:
-        """Check a checkbox or radio button."""
+        """Check a checkbox or radio button.
+
+        Selector-tier only — coordinate/vision fallbacks would be toggle-like
+        (clicks that can uncheck an already-checked box), violating the
+        idempotent state-enforcing semantics implied by the tool name.
+        """
 
         async def t1():
             await self._interaction_target.check(target)
             return action_result(ok=True, data={"target": target}, method=ActionMethod.SELECTOR)
 
-        async def t2():
-            coords = await self._resolve_to_coordinates(target)
-            if coords is None:
-                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Cannot resolve '{target}'"))
-            await self._cdp.send("Input.dispatchMouseEvent", {
-                "type": "mousePressed", "x": coords[0], "y": coords[1],
-                "button": "left", "clickCount": 1,
-            })
-            await self._cdp.send("Input.dispatchMouseEvent", {
-                "type": "mouseReleased", "x": coords[0], "y": coords[1],
-                "button": "left", "clickCount": 1,
-            })
-            return action_result(ok=True, data={"target": target, "method": "coordinate"}, method=ActionMethod.COORDINATE)
-
-        async def t3():
-            coords = await self._vision_locate(description or target)
-            if coords is None:
-                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, "Vision could not locate element"))
-            await self._cdp.send("Input.dispatchMouseEvent", {
-                "type": "mousePressed", "x": coords[0], "y": coords[1],
-                "button": "left", "clickCount": 1,
-            })
-            await self._cdp.send("Input.dispatchMouseEvent", {
-                "type": "mouseReleased", "x": coords[0], "y": coords[1],
-                "button": "left", "clickCount": 1,
-            })
-            return action_result(ok=True, data={"target": target, "method": "vision"}, method=ActionMethod.VISION)
-
-        result, _ = await self._cascade("check", target, description, t1, t2, t3)
+        result, _ = await self._cascade("check", target, description, t1)
         return result
 
     @agent_action(security_level="sensitive")
@@ -391,41 +368,17 @@ class MultimodalController:
         *,
         description: Optional[str] = None,
     ) -> ActionResult:
-        """Uncheck a checkbox."""
+        """Uncheck a checkbox.
+
+        Selector-tier only — same rationale as ``check``: coordinate/vision
+        fallbacks would be toggle-like, not state-enforcing.
+        """
 
         async def t1():
             await self._interaction_target.uncheck(target)
             return action_result(ok=True, data={"target": target}, method=ActionMethod.SELECTOR)
 
-        async def t2():
-            coords = await self._resolve_to_coordinates(target)
-            if coords is None:
-                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Cannot resolve '{target}'"))
-            await self._cdp.send("Input.dispatchMouseEvent", {
-                "type": "mousePressed", "x": coords[0], "y": coords[1],
-                "button": "left", "clickCount": 1,
-            })
-            await self._cdp.send("Input.dispatchMouseEvent", {
-                "type": "mouseReleased", "x": coords[0], "y": coords[1],
-                "button": "left", "clickCount": 1,
-            })
-            return action_result(ok=True, data={"target": target, "method": "coordinate"}, method=ActionMethod.COORDINATE)
-
-        async def t3():
-            coords = await self._vision_locate(description or target)
-            if coords is None:
-                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, "Vision could not locate element"))
-            await self._cdp.send("Input.dispatchMouseEvent", {
-                "type": "mousePressed", "x": coords[0], "y": coords[1],
-                "button": "left", "clickCount": 1,
-            })
-            await self._cdp.send("Input.dispatchMouseEvent", {
-                "type": "mouseReleased", "x": coords[0], "y": coords[1],
-                "button": "left", "clickCount": 1,
-            })
-            return action_result(ok=True, data={"target": target, "method": "vision"}, method=ActionMethod.VISION)
-
-        result, _ = await self._cascade("uncheck", target, description, t1, t2, t3)
+        result, _ = await self._cascade("uncheck", target, description, t1)
         return result
 
     @agent_action(security_level="sensitive")
@@ -482,6 +435,8 @@ class MultimodalController:
                 await self._cdp.send("Input.dispatchKeyEvent", {
                     "type": "char", "text": char,
                 })
+                if delay:
+                    await asyncio.sleep(delay / 1000)
             return action_result(ok=True, data={"target": target, "method": "coordinate"}, method=ActionMethod.COORDINATE)
 
         result, _ = await self._cascade("type_text", target, description, t1, t2)

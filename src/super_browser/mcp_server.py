@@ -971,8 +971,9 @@ class ToolDispatcher:
         """Action-tier dispatch: validate → action gate → authorize → handler.
 
         Authorization happens before ANY facade/browser call. If denied, the
-        facade is never touched. All 6 action tools (scroll, press_key, click,
-        fill, open_tab, close_tab) have real handlers that call the facade
+        facade is never touched. All 12 action tools (scroll, press_key, click,
+        fill, open_tab, close_tab, hover, select_option, check, uncheck, focus,
+        type_text) have real handlers that call the facade/controller
         after the authorizer approves.
         """
         # 1. Validate args before authorization (invalid args must not consume
@@ -1345,12 +1346,16 @@ class ToolDispatcher:
     async def _tool_hover(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         controller = getattr(sb, "_controller", None)
+        if controller is None:
+            return _error_content("browser has no active controller", kind="error")
         ar = await controller.hover(arguments["target"], description=arguments.get("description"))
         return _text_content(_serialize_action_result(ar))
 
     async def _tool_select_option(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         controller = getattr(sb, "_controller", None)
+        if controller is None:
+            return _error_content("browser has no active controller", kind="error")
         ar = await controller.select(
             arguments["target"], arguments["option"],
             by=arguments.get("by", "text"),
@@ -1361,24 +1366,32 @@ class ToolDispatcher:
     async def _tool_check(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         controller = getattr(sb, "_controller", None)
+        if controller is None:
+            return _error_content("browser has no active controller", kind="error")
         ar = await controller.check(arguments["target"], description=arguments.get("description"))
         return _text_content(_serialize_action_result(ar))
 
     async def _tool_uncheck(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         controller = getattr(sb, "_controller", None)
+        if controller is None:
+            return _error_content("browser has no active controller", kind="error")
         ar = await controller.uncheck(arguments["target"], description=arguments.get("description"))
         return _text_content(_serialize_action_result(ar))
 
     async def _tool_focus(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         controller = getattr(sb, "_controller", None)
+        if controller is None:
+            return _error_content("browser has no active controller", kind="error")
         ar = await controller.focus(arguments["target"], description=arguments.get("description"))
         return _text_content(_serialize_action_result(ar))
 
     async def _tool_type_text(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         controller = getattr(sb, "_controller", None)
+        if controller is None:
+            return _error_content("browser has no active controller", kind="error")
         ar = await controller.type_text(
             arguments["target"], arguments["text"],
             delay=arguments.get("delay_ms", 0),

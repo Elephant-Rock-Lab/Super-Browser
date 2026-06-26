@@ -204,9 +204,6 @@ retrieve, infer, store, or auto-fill credentials. `type_text` types
 character-by-character (per-keystroke), triggering JS key listeners — unlike
 `fill` which sets the value atomically.
 
-`fill` sends only the literal value supplied by the caller. It does not
-retrieve, infer, store, or auto-fill credentials.
-
 #### Action workflow
 
 ```bash
