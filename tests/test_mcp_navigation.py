@@ -44,7 +44,7 @@ class TestTierConstants:
         from super_browser.mcp_server import ACTION_TOOL_NAMES
 
         assert ACTION_TOOL_NAMES == frozenset({
-            "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
+            "scroll", "press_key", "click", "fill", "open_tab", "close_tab", "hover", "select_option", "check", "uncheck", "focus", "type_text",
         })
 
     def test_default_tool_names_is_inspect_union_navigation(self):
@@ -78,7 +78,7 @@ class TestTierConstants:
         all_known = {
             "browser_status", "current_url", "observe", "extract_text",
             "screenshot", "list_tabs", "navigate", "wait_for", "switch_tab", "reload", "go_back", "go_forward",
-            "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
+            "scroll", "press_key", "click", "fill", "open_tab", "close_tab", "hover", "select_option", "check", "uncheck", "focus", "type_text",
             "get_console_messages", "get_page_errors", "get_network_errors",
             "list_requests", "get_request",
         }
@@ -676,12 +676,12 @@ class TestToolAdvertisement:
         assert {t.name for t in advertised} == DEFAULT_TOOL_NAMES
         assert DEFAULT_TOOL_NAMES == INSPECT_TOOL_NAMES | NAVIGATION_TOOL_NAMES
 
-    def test_allow_actions_advertises_23_tools(self):
+    def test_allow_actions_advertises_29_tools(self):
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
 
         advertised = _tools_for_policy(MCPSessionPolicy(allow_actions=True))
         names = {t.name for t in advertised}
-        assert len(advertised) == 23
+        assert len(advertised) == 29
         # All 6 action tools present.
         assert {"scroll", "press_key", "click", "fill", "open_tab", "close_tab"} <= names
 
@@ -703,22 +703,22 @@ class TestToolAdvertisement:
         assert "get_console_messages" in names
         assert "click" not in names
 
-    def test_build_server_allow_actions_advertises_23(self):
+    def test_build_server_allow_actions_advertises_29(self):
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy, build_server
 
         server = build_server(policy=MCPSessionPolicy(allow_actions=True))
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 23
+        assert len(names) == 29
 
-    def test_build_server_legacy_allow_writes_advertises_23(self):
+    def test_build_server_legacy_allow_writes_advertises_29(self):
         """Legacy allow_writes=True must still enable action tools."""
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy, build_server
 
         server = build_server(policy=MCPSessionPolicy(allow_writes=True))
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 23
+        assert len(names) == 29
 
 
 # ============================================================================

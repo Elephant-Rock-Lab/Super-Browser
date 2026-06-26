@@ -81,6 +81,18 @@ class FrameInteractionTarget:
     async def hover(self, selector: str) -> None:
         await self._frame.locator(selector).hover()
 
+    async def check(self, selector: str) -> None:
+        await self._frame.locator(selector).check()
+
+    async def uncheck(self, selector: str) -> None:
+        await self._frame.locator(selector).uncheck()
+
+    async def focus(self, selector: str) -> None:
+        await self._frame.locator(selector).focus()
+
+    async def type_text(self, selector: str, text: str, *, delay: int = 0) -> None:
+        await self._frame.locator(selector).type(text, delay=delay)
+
     async def drag_and_drop(self, source: str, target: str) -> None:
         src = self._frame.locator(source)
         dst = self._frame.locator(target)
@@ -326,6 +338,108 @@ class MultimodalController:
             )
 
         result, _ = await self._cascade("hover", target, description, t1, t2, t3)
+        return result
+
+    @agent_action(security_level="sensitive")
+    async def check(
+        self,
+        target: str,
+        *,
+        description: Optional[str] = None,
+    ) -> ActionResult:
+        """Check a checkbox or radio button.
+
+        Selector-tier only — coordinate/vision fallbacks would be toggle-like
+        (clicks that can uncheck an already-checked box), violating the
+        idempotent state-enforcing semantics implied by the tool name.
+        """
+
+        async def t1():
+            await self._interaction_target.check(target)
+            return action_result(ok=True, data={"target": target}, method=ActionMethod.SELECTOR)
+
+        result, _ = await self._cascade("check", target, description, t1)
+        return result
+
+    @agent_action(security_level="sensitive")
+    async def uncheck(
+        self,
+        target: str,
+        *,
+        description: Optional[str] = None,
+    ) -> ActionResult:
+        """Uncheck a checkbox.
+
+        Selector-tier only — same rationale as ``check``: coordinate/vision
+        fallbacks would be toggle-like, not state-enforcing.
+        """
+
+        async def t1():
+            await self._interaction_target.uncheck(target)
+            return action_result(ok=True, data={"target": target}, method=ActionMethod.SELECTOR)
+
+        result, _ = await self._cascade("uncheck", target, description, t1)
+        return result
+
+    @agent_action(security_level="sensitive")
+    async def focus(
+        self,
+        target: str,
+        *,
+        description: Optional[str] = None,
+    ) -> ActionResult:
+        """Focus an element."""
+
+        async def t1():
+            await self._interaction_target.focus(target)
+            return action_result(ok=True, data={"target": target}, method=ActionMethod.SELECTOR)
+
+        # Focus has no meaningful coordinate/vision fallback — a click would be
+        # a different action, not a focus. Only selector-tier.
+        result, _ = await self._cascade("focus", target, description, t1)
+        return result
+
+    @agent_action(security_level="sensitive")
+    async def type_text(
+        self,
+        target: str,
+        text: str,
+        *,
+        delay: int = 0,
+        description: Optional[str] = None,
+    ) -> ActionResult:
+        """Type text character-by-character (per-keystroke), unlike fill.
+
+        Triggers JS keydown/keypress/keyup listeners, suitable for autocomplete,
+        masked inputs, and debounce handlers.
+        """
+
+        async def t1():
+            await self._interaction_target.type_text(target, text, delay=delay)
+            return action_result(ok=True, data={"target": target, "text_length": len(text)}, method=ActionMethod.SELECTOR)
+
+        async def t2():
+            coords = await self._resolve_to_coordinates(target)
+            if coords is None:
+                return action_result(ok=False, error=ActionError(ErrorCategory.SELECTOR_NOT_FOUND, f"Cannot resolve '{target}'"))
+            # Click to focus, then type via CDP.
+            await self._cdp.send("Input.dispatchMouseEvent", {
+                "type": "mousePressed", "x": coords[0], "y": coords[1],
+                "button": "left", "clickCount": 1,
+            })
+            await self._cdp.send("Input.dispatchMouseEvent", {
+                "type": "mouseReleased", "x": coords[0], "y": coords[1],
+                "button": "left", "clickCount": 1,
+            })
+            for char in text:
+                await self._cdp.send("Input.dispatchKeyEvent", {
+                    "type": "char", "text": char,
+                })
+                if delay:
+                    await asyncio.sleep(delay / 1000)
+            return action_result(ok=True, data={"target": target, "method": "coordinate"}, method=ActionMethod.COORDINATE)
+
+        result, _ = await self._cascade("type_text", target, description, t1, t2)
         return result
 
     @agent_action(security_level="dangerous")

@@ -80,11 +80,11 @@ class TestDiagnosticsAdvertisement:
                      "list_requests", "get_request"):
             assert diag in names
 
-    def test_action_mode_advertises_23_tools(self):
+    def test_action_mode_advertises_29_tools(self):
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
 
         names = {t.name for t in _tools_for_policy(MCPSessionPolicy(allow_actions=True))}
-        assert len(names) == 23
+        assert len(names) == 29
 
     def test_diagnostics_are_inspect_tier(self):
         """Diagnostics tools are in INSPECT_TOOL_NAMES (no action gate)."""

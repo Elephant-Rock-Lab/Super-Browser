@@ -7,7 +7,7 @@ scripting Python.
 
 The stdio server advertises **seventeen tools by default** (six inspect + five
 diagnostics + six navigation) — enough to read a URL end-to-end and explain
-why a read failed. When action mode is enabled, it advertises **six additional
+why a read failed. When action mode is enabled, it advertises **twelve additional
 action tools**; every action call is checked by
 `MCPSessionPolicy` and `SecurityManager` before it can reach the browser.
 
@@ -32,7 +32,7 @@ Either of:
 
 ```bash
 superbrowser-mcp                       # default: 17 tools (inspect + diagnostics + navigation)
-superbrowser-mcp --allow-actions       # 23 tools (adds the action tier)
+superbrowser-mcp --allow-actions       # 29 tools (adds the action tier)
 python -m super_browser.mcp_server
 ```
 
@@ -192,9 +192,17 @@ entry, no side effects.
 | `fill` | `target` (required), `value` (required), `clear_first` (optional), `description` (optional) | SENSITIVE |
 | `open_tab` | `url` (optional) | SENSITIVE — URL passed to `SecurityManager` when provided |
 | `close_tab` | `tab_id` (required) | SENSITIVE |
+| `hover` | `target` (required), `description` (optional) | SENSITIVE |
+| `select_option` | `target` (required), `option` (required), `by` (optional: text/value/label), `description` (optional) | SENSITIVE |
+| `check` | `target` (required), `description` (optional) | SENSITIVE |
+| `uncheck` | `target` (required), `description` (optional) | SENSITIVE |
+| `focus` | `target` (required), `description` (optional) | SENSITIVE |
+| `type_text` | `target` (required), `text` (required), `delay_ms` (optional, 0–1000), `description` (optional) | SENSITIVE |
 
 `fill` sends only the literal value supplied by the caller. It does not
-retrieve, infer, store, or auto-fill credentials.
+retrieve, infer, store, or auto-fill credentials. `type_text` types
+character-by-character (per-keystroke), triggering JS key listeners — unlike
+`fill` which sets the value atomically.
 
 #### Action workflow
 

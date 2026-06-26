@@ -156,8 +156,9 @@ class TestRegistryIntegrity:
         browser = _make_browser_with_mocks()
         browser._register_builtin_tools()
 
-        # 7 controller + navigate + extract + observe = 10
-        assert browser._registry.tool_count == 10
+        # 11 controller (7 original + check/uncheck/focus/type_text)
+        # + navigate + extract + observe = 14
+        assert browser._registry.tool_count == 14
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — MCP interaction tools (P3.1)
+
+Six new action-tier MCP tools for form and element interaction:
+
+- `hover` — hover over an element (controller-backed, selector/coordinate/vision cascade)
+- `select_option` — select an option in a `<select>` element (maps to controller `select`, supports `by`: text/value/label)
+- `check` — check a checkbox or radio button (new controller method + cascade)
+- `uncheck` — uncheck a checkbox (new controller method + cascade)
+- `focus` — focus an element (new controller method, selector-tier only)
+- `type_text` — type text character-by-character (per-keystroke), triggering JS key listeners. Unlike `fill` which sets the value atomically. Supports `delay_ms` (0–1000). (new controller method)
+
+All six are action-tier: require `--allow-actions`, consume the action budget,
+pass through `SecurityManager` + audit, and are absent from the default
+advertised surface.
+
+- Default advertised tools: remains 17
+- Action-mode advertised tools: 23 → 29
+
+New controller primitives (`check`, `uncheck`, `focus`, `type_text`) added to
+`MultimodalController` with `@agent_action` decorators and `FrameInteractionTarget`
+adapters. Registered in the facade's builtin-tool loop.
+
 ## [2.7.0] — 2026-06-26
 
 ### Added — MCP reload and history navigation tools (P3.0B)
