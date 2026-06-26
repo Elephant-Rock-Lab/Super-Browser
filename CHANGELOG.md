@@ -18,7 +18,7 @@ extracted from the accessibility snapshot. Each target includes:
   `check`/`uncheck` are selector-tier only and cannot resolve `@refs`.
 - `role` — the AX role (button, textbox, checkbox, combobox, link, etc.)
 - `name` — the accessible name (subject to inspect-output redaction)
-- `action_hint` — recommended action for the role (click, fill, check,
+- `action_hint` — recommended action for the role (`click`, `fill`,
   select_option)
 
 Targets are capped at 50 interactive, non-disabled elements.
