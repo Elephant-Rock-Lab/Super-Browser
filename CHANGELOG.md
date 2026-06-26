@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — MCP reload and history navigation tools (P3.0B)
+
+- `reload`, `go_back`, `go_forward` are now navigation-tier MCP tools
+  (default-allowed, not action-budgeted). Each delegates to a new thin facade
+  method that calls the underlying Playwright page method.
+- `go_back` and `go_forward` return a structured error when there is no
+  history entry to navigate to.
+- Default advertised tools: 14 → 17; action mode: 20 → 23.
+- Diagnostics remain session-wide after navigation.
+
 ## [2.6.0] — 2026-06-26
 
 ### Added — MCP switch_tab navigation tool (P3.0A)
