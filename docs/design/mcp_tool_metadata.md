@@ -28,10 +28,11 @@ metadata is maintained in three parallel places:
      DIAGNOSTICS_TOOLS, INTERACTION_TOOLS, PHASE2B_TOOLS, PHASE2B_WAVE2_TOOLS
    - Handlers wired by name-string convention: getattr(self, f"_tool_{name}")
 
-3. MCP tier/security maps + validation               (MCP path)
+3. MCP tier names + validation + authorization path   (MCP path)
    - INSPECT_TOOL_NAMES, NAVIGATION_TOOL_NAMES, ACTION_TOOL_NAMES frozensets
-   - WRITE_TOOL_SECURITY_LEVELS / NAVIGATION_SECURITY_LEVELS dicts
+   - Tool-tier list membership determines advertised/default/action behavior
    - _validate_navigation_args / _validate_action_args (hand-written Python)
+   - MCPAuthorizer / SecurityManager path for action authorization
 ```
 
 These three sources are synchronized manually. Tests assert advertised counts
@@ -50,7 +51,7 @@ Duplication is growing. Each new MCP tool requires:
 - Updates to `docs/mcp.md` (tool table + counts)
 - Updates to `CHANGELOG.md`
 
-That is 8 touch points per tool. With 29 tools now and P3.1B/P4/P5 ahead,
+That is 8 touch points per tool. With 29 tools now and P5/P6 work still ahead,
 the maintenance surface is real.
 
 ## Why current ToolDefinition cannot serve as MCP source of truth
@@ -88,7 +89,7 @@ concept unrelated to MCP permission tiers.
 ### 3. Validation hooks are hand-written Python
 
 MCP argument validation (`_validate_navigation_args`,
-`validate_action_args`) contains logic that no schema can express:
+`_validate_action_args`) contains logic that no schema can express:
 non-empty string checks, bool-as-int rejection, range bounds, exactly-one-
 condition constraints (`wait_for`). This logic cannot be generated from any
 data structure — it requires executable validation hooks.
