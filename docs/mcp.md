@@ -115,7 +115,7 @@ advertised; the third requires action mode; the fourth is not implemented.
 |---|---|---|---|
 | `browser_status` | none | Runtime status (running, backend). | No |
 | `current_url` | none | Current URL, or a structured "not started" state. | No |
-| `observe` | none | Page state: URL, title, interactive/total element counts. | Yes |
+| `observe` | none | Page state: URL, title, interactive/total element counts, and a `targets` array of actionable element references (capped at 50). Each target includes `target` (a ref like `@e0`, usable as the `target` argument for coordinate-tier action tools: `click`, `fill`, `type_text`, `hover`, `select_option`), `role`, `name`, and `action_hint`. | Yes |
 | `extract_text` | `query` (required), `selector` (optional) | Text content, optionally scoped to a CSS selector. | Yes |
 | `screenshot` | `full_page` (optional, default `false`) | Base64 PNG of the viewport or full page. | Yes |
 | `list_tabs` | none | Snapshot of open tabs. | Yes |
@@ -162,7 +162,17 @@ results; compound waits can be added later as an explicit AND mode).
 navigate → wait_for → observe / extract_text / screenshot
 ```
 
-This is the default-mode loop an agent uses to read a page.
+This is the default-mode loop an agent uses to read a page. `observe` returns
+actionable targets (`@e0` refs) that can be passed directly as the `target`
+argument to coordinate-tier action tools (`click`, `fill`, `type_text`,
+`hover`, `select_option`):
+
+```text
+navigate → wait_for → observe → click(target="@e0")
+```
+
+The `targets` array is capped at 50; `targets_truncated` indicates whether more
+interactive elements exist. Target names are subject to inspect-output redaction.
 
 #### Debugging workflow
 

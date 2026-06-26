@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — MCP observe actionable targets
+
+`observe` now returns a `targets` array of actionable element references
+extracted from the accessibility snapshot. Each target includes:
+
+- `target` — a ref string (e.g. `@e0`) usable as the `target` argument for
+  coordinate-tier action tools: `click`, `fill`, `type_text`, `hover`,
+  `select_option`. Checkbox/radio targets map to `click` (toggle-like) because
+  `check`/`uncheck` are selector-tier only and cannot resolve `@refs`.
+- `role` — the AX role (button, textbox, checkbox, combobox, link, etc.)
+- `name` — the accessible name (subject to inspect-output redaction)
+- `action_hint` — recommended action for the role (`click`, `fill`,
+  select_option)
+
+Targets are capped at 50 interactive, non-disabled elements.
+`targets_truncated` indicates when more exist. This closes the gap where
+agents had to guess CSS selectors — they can now go `observe → action`
+deterministically using the refs returned by `observe`.
+
 ### Documentation — MCP tool metadata design note (P4)
 
 Added `docs/design/mcp_tool_metadata.md` — a design note analyzing whether

@@ -482,10 +482,49 @@ class SuperBrowser:
         snap = await self._controller.capture_ax_snapshot()
         interactive_count = sum(1 for n in snap.nodes.values() if n.is_interactive)
 
+        # Build actionable targets from the AX snapshot.
+        # The ref (e.g. "@e0") is directly usable as a `target` argument for
+        # click/fill/type_text/etc. — the controller's coordinate tier resolves
+        # @refs to element coordinates via the snapshot.
+        _ROLE_ACTION_MAP = {
+            "button": "click", "link": "click", "menuitem": "click",
+            "tab": "click", "treeitem": "click", "option": "click",
+            "textbox": "fill", "searchbox": "fill", "spinbutton": "fill",
+            "combobox": "select_option", "checkbox": "click", "radio": "click",
+            "slider": "fill", "switch": "click",
+        }
+
+        # Only include nodes whose center is resolvable (bounds present),
+        # because @refs are resolved via the coordinate tier. Nodes without
+        # bounds cannot be acted on and would produce a confusing target.
+        # Checkbox/radio map to "click" (not "check") because check/uncheck
+        # are selector-tier only and cannot resolve @refs.
+        all_interactive = [
+            n for n in snap.nodes.values()
+            if n.is_interactive and not n.disabled and n.center is not None
+        ]
+        _MAX_TARGETS = 50
+        capped = all_interactive[:_MAX_TARGETS]
+        targets = [
+            {
+                "target": n.ref if n.ref.startswith("@") else f"@{n.ref}",
+                "role": n.role,
+                "name": n.name,
+                "action_hint": _ROLE_ACTION_MAP.get(n.role, "click"),
+            }
+            for n in capped
+        ]
+
         return timed_action_result(
             ok=True,
             start_ns=start,
-            data={"url": url, "title": title, "interactive_elements": interactive_count, "total_elements": len(snap.nodes)},
+            data={
+                "url": url, "title": title,
+                "interactive_elements": interactive_count,
+                "total_elements": len(snap.nodes),
+                "targets": targets,
+                "targets_truncated": len(all_interactive) > _MAX_TARGETS,
+            },
         )
 
     # -- Tab helper (CHK-07) --
