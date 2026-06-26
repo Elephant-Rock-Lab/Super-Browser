@@ -1489,9 +1489,17 @@ class ToolDispatcher:
             _redact_field(payload, field, is_url=True)
 
         # Redact list-of-dicts entries.
+        # Supports dotted paths like "data.targets" for lists nested under a dict.
         if list_keys:
             for list_key, inner_fields in list_keys.items():
-                items = payload.get(list_key)
+                # Navigate dotted path (e.g. "data.targets" → payload["data"]["targets"])
+                items = payload
+                for part in list_key.split("."):
+                    if isinstance(items, dict):
+                        items = items.get(part)
+                    else:
+                        items = None
+                        break
                 if not isinstance(items, list):
                     continue
                 for item in items:
@@ -1579,10 +1587,13 @@ class ToolDispatcher:
         sb = await self.runtime.get_browser()
         ar = await sb.observe()
         payload = _serialize_action_result(ar)
-        # observe nests URL/title under data dict
-        nested = {"data": ("url", "title")} if isinstance(payload.get("data"), dict) else None
+        # observe nests URL/title/targets under data dict.
+        # Redact url/title (nested fields) and target names (nested list-of-dicts).
+        data = payload.get("data")
+        nested = {"data": ("url", "title")} if isinstance(data, dict) else None
         return _text_content(self._redact_inspect_output(
             payload, nested_keys=nested,
+            list_keys={"data.targets": ("name",)} if isinstance(data, dict) and isinstance(data.get("targets"), list) else None,
         ))
 
     async def _tool_extract_text(self, arguments: dict[str, Any]) -> list[types.TextContent]:
