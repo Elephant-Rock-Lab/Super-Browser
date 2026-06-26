@@ -101,6 +101,36 @@ if result.ok:
     print(result.data.final_url)  # "https://example.com/"
 ```
 
+#### `reload(*, wait_until="domcontentloaded") → ActionResult`
+
+Reload the current page.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `wait_until` | `str` | `"domcontentloaded"` | Playwright load event to wait for. |
+
+**Returns:** `ActionResult` with `data.url` (the page URL after reload).
+
+#### `go_back(*, wait_until="domcontentloaded") → ActionResult`
+
+Go back one step in browser history.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `wait_until` | `str` | `"domcontentloaded"` | Playwright load event to wait for. |
+
+**Returns:** `ActionResult` with `data.url`, or `ok=False` if there is no previous history entry.
+
+#### `go_forward(*, wait_until="domcontentloaded") → ActionResult`
+
+Go forward one step in browser history.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `wait_until` | `str` | `"domcontentloaded"` | Playwright load event to wait for. |
+
+**Returns:** `ActionResult` with `data.url`, or `ok=False` if there is no next history entry.
+
 ### Interaction
 
 #### `click(target, *, description=None) → ActionResult`

@@ -141,6 +141,51 @@ NAVIGATION_AUX_TOOLS: list[types.Tool] = [
             "required": ["tab_id"],
         },
     ),
+    types.Tool(
+        name="reload",
+        description="Reload the current page. Navigation-tier tool (default-allowed).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "wait_until": {
+                    "type": "string",
+                    "enum": ["load", "domcontentloaded", "networkidle"],
+                    "default": "domcontentloaded",
+                },
+            },
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="go_back",
+        description="Go back one step in browser history. Navigation-tier tool (default-allowed).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "wait_until": {
+                    "type": "string",
+                    "enum": ["load", "domcontentloaded", "networkidle"],
+                    "default": "domcontentloaded",
+                },
+            },
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="go_forward",
+        description="Go forward one step in browser history. Navigation-tier tool (default-allowed).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "wait_until": {
+                    "type": "string",
+                    "enum": ["load", "domcontentloaded", "networkidle"],
+                    "default": "domcontentloaded",
+                },
+            },
+            "required": [],
+        },
+    ),
 ]
 
 _NAVIGATION_AUX_TOOL_NAMES = frozenset(t.name for t in NAVIGATION_AUX_TOOLS)
@@ -924,6 +969,15 @@ class ToolDispatcher:
                 )
             return None
 
+        if name in ("reload", "go_back", "go_forward"):
+            wait_until = arguments.get("wait_until", "domcontentloaded")
+            if wait_until not in ("load", "domcontentloaded", "networkidle"):
+                return _error_content(
+                    "'wait_until' must be one of: load, domcontentloaded, networkidle",
+                    kind="invalid_arguments",
+                )
+            return None
+
         if name == "wait_for":
             # timeout_ms: integer, 100 <= x <= 60000. Reject bool (int subtype).
             timeout_ms = arguments.get("timeout_ms", 10000)
@@ -1046,6 +1100,21 @@ class ToolDispatcher:
     async def _tool_switch_tab(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         ar = await sb.switch_tab(arguments["tab_id"])
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_reload(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        ar = await sb.reload(wait_until=arguments.get("wait_until", "domcontentloaded"))
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_go_back(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        ar = await sb.go_back(wait_until=arguments.get("wait_until", "domcontentloaded"))
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_go_forward(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        ar = await sb.go_forward(wait_until=arguments.get("wait_until", "domcontentloaded"))
         return _text_content(_serialize_action_result(ar))
 
     async def _tool_wait_for(self, arguments: dict[str, Any]) -> list[types.TextContent]:

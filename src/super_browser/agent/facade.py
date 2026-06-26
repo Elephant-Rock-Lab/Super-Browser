@@ -240,6 +240,60 @@ class SuperBrowser:
             method=ActionMethod.SELECTOR,
         )
 
+    async def reload(self, *, wait_until: str = "domcontentloaded") -> ActionResult:
+        """Reload the current page."""
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Not started"))
+        params = {"wait_until": wait_until}
+        sec = await self._check_facade_security("reload", params, security_level="sensitive")
+        if sec is not None:
+            return sec
+        wait_until = params["wait_until"]
+        start = time.monotonic()
+        await self._page.backend_page.reload(wait_until=wait_until)
+        return timed_action_result(
+            ok=True, start_ns=start, data={"url": self._page.url},
+            method=ActionMethod.SELECTOR,
+        )
+
+    async def go_back(self, *, wait_until: str = "domcontentloaded") -> ActionResult:
+        """Navigate to the previous page in browser history."""
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Not started"))
+        params = {"wait_until": wait_until}
+        sec = await self._check_facade_security("go_back", params, security_level="sensitive")
+        if sec is not None:
+            return sec
+        wait_until = params["wait_until"]
+        start = time.monotonic()
+        response = await self._page.backend_page.go_back(wait_until=wait_until)
+        if response is None:
+            return action_result(ok=False, error=ActionError(
+                ErrorCategory.PAGE_ERROR, "No history entry to go back to"))
+        return timed_action_result(
+            ok=True, start_ns=start, data={"url": self._page.url},
+            method=ActionMethod.SELECTOR,
+        )
+
+    async def go_forward(self, *, wait_until: str = "domcontentloaded") -> ActionResult:
+        """Navigate to the next page in browser history."""
+        if not self._page:
+            return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Not started"))
+        params = {"wait_until": wait_until}
+        sec = await self._check_facade_security("go_forward", params, security_level="sensitive")
+        if sec is not None:
+            return sec
+        wait_until = params["wait_until"]
+        start = time.monotonic()
+        response = await self._page.backend_page.go_forward(wait_until=wait_until)
+        if response is None:
+            return action_result(ok=False, error=ActionError(
+                ErrorCategory.PAGE_ERROR, "No history entry to go forward to"))
+        return timed_action_result(
+            ok=True, start_ns=start, data={"url": self._page.url},
+            method=ActionMethod.SELECTOR,
+        )
+
     async def click(self, target: str, *, description: Optional[str] = None) -> ActionResult:
         if not self._controller:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Browser not started. Call await sb.start() first."))

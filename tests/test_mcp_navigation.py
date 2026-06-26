@@ -35,10 +35,10 @@ class TestTierConstants:
             "get_network_errors", "list_requests", "get_request",
         })
 
-    def test_navigation_tool_names_has_two_tools(self):
+    def test_navigation_tool_names_has_six_tools(self):
         from super_browser.mcp_server import NAVIGATION_TOOL_NAMES
 
-        assert NAVIGATION_TOOL_NAMES == frozenset({"navigate", "wait_for", "switch_tab"})
+        assert NAVIGATION_TOOL_NAMES == frozenset({"navigate", "wait_for", "switch_tab", "reload", "go_back", "go_forward"})
 
     def test_action_tool_names_has_six_tools(self):
         from super_browser.mcp_server import ACTION_TOOL_NAMES
@@ -77,7 +77,7 @@ class TestTierConstants:
 
         all_known = {
             "browser_status", "current_url", "observe", "extract_text",
-            "screenshot", "list_tabs", "navigate", "wait_for", "switch_tab",
+            "screenshot", "list_tabs", "navigate", "wait_for", "switch_tab", "reload", "go_back", "go_forward",
             "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
             "get_console_messages", "get_page_errors", "get_network_errors",
             "list_requests", "get_request",
@@ -658,7 +658,7 @@ class TestToolAdvertisement:
 
         advertised = _tools_for_policy(MCPSessionPolicy())
         names = {t.name for t in advertised}
-        assert len(advertised) == 14
+        assert len(advertised) == 17
         # All 5 diagnostics tools present.
         assert {"get_console_messages", "get_page_errors", "get_network_errors",
                 "list_requests", "get_request"} <= names
@@ -676,12 +676,12 @@ class TestToolAdvertisement:
         assert {t.name for t in advertised} == DEFAULT_TOOL_NAMES
         assert DEFAULT_TOOL_NAMES == INSPECT_TOOL_NAMES | NAVIGATION_TOOL_NAMES
 
-    def test_allow_actions_advertises_20_tools(self):
+    def test_allow_actions_advertises_23_tools(self):
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
 
         advertised = _tools_for_policy(MCPSessionPolicy(allow_actions=True))
         names = {t.name for t in advertised}
-        assert len(advertised) == 20
+        assert len(advertised) == 23
         # All 6 action tools present.
         assert {"scroll", "press_key", "click", "fill", "open_tab", "close_tab"} <= names
 
@@ -697,28 +697,28 @@ class TestToolAdvertisement:
         server = build_server()
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 14
+        assert len(names) == 17
         assert "navigate" in names
         assert "wait_for" in names
         assert "get_console_messages" in names
         assert "click" not in names
 
-    def test_build_server_allow_actions_advertises_20(self):
+    def test_build_server_allow_actions_advertises_23(self):
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy, build_server
 
         server = build_server(policy=MCPSessionPolicy(allow_actions=True))
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 20
+        assert len(names) == 23
 
-    def test_build_server_legacy_allow_writes_advertises_20(self):
+    def test_build_server_legacy_allow_writes_advertises_23(self):
         """Legacy allow_writes=True must still enable action tools."""
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy, build_server
 
         server = build_server(policy=MCPSessionPolicy(allow_writes=True))
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 20
+        assert len(names) == 23
 
 
 # ============================================================================
@@ -1163,3 +1163,159 @@ class TestSwitchTabTool:
         result = await dispatcher.dispatch("switch_tab", {"tab_id": 999})
         payload = json.loads(result[0].text)
         assert payload["ok"] is False
+
+
+# ============================================================================
+# reload / go_back / go_forward (P3.0B) — navigation-tier MCP tools
+# ============================================================================
+
+
+class TestHistoryNavigationTools:
+    """reload, go_back, go_forward are navigation-tier: default-allowed,
+    delegate to the facade, don't consume action budget."""
+
+    def test_all_three_in_navigation_tool_names(self):
+        from super_browser.mcp_server import NAVIGATION_TOOL_NAMES
+
+        for name in ("reload", "go_back", "go_forward"):
+            assert name in NAVIGATION_TOOL_NAMES
+
+    def test_all_three_in_default_advertised_tools(self):
+        from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
+
+        names = {t.name for t in _tools_for_policy(MCPSessionPolicy())}
+        for name in ("reload", "go_back", "go_forward"):
+            assert name in names
+
+    @pytest.mark.asyncio
+    async def test_reload_dispatches_to_facade(self):
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        fake_sb.reload = AsyncMock(return_value=_fake_action_result({"url": "https://example.com"}))
+        result = await dispatcher.dispatch("reload", {})
+        fake_sb.reload.assert_awaited_once()
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_go_back_dispatches_to_facade(self):
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        fake_sb.go_back = AsyncMock(return_value=_fake_action_result({"url": "https://prev.com"}))
+        result = await dispatcher.dispatch("go_back", {})
+        fake_sb.go_back.assert_awaited_once()
+        assert json.loads(result[0].text)["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_go_forward_dispatches_to_facade(self):
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        fake_sb.go_forward = AsyncMock(return_value=_fake_action_result({"url": "https://next.com"}))
+        result = await dispatcher.dispatch("go_forward", {})
+        fake_sb.go_forward.assert_awaited_once()
+        assert json.loads(result[0].text)["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_passes_wait_until(self):
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        fake_sb.reload = AsyncMock(return_value=_fake_action_result({"url": "x"}))
+        await dispatcher.dispatch("reload", {"wait_until": "networkidle"})
+        fake_sb.reload.assert_awaited_once_with(wait_until="networkidle")
+
+    @pytest.mark.asyncio
+    async def test_invalid_wait_until_returns_error(self):
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        fake_sb.reload = AsyncMock()
+        result = await dispatcher.dispatch("reload", {"wait_until": "bogus"})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "invalid_arguments" in payload
+        fake_sb.reload.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_do_not_require_allow_actions(self):
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        for name, mock_name in [("reload", "reload"), ("go_back", "go_back"), ("go_forward", "go_forward")]:
+            setattr(fake_sb, mock_name, AsyncMock(return_value=_fake_action_result({"url": "x"})))
+            result = await dispatcher.dispatch(name, {})
+            assert json.loads(result[0].text)["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_do_not_increment_actions_used(self):
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        fake_sb.reload = AsyncMock(return_value=_fake_action_result({"url": "x"}))
+        fake_sb.go_back = AsyncMock(return_value=_fake_action_result({"url": "x"}))
+        fake_sb.go_forward = AsyncMock(return_value=_fake_action_result({"url": "x"}))
+        await dispatcher.dispatch("reload", {})
+        await dispatcher.dispatch("go_back", {})
+        await dispatcher.dispatch("go_forward", {})
+        assert dispatcher.authorizer.policy.actions_used == 0
+
+    @pytest.mark.asyncio
+    async def test_facade_error_returns_structured(self):
+        """When facade returns ok=False (e.g. no history), MCP reflects it."""
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        err_result = MagicMock()
+        err_result.ok = False
+        err_result.data = None
+        err_result.error = {"category": "page_error", "message": "No history entry"}
+        err_result.meta = None
+        fake_sb.go_back = AsyncMock(return_value=err_result)
+        result = await dispatcher.dispatch("go_back", {})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+
+
+# ============================================================================
+# Facade security blocking (P3.0B review) — backend page not called when blocked
+# ============================================================================
+
+
+class TestFacadeSecurityBlocking:
+    """The new facade methods (reload/go_back/go_forward) must call
+    _check_facade_security before touching the backend page. When security
+    blocks, the backend method must never be awaited."""
+
+    def _blocked_sb(self):
+        """A SuperBrowser whose _check_facade_security always returns a denial."""
+        from super_browser import SuperBrowser
+        from super_browser.results.types import ActionError, ErrorCategory, action_result
+
+        sb = SuperBrowser()
+        # Pre-seed a fake page so the _page check passes.
+        sb._page = MagicMock()
+        sb._page.url = "https://example.com"
+        sb._page.backend_page = MagicMock()
+        sb._page.backend_page.reload = AsyncMock()
+        sb._page.backend_page.go_back = AsyncMock()
+        sb._page.backend_page.go_forward = AsyncMock()
+        # Make _check_facade_security return a denial (not None).
+        sb._check_facade_security = AsyncMock(return_value=action_result(
+            ok=False, error=ActionError(ErrorCategory.SECURITY, "blocked")))
+        return sb
+
+    @pytest.mark.asyncio
+    async def test_reload_blocked_does_not_call_backend(self):
+        sb = self._blocked_sb()
+        result = await sb.reload()
+        assert result.ok is False
+        sb._page.backend_page.reload.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_go_back_blocked_does_not_call_backend(self):
+        sb = self._blocked_sb()
+        result = await sb.go_back()
+        assert result.ok is False
+        sb._page.backend_page.go_back.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_go_forward_blocked_does_not_call_backend(self):
+        sb = self._blocked_sb()
+        result = await sb.go_forward()
+        assert result.ok is False
+        sb._page.backend_page.go_forward.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_check_facade_security_is_called_for_all_three(self):
+        sb = self._blocked_sb()
+        await sb.reload()
+        await sb.go_back()
+        await sb.go_forward()
+        assert sb._check_facade_security.call_count == 3

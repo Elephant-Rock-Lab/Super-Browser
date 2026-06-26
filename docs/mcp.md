@@ -5,8 +5,8 @@ Super Browser exposes its browser inspection and control surface over the
 agents (Claude, Cursor, etc.) can observe and interact with a page without
 scripting Python.
 
-The stdio server advertises **fourteen tools by default** (six inspect + five
-diagnostics + three navigation) — enough to read a URL end-to-end and explain
+The stdio server advertises **seventeen tools by default** (six inspect + five
+diagnostics + six navigation) — enough to read a URL end-to-end and explain
 why a read failed. When action mode is enabled, it advertises **six additional
 action tools**; every action call is checked by
 `MCPSessionPolicy` and `SecurityManager` before it can reach the browser.
@@ -31,12 +31,12 @@ python -m patchright install chromium
 Either of:
 
 ```bash
-superbrowser-mcp                       # default: 14 tools (inspect + diagnostics + navigation)
-superbrowser-mcp --allow-actions       # 20 tools (adds the action tier)
+superbrowser-mcp                       # default: 17 tools (inspect + diagnostics + navigation)
+superbrowser-mcp --allow-actions       # 23 tools (adds the action tier)
 python -m super_browser.mcp_server
 ```
 
-Both start a **stdio** server. The default server advertises 14 tools and
+Both start a **stdio** server. The default server advertises 17 tools and
 recognizes (but refuses) action-tool calls with a structured policy refusal.
 
 Action mode can also be enabled via the environment:
@@ -149,6 +149,9 @@ and do **not** require action mode.
 | `navigate` | `url` (required), `wait_until` (optional) | Go to a URL. URL is passed to `SecurityManager` for injection detection, secret redaction, and domain allow/block enforcement. |
 | `wait_for` | exactly one of `selector` / `text` / `url` / `load_state`; `timeout_ms` (optional, 100–60000, default 10000) | Wait for a page condition before the next read. |
 | `switch_tab` | `tab_id` (required, integer) | Switch the active browser tab by ID (from `list_tabs`). Changes the page the agent reads from. Diagnostics remain session-wide after switching; per-tab diagnostics are not supported yet. |
+| `reload` | `wait_until` (optional) | Reload the current page. Returns the URL after reload. |
+| `go_back` | `wait_until` (optional) | Go back one step in browser history. Returns a structured error if there is no previous entry. |
+| `go_forward` | `wait_until` (optional) | Go forward one step in browser history. Returns a structured error if there is no next entry. |
 
 `wait_for` accepts exactly one condition per call (deterministic single
 results; compound waits can be added later as an explicit AND mode).
@@ -230,7 +233,7 @@ restricts the survivors.
 
 The default server behavior partitions the surface by risk:
 
-- **`list_tools()`** advertises only the Inspect + Navigation tiers (14 tools).
+- **`list_tools()`** advertises only the Inspect + Navigation tiers (17 tools).
 - **`call_tool()`** still recognizes action-tool names and returns a structured
   policy refusal (`refusal.reason = "actions are disabled"`), not an "Unknown
   tool" error.
