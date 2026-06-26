@@ -385,7 +385,88 @@ NAVIGATION_TOOL_NAMES = frozenset(t.name for t in NAVIGATION_TOOLS)
 
 # Action-tier tools: page interaction (requires allow_actions).
 # navigate is removed from the action set; scroll/press_key remain.
-ACTION_TOOLS: list[types.Tool] = [*PHASE2B_TOOLS[1:], *PHASE2B_WAVE2_TOOLS]
+# P3.1 adds: hover, select_option, check, uncheck, focus, type_text.
+INTERACTION_TOOLS: list[types.Tool] = [
+    types.Tool(
+        name="hover",
+        description="Hover over an element by selector. Action-tier (requires --allow-actions).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "CSS selector for the element to hover."},
+                "description": {"type": "string", "description": "Optional natural-language description for vision-based fallback."},
+            },
+            "required": ["target"],
+        },
+    ),
+    types.Tool(
+        name="select_option",
+        description="Select an option in a <select> element by selector. Action-tier (requires --allow-actions).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "CSS selector for the <select> element."},
+                "option": {"type": "string", "description": "The option value to select."},
+                "by": {"type": "string", "enum": ["text", "value", "label"], "default": "text",
+                        "description": "How to match the option."},
+                "description": {"type": "string", "description": "Optional natural-language description."},
+            },
+            "required": ["target", "option"],
+        },
+    ),
+    types.Tool(
+        name="check",
+        description="Check a checkbox or radio button by selector. Action-tier (requires --allow-actions).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "CSS selector for the checkbox/radio."},
+                "description": {"type": "string", "description": "Optional natural-language description."},
+            },
+            "required": ["target"],
+        },
+    ),
+    types.Tool(
+        name="uncheck",
+        description="Uncheck a checkbox by selector. Action-tier (requires --allow-actions).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "CSS selector for the checkbox."},
+                "description": {"type": "string", "description": "Optional natural-language description."},
+            },
+            "required": ["target"],
+        },
+    ),
+    types.Tool(
+        name="focus",
+        description="Focus an element by selector. Action-tier (requires --allow-actions).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "CSS selector for the element to focus."},
+                "description": {"type": "string", "description": "Optional natural-language description."},
+            },
+            "required": ["target"],
+        },
+    ),
+    types.Tool(
+        name="type_text",
+        description="Type text character-by-character (per-keystroke) into an element. Unlike fill, this triggers JS key listeners. Action-tier (requires --allow-actions).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "CSS selector for the input element."},
+                "text": {"type": "string", "description": "The text to type."},
+                "delay_ms": {"type": "integer", "default": 0, "description": "Delay between keystrokes in ms (0-1000)."},
+                "description": {"type": "string", "description": "Optional natural-language description."},
+            },
+            "required": ["target", "text"],
+        },
+    ),
+]
+
+ACTION_TOOLS: list[types.Tool] = [*PHASE2B_TOOLS[1:], *PHASE2B_WAVE2_TOOLS, *INTERACTION_TOOLS]
 ACTION_TOOL_NAMES = frozenset(t.name for t in ACTION_TOOLS)
 
 # Default advertised surface: Inspect + Navigation.
@@ -1075,6 +1156,51 @@ class ToolDispatcher:
                     "'tab_id' is required and must be a non-negative integer",
                     kind="invalid_arguments",
                 )
+        elif name in ("hover", "check", "uncheck", "focus"):
+            target = arguments.get("target")
+            if not isinstance(target, str) or not target.strip():
+                return _error_content(
+                    "'target' is required and must be a non-empty string",
+                    kind="invalid_arguments",
+                )
+        elif name == "select_option":
+            target = arguments.get("target")
+            if not isinstance(target, str) or not target.strip():
+                return _error_content(
+                    "'target' is required and must be a non-empty string",
+                    kind="invalid_arguments",
+                )
+            option = arguments.get("option")
+            if not isinstance(option, str) or not option.strip():
+                return _error_content(
+                    "'option' is required and must be a non-empty string",
+                    kind="invalid_arguments",
+                )
+            by = arguments.get("by", "text")
+            if by not in ("text", "value", "label"):
+                return _error_content(
+                    "'by' must be one of: text, value, label",
+                    kind="invalid_arguments",
+                )
+        elif name == "type_text":
+            target = arguments.get("target")
+            if not isinstance(target, str) or not target.strip():
+                return _error_content(
+                    "'target' is required and must be a non-empty string",
+                    kind="invalid_arguments",
+                )
+            text = arguments.get("text")
+            if not isinstance(text, str):
+                return _error_content(
+                    "'text' is required and must be a string",
+                    kind="invalid_arguments",
+                )
+            delay_ms = arguments.get("delay_ms", 0)
+            if not isinstance(delay_ms, int) or isinstance(delay_ms, bool) or delay_ms < 0 or delay_ms > 1000:
+                return _error_content(
+                    "'delay_ms' must be an integer between 0 and 1000",
+                    kind="invalid_arguments",
+                )
         return None
 
     @staticmethod
@@ -1212,6 +1338,52 @@ class ToolDispatcher:
     async def _tool_close_tab(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         ar = await sb.close_tab(arguments["tab_id"])
+        return _text_content(_serialize_action_result(ar))
+
+    # --- P3.1 interaction handlers (action-tier; delegate to controller) ---
+
+    async def _tool_hover(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        controller = getattr(sb, "_controller", None)
+        ar = await controller.hover(arguments["target"], description=arguments.get("description"))
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_select_option(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        controller = getattr(sb, "_controller", None)
+        ar = await controller.select(
+            arguments["target"], arguments["option"],
+            by=arguments.get("by", "text"),
+            description=arguments.get("description"),
+        )
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_check(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        controller = getattr(sb, "_controller", None)
+        ar = await controller.check(arguments["target"], description=arguments.get("description"))
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_uncheck(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        controller = getattr(sb, "_controller", None)
+        ar = await controller.uncheck(arguments["target"], description=arguments.get("description"))
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_focus(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        controller = getattr(sb, "_controller", None)
+        ar = await controller.focus(arguments["target"], description=arguments.get("description"))
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_type_text(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        controller = getattr(sb, "_controller", None)
+        ar = await controller.type_text(
+            arguments["target"], arguments["text"],
+            delay=arguments.get("delay_ms", 0),
+            description=arguments.get("description"),
+        )
         return _text_content(_serialize_action_result(ar))
 
     # --- read-only tools (none of these lazy-start except where noted) ---

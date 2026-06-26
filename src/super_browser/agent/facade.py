@@ -1003,7 +1003,8 @@ class SuperBrowser:
         # self._controller, the registered tools still route to the current
         # controller. Raw bound methods would capture the old controller
         # instance and act on a stale page after tab switches.
-        for name in ("click", "fill", "select", "hover", "drag", "scroll", "keypress"):
+        for name in ("click", "fill", "select", "hover", "drag", "scroll", "keypress",
+                      "check", "uncheck", "focus", "type_text"):
             method = getattr(self._controller, name, None)
             if method is not None and self._registry.get(name) is None:
                 self._registry.register(self._make_controller_wrapper(name))

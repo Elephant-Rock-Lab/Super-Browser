@@ -41,13 +41,14 @@ INSPECT_TOOL_NAMES = {
 }
 # Navigation-tier tool set (always advertised).
 NAVIGATION_TOOL_NAMES = {"navigate", "wait_for", "switch_tab", "reload", "go_back", "go_forward"}
-# Default advertised set: Inspect + Navigation (17 tools).
+# Default advertised set: Inspect + Navigation (17 tools) + Action (12 tools).
 DEFAULT_TOOL_NAMES = INSPECT_TOOL_NAMES | NAVIGATION_TOOL_NAMES
 # Action-tier tool set (advertised only when allow_actions=True).
 ACTION_TOOL_NAMES = {
     "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
+    "hover", "select_option", "check", "uncheck", "focus", "type_text",
 }
-# All 14 tools when actions are enabled.
+# All 29 tools when actions are enabled.
 ALL_TOOL_NAMES = DEFAULT_TOOL_NAMES | ACTION_TOOL_NAMES
 # Backward-compat aliases for older test references.
 READ_ONLY_TOOL_NAMES = INSPECT_TOOL_NAMES
@@ -439,7 +440,7 @@ class TestServerWiring:
         assert advertised_names == DEFAULT_TOOL_NAMES
         assert len(advertised) == 17
 
-    def test_actions_enabled_server_advertises_exactly_19_tools(self):
+    def test_actions_enabled_server_advertises_exactly_29_tools(self):
         """build_server(policy=allow_actions=True) advertises all 19 tools,
         verified through the actual advertisement function."""
         from super_browser.mcp_server import _tools_for_policy
@@ -449,7 +450,7 @@ class TestServerWiring:
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
         assert advertised_names == ALL_TOOL_NAMES
-        assert len(advertised) == 23
+        assert len(advertised) == 29
 
     @pytest.mark.asyncio
     async def test_default_server_dispatch_returns_refusal_not_unknown(self):
