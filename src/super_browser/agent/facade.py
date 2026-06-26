@@ -244,6 +244,11 @@ class SuperBrowser:
         """Reload the current page."""
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Not started"))
+        params = {"wait_until": wait_until}
+        sec = await self._check_facade_security("reload", params, security_level="sensitive")
+        if sec is not None:
+            return sec
+        wait_until = params["wait_until"]
         start = time.monotonic()
         await self._page.backend_page.reload(wait_until=wait_until)
         return timed_action_result(
@@ -255,6 +260,11 @@ class SuperBrowser:
         """Navigate to the previous page in browser history."""
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Not started"))
+        params = {"wait_until": wait_until}
+        sec = await self._check_facade_security("go_back", params, security_level="sensitive")
+        if sec is not None:
+            return sec
+        wait_until = params["wait_until"]
         start = time.monotonic()
         response = await self._page.backend_page.go_back(wait_until=wait_until)
         if response is None:
@@ -269,6 +279,11 @@ class SuperBrowser:
         """Navigate to the next page in browser history."""
         if not self._page:
             return action_result(ok=False, error=ActionError(ErrorCategory.BROWSER_CRASH, "Not started"))
+        params = {"wait_until": wait_until}
+        sec = await self._check_facade_security("go_forward", params, security_level="sensitive")
+        if sec is not None:
+            return sec
+        wait_until = params["wait_until"]
         start = time.monotonic()
         response = await self._page.backend_page.go_forward(wait_until=wait_until)
         if response is None:

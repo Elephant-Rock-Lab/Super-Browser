@@ -77,7 +77,7 @@ class TestTierConstants:
 
         all_known = {
             "browser_status", "current_url", "observe", "extract_text",
-            "screenshot", "list_tabs", "navigate", "wait_for", "switch_tab", "reload", "go_back", "go_forward", "reload", "go_back", "go_forward",
+            "screenshot", "list_tabs", "navigate", "wait_for", "switch_tab", "reload", "go_back", "go_forward",
             "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
             "get_console_messages", "get_page_errors", "get_network_errors",
             "list_requests", "get_request",
@@ -1261,3 +1261,61 @@ class TestHistoryNavigationTools:
         result = await dispatcher.dispatch("go_back", {})
         payload = json.loads(result[0].text)
         assert payload["ok"] is False
+
+
+# ============================================================================
+# Facade security blocking (P3.0B review) — backend page not called when blocked
+# ============================================================================
+
+
+class TestFacadeSecurityBlocking:
+    """The new facade methods (reload/go_back/go_forward) must call
+    _check_facade_security before touching the backend page. When security
+    blocks, the backend method must never be awaited."""
+
+    def _blocked_sb(self):
+        """A SuperBrowser whose _check_facade_security always returns a denial."""
+        from super_browser import SuperBrowser
+        from super_browser.results.types import ActionError, ErrorCategory, action_result
+
+        sb = SuperBrowser()
+        # Pre-seed a fake page so the _page check passes.
+        sb._page = MagicMock()
+        sb._page.url = "https://example.com"
+        sb._page.backend_page = MagicMock()
+        sb._page.backend_page.reload = AsyncMock()
+        sb._page.backend_page.go_back = AsyncMock()
+        sb._page.backend_page.go_forward = AsyncMock()
+        # Make _check_facade_security return a denial (not None).
+        sb._check_facade_security = AsyncMock(return_value=action_result(
+            ok=False, error=ActionError(ErrorCategory.SECURITY, "blocked")))
+        return sb
+
+    @pytest.mark.asyncio
+    async def test_reload_blocked_does_not_call_backend(self):
+        sb = self._blocked_sb()
+        result = await sb.reload()
+        assert result.ok is False
+        sb._page.backend_page.reload.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_go_back_blocked_does_not_call_backend(self):
+        sb = self._blocked_sb()
+        result = await sb.go_back()
+        assert result.ok is False
+        sb._page.backend_page.go_back.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_go_forward_blocked_does_not_call_backend(self):
+        sb = self._blocked_sb()
+        result = await sb.go_forward()
+        assert result.ok is False
+        sb._page.backend_page.go_forward.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_check_facade_security_is_called_for_all_three(self):
+        sb = self._blocked_sb()
+        await sb.reload()
+        await sb.go_back()
+        await sb.go_forward()
+        assert sb._check_facade_security.call_count == 3
