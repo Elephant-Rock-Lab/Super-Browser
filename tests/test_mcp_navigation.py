@@ -38,7 +38,7 @@ class TestTierConstants:
     def test_navigation_tool_names_has_two_tools(self):
         from super_browser.mcp_server import NAVIGATION_TOOL_NAMES
 
-        assert NAVIGATION_TOOL_NAMES == frozenset({"navigate", "wait_for"})
+        assert NAVIGATION_TOOL_NAMES == frozenset({"navigate", "wait_for", "switch_tab"})
 
     def test_action_tool_names_has_six_tools(self):
         from super_browser.mcp_server import ACTION_TOOL_NAMES
@@ -77,7 +77,7 @@ class TestTierConstants:
 
         all_known = {
             "browser_status", "current_url", "observe", "extract_text",
-            "screenshot", "list_tabs", "navigate", "wait_for",
+            "screenshot", "list_tabs", "navigate", "wait_for", "switch_tab",
             "scroll", "press_key", "click", "fill", "open_tab", "close_tab",
             "get_console_messages", "get_page_errors", "get_network_errors",
             "list_requests", "get_request",
@@ -653,12 +653,12 @@ class TestWaitForHandler:
 
 
 class TestToolAdvertisement:
-    def test_default_policy_advertises_13_tools(self):
+    def test_default_policy_advertises_14_tools(self):
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
 
         advertised = _tools_for_policy(MCPSessionPolicy())
         names = {t.name for t in advertised}
-        assert len(advertised) == 13
+        assert len(advertised) == 14
         # All 5 diagnostics tools present.
         assert {"get_console_messages", "get_page_errors", "get_network_errors",
                 "list_requests", "get_request"} <= names
@@ -676,12 +676,12 @@ class TestToolAdvertisement:
         assert {t.name for t in advertised} == DEFAULT_TOOL_NAMES
         assert DEFAULT_TOOL_NAMES == INSPECT_TOOL_NAMES | NAVIGATION_TOOL_NAMES
 
-    def test_allow_actions_advertises_19_tools(self):
+    def test_allow_actions_advertises_20_tools(self):
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
 
         advertised = _tools_for_policy(MCPSessionPolicy(allow_actions=True))
         names = {t.name for t in advertised}
-        assert len(advertised) == 19
+        assert len(advertised) == 20
         # All 6 action tools present.
         assert {"scroll", "press_key", "click", "fill", "open_tab", "close_tab"} <= names
 
@@ -691,34 +691,34 @@ class TestToolAdvertisement:
         advertised = _tools_for_policy(MCPSessionPolicy())
         assert not ({t.name for t in advertised} & ACTION_TOOL_NAMES)
 
-    def test_build_server_advertises_13_by_default(self):
+    def test_build_server_advertises_14_by_default(self):
         from super_browser.mcp_server import _tools_for_policy, build_server
 
         server = build_server()
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 13
+        assert len(names) == 14
         assert "navigate" in names
         assert "wait_for" in names
         assert "get_console_messages" in names
         assert "click" not in names
 
-    def test_build_server_allow_actions_advertises_19(self):
+    def test_build_server_allow_actions_advertises_20(self):
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy, build_server
 
         server = build_server(policy=MCPSessionPolicy(allow_actions=True))
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 19
+        assert len(names) == 20
 
-    def test_build_server_legacy_allow_writes_advertises_19(self):
+    def test_build_server_legacy_allow_writes_advertises_20(self):
         """Legacy allow_writes=True must still enable action tools."""
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy, build_server
 
         server = build_server(policy=MCPSessionPolicy(allow_writes=True))
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 19
+        assert len(names) == 20
 
 
 # ============================================================================
@@ -1073,3 +1073,93 @@ class TestReadWorkflowSmoke:
 
         # navigate was audited (approval) since build_server wires a SecurityManager.
         assert len(server._sb_authorizer.audit_log) >= 1  # type: ignore[attr-defined]
+
+
+# ============================================================================
+# switch_tab (P3.0A) — navigation-tier MCP wrapper around facade.switch_tab
+# ============================================================================
+
+
+class TestSwitchTabTool:
+    """switch_tab is a navigation-tier tool: default-allowed, delegates to the
+    facade, validates tab_id."""
+
+    def test_switch_tab_in_navigation_tool_names(self):
+        from super_browser.mcp_server import NAVIGATION_TOOL_NAMES
+
+        assert "switch_tab" in NAVIGATION_TOOL_NAMES
+
+    def test_switch_tab_in_default_advertised_tools(self):
+        from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
+
+        names = {t.name for t in _tools_for_policy(MCPSessionPolicy())}
+        assert "switch_tab" in names
+
+    @pytest.mark.asyncio
+    async def test_switch_tab_dispatches_to_facade(self):
+        """switch_tab delegates to sb.switch_tab(tab_id) and returns ok."""
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        fake_sb.switch_tab = AsyncMock(return_value=_fake_action_result({"tab_id": 1, "url": "https://example.com"}))
+        result = await dispatcher.dispatch("switch_tab", {"tab_id": 1})
+        fake_sb.switch_tab.assert_awaited_once_with(1)
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_switch_tab_invalid_tab_id_returns_invalid_arguments(self):
+        """Non-integer or missing tab_id must return a structured error, not
+        reach the facade."""
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        fake_sb.switch_tab = AsyncMock()
+        # Missing tab_id
+        result = await dispatcher.dispatch("switch_tab", {})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "invalid_arguments" in payload
+        # Non-integer
+        result = await dispatcher.dispatch("switch_tab", {"tab_id": "abc"})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "invalid_arguments" in payload
+        # Negative
+        result = await dispatcher.dispatch("switch_tab", {"tab_id": -1})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "invalid_arguments" in payload
+        # Bool (bool is an int subtype in Python — must be rejected)
+        result = await dispatcher.dispatch("switch_tab", {"tab_id": True})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "invalid_arguments" in payload
+        # Facade must never be called for invalid args
+        fake_sb.switch_tab.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_switch_tab_does_not_require_allow_actions(self):
+        """switch_tab is navigation-tier: works without --allow-actions."""
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        fake_sb.switch_tab = AsyncMock(return_value=_fake_action_result({"tab_id": 2}))
+        result = await dispatcher.dispatch("switch_tab", {"tab_id": 2})
+        assert json.loads(result[0].text)["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_switch_tab_does_not_increment_actions_used(self):
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        fake_sb.switch_tab = AsyncMock(return_value=_fake_action_result({"tab_id": 1}))
+        await dispatcher.dispatch("switch_tab", {"tab_id": 1})
+        assert dispatcher.authorizer.policy.actions_used == 0
+
+    @pytest.mark.asyncio
+    async def test_switch_tab_facade_error_returns_structured(self):
+        """When the facade returns ok=False (e.g. tab not found), the MCP
+        response reflects it."""
+        dispatcher, fake_sb = _make_dispatcher(allow_actions=False)
+        err_result = MagicMock()
+        err_result.ok = False
+        err_result.data = None
+        err_result.error = {"category": "selector_not_found", "message": "tab not found"}
+        err_result.meta = None
+        fake_sb.switch_tab = AsyncMock(return_value=err_result)
+        result = await dispatcher.dispatch("switch_tab", {"tab_id": 999})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False

@@ -5,8 +5,8 @@ Super Browser exposes its browser inspection and control surface over the
 agents (Claude, Cursor, etc.) can observe and interact with a page without
 scripting Python.
 
-The stdio server advertises **thirteen tools by default** (six inspect + five
-diagnostics + two navigation) — enough to read a URL end-to-end and explain
+The stdio server advertises **fourteen tools by default** (six inspect + five
+diagnostics + three navigation) — enough to read a URL end-to-end and explain
 why a read failed. When action mode is enabled, it advertises **six additional
 action tools**; every action call is checked by
 `MCPSessionPolicy` and `SecurityManager` before it can reach the browser.
@@ -31,12 +31,12 @@ python -m patchright install chromium
 Either of:
 
 ```bash
-superbrowser-mcp                       # default: 13 tools (inspect + diagnostics + navigation)
-superbrowser-mcp --allow-actions       # 14 tools (adds the action tier)
+superbrowser-mcp                       # default: 14 tools (inspect + diagnostics + navigation)
+superbrowser-mcp --allow-actions       # 20 tools (adds the action tier)
 python -m super_browser.mcp_server
 ```
 
-Both start a **stdio** server. The default server advertises 13 tools and
+Both start a **stdio** server. The default server advertises 14 tools and
 recognizes (but refuses) action-tool calls with a structured policy refusal.
 
 Action mode can also be enabled via the environment:
@@ -137,15 +137,18 @@ only.
 
 ### Navigation tier (always advertised)
 
-Navigation mutates browser state (page acquisition) but is default-allowed
-because reading requires a page to read. It is always checked by the
-`SecurityManager` and is audited, but it does **not** consume the action
-budget and does **not** require action mode.
+Navigation mutates browser state (page/context acquisition) but is
+default-allowed because reading requires page/context acquisition. `navigate`
+is checked and audited at the MCP boundary when a SecurityManager is
+configured. `switch_tab` delegates to the facade, which applies its configured
+facade security policy. Navigation tools do **not** consume the action budget
+and do **not** require action mode.
 
 | Tool | Args | Behavior |
 |---|---|---|
 | `navigate` | `url` (required), `wait_until` (optional) | Go to a URL. URL is passed to `SecurityManager` for injection detection, secret redaction, and domain allow/block enforcement. |
 | `wait_for` | exactly one of `selector` / `text` / `url` / `load_state`; `timeout_ms` (optional, 100–60000, default 10000) | Wait for a page condition before the next read. |
+| `switch_tab` | `tab_id` (required, integer) | Switch the active browser tab by ID (from `list_tabs`). Changes the page the agent reads from. Diagnostics remain session-wide after switching; per-tab diagnostics are not supported yet. |
 
 `wait_for` accepts exactly one condition per call (deterministic single
 results; compound waits can be added later as an explicit AND mode).
@@ -227,7 +230,7 @@ restricts the survivors.
 
 The default server behavior partitions the surface by risk:
 
-- **`list_tools()`** advertises only the Inspect + Navigation tiers (13 tools).
+- **`list_tools()`** advertises only the Inspect + Navigation tiers (14 tools).
 - **`call_tool()`** still recognizes action-tool names and returns a structured
   policy refusal (`refusal.reason = "actions are disabled"`), not an "Unknown
   tool" error.

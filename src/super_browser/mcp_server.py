@@ -122,6 +122,25 @@ NAVIGATION_AUX_TOOLS: list[types.Tool] = [
             "required": [],
         },
     ),
+    types.Tool(
+        name="switch_tab",
+        description=(
+            "Switch to a different browser tab by ID. Navigation-tier tool "
+            "(default-allowed; does not consume the action budget). Use "
+            "list_tabs to discover tab IDs. Diagnostics remain session-wide "
+            "after switching; per-tab diagnostics are not supported yet."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "tab_id": {
+                    "type": "integer",
+                    "description": "The tab ID to switch to (from list_tabs).",
+                },
+            },
+            "required": ["tab_id"],
+        },
+    ),
 ]
 
 _NAVIGATION_AUX_TOOL_NAMES = frozenset(t.name for t in NAVIGATION_AUX_TOOLS)
@@ -896,6 +915,15 @@ class ToolDispatcher:
                 )
             return None
 
+        if name == "switch_tab":
+            tab_id = arguments.get("tab_id")
+            if not isinstance(tab_id, int) or isinstance(tab_id, bool) or tab_id < 0:
+                return _error_content(
+                    "'tab_id' is required and must be a non-negative integer",
+                    kind="invalid_arguments",
+                )
+            return None
+
         if name == "wait_for":
             # timeout_ms: integer, 100 <= x <= 60000. Reject bool (int subtype).
             timeout_ms = arguments.get("timeout_ms", 10000)
@@ -1013,6 +1041,11 @@ class ToolDispatcher:
     async def _tool_navigate(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         sb = await self.runtime.get_browser()
         ar = await sb.navigate(arguments["url"], wait_until=arguments.get("wait_until", "domcontentloaded"))
+        return _text_content(_serialize_action_result(ar))
+
+    async def _tool_switch_tab(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        sb = await self.runtime.get_browser()
+        ar = await sb.switch_tab(arguments["tab_id"])
         return _text_content(_serialize_action_result(ar))
 
     async def _tool_wait_for(self, arguments: dict[str, Any]) -> list[types.TextContent]:
