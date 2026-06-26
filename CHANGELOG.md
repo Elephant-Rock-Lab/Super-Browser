@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — MCP switch_tab navigation tool (P3.0A)
+
+- `switch_tab` is now a navigation-tier MCP tool (default-allowed, not
+  action-budgeted). Delegates to the existing `SuperBrowser.switch_tab(tab_id)`
+  facade method. Use `list_tabs` to discover tab IDs.
+- Default advertised tools: 13 → 14; action mode: 19 → 20.
+- Diagnostics remain session-wide after switching tabs; per-tab diagnostics
+  are not supported yet.
+
 ### Added — MCP inspect-output redaction (P2.3)
 
 Inspect-tier MCP tools now redact detected secrets at the MCP serialization

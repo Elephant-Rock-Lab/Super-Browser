@@ -40,8 +40,8 @@ INSPECT_TOOL_NAMES = {
     "list_requests", "get_request",
 }
 # Navigation-tier tool set (always advertised).
-NAVIGATION_TOOL_NAMES = {"navigate", "wait_for"}
-# Default advertised set: Inspect + Navigation (13 tools).
+NAVIGATION_TOOL_NAMES = {"navigate", "wait_for", "switch_tab"}
+# Default advertised set: Inspect + Navigation (14 tools).
 DEFAULT_TOOL_NAMES = INSPECT_TOOL_NAMES | NAVIGATION_TOOL_NAMES
 # Action-tier tool set (advertised only when allow_actions=True).
 ACTION_TOOL_NAMES = {
@@ -437,7 +437,7 @@ class TestServerWiring:
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
         assert advertised_names == DEFAULT_TOOL_NAMES
-        assert len(advertised) == 13
+        assert len(advertised) == 14
 
     def test_actions_enabled_server_advertises_exactly_19_tools(self):
         """build_server(policy=allow_actions=True) advertises all 19 tools,
@@ -449,7 +449,7 @@ class TestServerWiring:
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
         assert advertised_names == ALL_TOOL_NAMES
-        assert len(advertised) == 19
+        assert len(advertised) == 20
 
     @pytest.mark.asyncio
     async def test_default_server_dispatch_returns_refusal_not_unknown(self):
