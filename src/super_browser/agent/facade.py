@@ -199,6 +199,21 @@ class SuperBrowser:
     async def __aexit__(self, *exc: Any) -> None:
         await self.stop()
 
+    @property
+    def is_alive(self) -> bool:
+        """Whether the browser session and page are still usable.
+
+        Returns False when the page is closed, None, or the backend reports
+        it as dead. Used by MCPBrowserRuntime to detect stale handles.
+        """
+        if not self._page:
+            return False
+        try:
+            return self._page.is_alive
+        except (AttributeError, Exception):
+            # PageHandle without is_alive: assume alive if page object exists.
+            return True
+
     # -- Facade methods --
 
     async def navigate(self, url: str, *, wait_until: str = "domcontentloaded") -> ActionResult:

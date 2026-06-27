@@ -74,6 +74,21 @@ class PageHandle:
     def url(self) -> str:
         return self._page.url
 
+    @property
+    def is_alive(self) -> bool:
+        """Whether the underlying page is still open and usable.
+
+        Returns False when the page is closed, None, or the backend reports
+        it as closed. Backends without ``is_closed()`` are assumed alive —
+        we don't want to falsely kill a working backend that lacks the method.
+        """
+        if self._page is None:
+            return False
+        try:
+            return not self._page.is_closed()
+        except (AttributeError, Exception):
+            return True
+
     async def close(self) -> None:
         await self._page.close()
 

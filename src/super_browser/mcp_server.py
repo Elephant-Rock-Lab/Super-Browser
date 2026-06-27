@@ -527,31 +527,76 @@ class MCPBrowserRuntime:
     async def get_browser(self) -> Any:
         """Lazily start and return the SuperBrowser.
 
+        If a cached instance exists but its page/context is dead (closed by
+        the browser, OS, or a crash), the stale instance is torn down and a
+        fresh one is launched transparently. This prevents the runtime from
+        returning a dead handle that causes every subsequent tool call to fail
+        with TargetClosedError until the server process is manually restarted.
+
         Imported lazily so the MCP module imports cleanly even when the full
         SDK extra set is not installed -- only the server *runtime* needs the
         SDK, not module import time.
         """
-        if self._sb is None:
-            from super_browser import SuperBrowser
+        if self._sb is not None:
+            if not self._is_alive(self._sb):
+                logger.warning("MCP runtime: browser/page is dead, recovering...")
+                await self._cleanup_stale()
+            else:
+                return self._sb
 
-            sb = SuperBrowser(config=self._config) if self._config is not None else SuperBrowser()
-            await sb.start()
-            self._sb = sb
-            # Best-effort backend label for status reporting.
-            try:
-                self._backend_name = type(sb._engine).__name__  # type: ignore[union-attr]
-            except Exception:
-                self._backend_name = "started"
-            logger.info("MCP runtime: browser started (%s)", self._backend_name)
+        from super_browser import SuperBrowser
+
+        sb = SuperBrowser(config=self._config) if self._config is not None else SuperBrowser()
+        await sb.start()
+        self._sb = sb
+        # Best-effort backend label for status reporting.
+        try:
+            self._backend_name = type(sb._engine).__name__  # type: ignore[union-attr]
+        except Exception:
+            self._backend_name = "started"
+        logger.info("MCP runtime: browser started (%s)", self._backend_name)
         return self._sb
 
+    @staticmethod
+    def _is_alive(sb: Any) -> bool:
+        """Check whether the SuperBrowser instance is still usable.
+
+        Uses the facade's ``is_alive`` property if available; falls back to
+        True (assume alive) for older facades that don't expose it.
+        """
+        try:
+            return bool(sb.is_alive)
+        except (AttributeError, Exception):
+            return True
+
+    async def _cleanup_stale(self) -> None:
+        """Tear down a dead SuperBrowser instance without raising."""
+        if self._sb is None:
+            return
+        try:
+            await self._sb.stop()
+        except Exception as e:  # noqa: BLE001 -- cleanup must not raise
+            logger.warning("MCP runtime: error during stale cleanup: %s", e)
+        finally:
+            self._sb = None
+            self._backend_name = "(not started)"
+
     async def status(self) -> dict[str, Any]:
-        """Runtime status. Safe before startup (does not lazy-start)."""
+        """Runtime status. Safe before startup (does not lazy-start).
+
+        Detects dead browser sessions and reports ``running: False``.
+        """
         if self._sb is None:
             return {
                 "running": False,
                 "backend": "(not started)",
                 "note": "browser will start on first browser-dependent tool call",
+            }
+        if not self._is_alive(self._sb):
+            return {
+                "running": False,
+                "backend": self._backend_name,
+                "note": "browser/page is dead; will recover on next tool call",
             }
         return {
             "running": True,
@@ -559,8 +604,11 @@ class MCPBrowserRuntime:
         }
 
     async def current_url(self) -> dict[str, Any]:
-        """Current URL. Returns a 'not started' state without lazy-launch."""
-        if self._sb is None:
+        """Current URL. Returns a 'not started' state without lazy-launch.
+
+        Returns a 'not started' state if the browser is dead.
+        """
+        if self._sb is None or not self._is_alive(self._sb):
             return {"started": False, "url": None, "note": "browser not started"}
         page = getattr(self._sb, "_page", None)
         url = getattr(page, "url", None) if page is not None else None
