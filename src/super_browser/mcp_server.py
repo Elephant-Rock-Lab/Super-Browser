@@ -1610,13 +1610,23 @@ class ToolDispatcher:
         sb = await self.runtime.get_browser()
         ar = await sb.observe()
         payload = _serialize_action_result(ar)
-        # observe nests URL/title/targets under data dict.
-        # Redact url/title (nested fields) and target names (nested list-of-dicts).
+        # observe nests URL/title/targets/images under data dict.
+        # Redact url/title (nested fields), target names, and image alt/name
+        # (nested list-of-dicts) so secrets can't leak through inspect output.
         data = payload.get("data")
         nested = {"data": ("url", "title")} if isinstance(data, dict) else None
+        list_keys: dict[str, tuple[str, ...]] | None = None
+        if isinstance(data, dict):
+            parts: dict[str, tuple[str, ...]] = {}
+            if isinstance(data.get("targets"), list):
+                parts["data.targets"] = ("name",)
+            if isinstance(data.get("images"), list):
+                parts["data.images"] = ("name", "alt")
+            if parts:
+                list_keys = parts
         return _text_content(self._redact_inspect_output(
             payload, nested_keys=nested,
-            list_keys={"data.targets": ("name",)} if isinstance(data, dict) and isinstance(data.get("targets"), list) else None,
+            list_keys=list_keys,
         ))
 
     async def _tool_extract_text(self, arguments: dict[str, Any]) -> list[types.TextContent]:

@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Image metadata visibility in observe (P7.D)
+
+`observe` now returns an `images` array alongside `targets`, containing
+metadata for image-role elements on the page. Each image entry includes `ref`,
+`role`, `name`, `alt` (the image's alt text or AX name), and optionally
+`bounds`. This exposes image-encoded content that was previously invisible to
+inspect tools — flyer/catalog sites that embed product names in images now
+surface their alt text where available.
+
+Non-interactive images are **metadata-only**: they appear in `images`, never in
+`targets`, preserving the action-ready semantics of `targets`. Images without a
+name/alt are skipped (no useful metadata). Both arrays are independently capped
+at 50 entries with their own `*_truncated` flags.
+
+MCP inspect-output redaction now covers `data.images` (both `name` and `alt`
+fields) so secrets cannot leak through image metadata.
+
 ## [2.10.0] — 2026-06-27
 
 ### Added — Screenshot output controls (P7.A)

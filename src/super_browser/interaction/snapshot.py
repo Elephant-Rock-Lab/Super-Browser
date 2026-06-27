@@ -16,6 +16,10 @@ _INTERACTIVE_ROLES = frozenset({
     "spinbutton", "switch", "option", "treeitem",
 })
 
+# Non-interactive roles captured for metadata (alt/name) but NOT for action.
+# These appear in observe's `images` array, never in `targets`.
+_IMAGE_ROLES = frozenset({"image"})
+
 
 class SnapshotProvider:
 
@@ -38,10 +42,16 @@ class SnapshotProvider:
             idx = 0
             for raw in raw_nodes:
                 role = (raw.get("role", {}) or {}).get("value", "").lower()
-                if role not in _INTERACTIVE_ROLES:
+                if role not in _INTERACTIVE_ROLES and role not in _IMAGE_ROLES:
                     continue
 
                 name = _extract_name(raw)
+
+                # Skip image nodes with no name/alt — they provide no metadata
+                # and would just add noise to the snapshot.
+                if role in _IMAGE_ROLES and not name:
+                    continue
+
                 node_url = _extract_property(raw, "url")
                 value = (raw.get("value", {}) or {}).get("value")
                 description = _extract_property(raw, "description")
