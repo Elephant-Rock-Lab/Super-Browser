@@ -7,8 +7,7 @@ tool call instead of returning a dead handle forever.
 
 from __future__ import annotations
 
-import json
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -44,11 +43,6 @@ class TestGetBrowserRecovery:
 
         runtime = MCPBrowserRuntime()
         fake_sb = _make_fake_sb(page_alive=True)
-
-        # Patch SuperBrowser constructor + start
-        import super_browser.mcp_server as srv_mod
-
-        orig = srv_mod.SuperBrowser if hasattr(srv_mod, "SuperBrowser") else None
 
         # The import is lazy inside get_browser; we patch the module-level import.
         import super_browser
