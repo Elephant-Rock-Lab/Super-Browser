@@ -515,6 +515,35 @@ class SuperBrowser:
             for n in capped
         ]
 
+        # Build images array from non-interactive image-role nodes.
+        # These are metadata-only (alt/name/bounds) — they must NOT appear in
+        # targets because they cannot be acted on via coordinate resolution.
+        # Only images with a non-empty name are included (others carry no
+        # useful metadata). Images without bounds are still included since
+        # bounds are informational here, not action-enabling.
+        all_images = [
+            n for n in snap.nodes.values()
+            if n.role == "image" and n.name
+        ]
+        _MAX_IMAGES = 50
+        capped_images = all_images[:_MAX_IMAGES]
+        images = [
+            {
+                "ref": n.ref if n.ref.startswith("@") else f"@{n.ref}",
+                "role": n.role,
+                "name": n.name,
+                "alt": n.name,
+                **(
+                    {"bounds": {
+                        "x": n.bounds[0], "y": n.bounds[1],
+                        "width": n.bounds[2], "height": n.bounds[3],
+                    }}
+                    if n.bounds else {}
+                ),
+            }
+            for n in capped_images
+        ]
+
         return timed_action_result(
             ok=True,
             start_ns=start,
@@ -524,6 +553,8 @@ class SuperBrowser:
                 "total_elements": len(snap.nodes),
                 "targets": targets,
                 "targets_truncated": len(all_interactive) > _MAX_TARGETS,
+                "images": images,
+                "images_truncated": len(all_images) > _MAX_IMAGES,
             },
         )
 
