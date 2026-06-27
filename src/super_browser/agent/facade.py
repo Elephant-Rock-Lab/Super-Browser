@@ -573,6 +573,146 @@ class SuperBrowser:
             },
         )
 
+    async def extract_image_text(
+        self,
+        *,
+        selector: Optional[str] = None,
+        bounds: Optional[dict[str, float]] = None,
+        full_page: bool = False,
+        language: str = "eng",
+        min_confidence: float = 0.0,
+    ) -> ActionResult:
+        """Extract text from a screenshot region via OCR.
+
+        Captures a screenshot (viewport, full page, or cropped to bounds/selector),
+        runs Tesseract OCR, and returns structured word boxes + joined text.
+
+        Raises RuntimeError if OCR dependencies are unavailable.
+        """
+        from super_browser.results.types import action_result
+
+        if not self._page:
+            return action_result(
+                ok=False,
+                error="Not started",
+            )
+
+        # Check OCR availability early.
+        try:
+            import pytesseract  # noqa: F401
+            from PIL import Image  # noqa: F401
+        except ImportError:
+            raise RuntimeError(
+                "Tesseract OCR is not installed or the requested language pack is unavailable."
+            )
+
+        # Determine the crop region: selector → element bounds, or explicit bounds.
+        crop_bounds: Optional[tuple[int, int, int, int]] = None
+
+        if selector is not None:
+            # Resolve the selector to element bounding box via the raw backend
+            # page. We use backend_page (the raw Patchright/Playwright page),
+            # NOT engine_page (the PatchrightPage wrapper), because the wrapper
+            # does not expose query_selector.
+            try:
+                raw_page = getattr(self._page, "backend_page", None)
+                if raw_page is not None:
+                    el = await raw_page.query_selector(selector)
+                    if el is not None:
+                        box = await el.bounding_box()
+                        if box is not None and box["width"] > 0 and box["height"] > 0:
+                            crop_bounds = (
+                                int(box["x"]), int(box["y"]),
+                                int(box["width"]), int(box["height"]),
+                            )
+                # If element not found or no box, we fall through to
+                # viewport/page OCR — the selector is still echoed in source.
+            except Exception:
+                pass  # best-effort; fall through to uncropped OCR
+
+        if bounds is not None:
+            crop_bounds = (
+                int(bounds["x"]), int(bounds["y"]),
+                int(bounds["width"]), int(bounds["height"]),
+            )
+
+        # Capture screenshot as PNG.
+        png_bytes = await self._page.screenshot(full_page=full_page, format="png")
+
+        # Crop to the resolved bounds if any.
+        if crop_bounds is not None:
+            from io import BytesIO
+
+            from PIL import Image as PILImage
+
+            img = PILImage.open(BytesIO(png_bytes))
+            x, y, w, h = crop_bounds
+            img = img.crop((x, y, x + w, y + h))
+            out = BytesIO()
+            img.save(out, format="PNG")
+            png_bytes = out.getvalue()
+
+        # Run OCR with the specified language.
+        try:
+            from io import BytesIO
+
+            from PIL import Image as PILImage
+
+            img = PILImage.open(BytesIO(png_bytes)).convert("RGB")
+            # Use the language parameter for tesseract.
+            config = f"--psm 11 -l {language}"
+            data = pytesseract.image_to_data(
+                img, config=config, output_type=pytesseract.Output.DICT,
+            )
+        except Exception as exc:
+            if "language" in str(exc).lower() or "tesseract" in str(exc).lower():
+                raise RuntimeError(
+                    "Tesseract OCR is not installed or the requested language pack is unavailable."
+                ) from exc
+            raise
+
+        # Build word list. Parse confidence with float() — pytesseract can
+        # return decimal strings like "96.59" or "-1" for non-text regions.
+        words: list[dict[str, Any]] = []
+        n = len(data.get("text", []))
+        for i in range(n):
+            text = str(data["text"][i]).strip()
+            if not text:
+                continue
+            try:
+                conf_raw = float(data["conf"][i])
+            except (TypeError, ValueError):
+                continue
+            if conf_raw <= 0:
+                continue
+            confidence = conf_raw / 100.0
+            if confidence < min_confidence:
+                continue
+            words.append({
+                "text": text,
+                "x": float(data["left"][i]),
+                "y": float(data["top"][i]),
+                "w": float(data["width"][i]),
+                "h": float(data["height"][i]),
+                "confidence": round(confidence, 4),
+            })
+
+        joined_text = " ".join(w["text"] for w in words)
+
+        return action_result(
+            ok=True,
+            data={
+                "text": joined_text,
+                "words": words,
+                "language": language,
+                "source": {
+                    "selector": selector,
+                    "bounds": bounds,
+                    "full_page": full_page,
+                },
+            },
+        )
+
     # -- Tab helper (CHK-07) --
 
     async def _attach_page(self, page_obj: Any) -> None:

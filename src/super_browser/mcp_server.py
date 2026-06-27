@@ -112,6 +112,55 @@ PHASE1_TOOLS: list[types.Tool] = [
         description="List all open browser tabs. Starts the browser lazily on first call.",
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
+    types.Tool(
+        name="extract_image_text",
+        description=(
+            "Extract text from page screenshots via OCR (Tesseract). Reads text "
+            "embedded in images — flyer/catalog sites, product photos, scanned "
+            "content — that extract_text and observe cannot see. Inspect-tier; "
+            "no page mutation. Requires the [vision] extra (pytesseract + Pillow) "
+            "and a system Tesseract binary; returns a structured ocr_unavailable "
+            "error if not installed."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "selector": {
+                    "type": "string",
+                    "description": "CSS selector of an image/element to OCR. Mutually exclusive with bounds.",
+                },
+                "bounds": {
+                    "type": "object",
+                    "description": "Bounding box {x, y, width, height} of the screen region to OCR. Mutually exclusive with selector.",
+                    "properties": {
+                        "x": {"type": "number"},
+                        "y": {"type": "number"},
+                        "width": {"type": "number"},
+                        "height": {"type": "number"},
+                    },
+                    "required": ["x", "y", "width", "height"],
+                },
+                "full_page": {
+                    "type": "boolean",
+                    "description": "OCR the full scrollable page (default: viewport only).",
+                    "default": False,
+                },
+                "language": {
+                    "type": "string",
+                    "description": "Tesseract language code(s), e.g. 'eng', 'ara', 'eng+ara'. Default: 'eng'.",
+                    "default": "eng",
+                },
+                "min_confidence": {
+                    "type": "number",
+                    "description": "Minimum word confidence 0.0-1.0; words below this are filtered out. Default: 0.0 (keep all).",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "default": 0.0,
+                },
+            },
+            "required": [],
+        },
+    ),
 ]
 
 _PHASE1_TOOL_NAMES = frozenset(t.name for t in PHASE1_TOOLS)
@@ -1692,6 +1741,125 @@ class ToolDispatcher:
         return _text_content(self._redact_inspect_output(
             payload, nested_keys=nested,
         ))
+
+    async def _tool_extract_image_text(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        """Extract text from page screenshots via OCR. Inspect-tier."""
+        import re
+
+        selector = arguments.get("selector")
+        bounds = arguments.get("bounds")
+        full_page = bool(arguments.get("full_page", False))
+        language = arguments.get("language", "eng")
+        min_confidence = arguments.get("min_confidence", 0.0)
+
+        # --- Validation (before any screenshot/OCR work) ---
+
+        # selector and bounds are mutually exclusive.
+        if selector is not None and bounds is not None:
+            return _error_content(
+                "'selector' and 'bounds' are mutually exclusive; provide one or neither.",
+                kind="invalid_arguments",
+            )
+
+        # Validate bounds structure.
+        if bounds is not None:
+            if not isinstance(bounds, dict):
+                return _error_content("'bounds' must be an object", kind="invalid_arguments")
+            for field in ("x", "y", "width", "height"):
+                if field not in bounds:
+                    return _error_content(
+                        f"'bounds' must include '{field}'",
+                        kind="invalid_arguments",
+                    )
+                if not isinstance(bounds[field], (int, float)) or isinstance(bounds[field], bool):
+                    return _error_content(
+                        f"'bounds.{field}' must be a number",
+                        kind="invalid_arguments",
+                    )
+            if bounds["width"] <= 0:
+                return _error_content(
+                    "'bounds.width' must be positive",
+                    kind="invalid_arguments",
+                )
+            if bounds["height"] <= 0:
+                return _error_content(
+                    "'bounds.height' must be positive",
+                    kind="invalid_arguments",
+                )
+
+        # Validate language — must be a non-empty string before regex.
+        if not isinstance(language, str) or not language:
+            return _error_content(
+                "'language' must be a non-empty string",
+                kind="invalid_arguments",
+            )
+        # Allow letters, digits, plus (+) for multi-language, underscore.
+        if not re.match(r"^[a-zA-Z0-9+_]+$", language):
+            return _error_content(
+                f"'language' must be a valid tesseract language code (e.g. 'eng', 'ara', 'eng+ara'), got {language!r}",
+                kind="invalid_arguments",
+            )
+
+        # Validate min_confidence.
+        if not isinstance(min_confidence, (int, float)) or isinstance(min_confidence, bool):
+            return _error_content(
+                "'min_confidence' must be a number between 0.0 and 1.0",
+                kind="invalid_arguments",
+            )
+        if min_confidence < 0.0 or min_confidence > 1.0:
+            return _error_content(
+                f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}",
+                kind="invalid_arguments",
+            )
+
+        # --- Execute OCR ---
+
+        sb = await self.runtime.get_browser()
+        try:
+            ar = await sb.extract_image_text(
+                selector=selector,
+                bounds=bounds,
+                full_page=full_page,
+                language=language,
+                min_confidence=float(min_confidence),
+            )
+        except RuntimeError as e:
+            # OCR unavailable — structured error, not a crash.
+            msg = str(e)
+            if "tesseract" in msg.lower() or "ocr" in msg.lower() or "not installed" in msg.lower():
+                return _error_content(msg, kind="ocr_unavailable")
+            return _error_content(msg, kind="error")
+
+        payload = _serialize_action_result(ar)
+
+        # Apply min_confidence filtering at the MCP boundary if the facade
+        # didn't already filter (belt-and-suspenders).
+        data = payload.get("data")
+        if isinstance(data, dict) and isinstance(data.get("words"), list) and min_confidence > 0:
+            filtered = [
+                w for w in data["words"]
+                if isinstance(w, dict) and w.get("confidence", 0) >= min_confidence
+            ]
+            data["words"] = filtered
+            data["text"] = " ".join(w.get("text", "") for w in filtered)
+
+        # Redact: OCR text can contain secrets from screenshots.
+        # Cover both the joined text (nested in data.text) and individual
+        # word texts (data.words[].text).
+        data = payload.get("data")
+        nested_keys: dict[str, tuple[str, ...]] | None = None
+        list_keys: dict[str, tuple[str, ...]] | None = None
+        if isinstance(data, dict):
+            if isinstance(data.get("text"), str):
+                nested_keys = {"data": ("text",)}
+            if isinstance(data.get("words"), list):
+                list_keys = {"data.words": ("text",)}
+
+        payload = self._redact_inspect_output(
+            payload, nested_keys=nested_keys, list_keys=list_keys,
+        )
+
+        return _text_content(payload)
 
     async def _tool_screenshot(self, arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent]:
         full_page = bool(arguments.get("full_page", False))

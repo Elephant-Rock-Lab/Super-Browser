@@ -236,6 +236,16 @@ print(obs.data)
 # {"url": "https://example.com", "title": "...", "interactive_elements": 5, "total_elements": 42}
 ```
 
+#### `extract_image_text(*, selector=None, bounds=None, full_page=False, language="eng", min_confidence=0.0) → ActionResult`
+
+Extract text from a screenshot region via OCR (Tesseract). Reads text embedded in images — flyer/catalog sites, product photos — that `extract_text` cannot see. Requires the `[vision]` extra (pytesseract + Pillow) and a system Tesseract binary.
+
+```python
+result = await sb.extract_image_text(language="eng+ara", min_confidence=0.8)
+print(result.data["text"])  # "Almarai Fresh Milk 2L SAR 14.50"
+print(result.data["words"])  # [{text, x, y, w, h, confidence}, ...]
+```
+
 ### Delegation
 
 #### `delegate(tasks, *, max_concurrency=4) → DelegationResult`
