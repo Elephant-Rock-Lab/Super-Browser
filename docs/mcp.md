@@ -5,8 +5,8 @@ Super Browser exposes its browser inspection and control surface over the
 agents (Claude, Cursor, etc.) can observe and interact with a page without
 scripting Python.
 
-The stdio server advertises **seventeen tools by default** (six inspect + five
-diagnostics + six navigation) — enough to read a URL end-to-end and explain
+The stdio server advertises **nineteen tools by default** (seven inspect + five
+diagnostics + six navigation + one vision) — enough to read a URL end-to-end and explain
 why a read failed. When action mode is enabled, it advertises **twelve additional
 action tools**; every action call is checked by
 `MCPSessionPolicy` and `SecurityManager` before it can reach the browser.
@@ -31,7 +31,7 @@ python -m patchright install chromium
 Either of:
 
 ```bash
-superbrowser-mcp                       # default: 17 tools (inspect + diagnostics + navigation)
+superbrowser-mcp                       # default: 19 tools (inspect + diagnostics + navigation + vision)
 superbrowser-mcp --allow-actions       # 29 tools (adds the action tier)
 python -m super_browser.mcp_server
 ```
@@ -125,6 +125,7 @@ advertised; the third requires action mode; the fourth is not implemented.
 | `get_network_errors` | `url_filter` (optional), `limit` (optional, default 100) | Requests that failed (status ≥ 400, no response, or net error). | Yes |
 | `list_requests` | `url_filter` (optional), `resource_type` (optional), `limit` (optional, default 100) | All buffered request summaries; returns `request_id` for `get_request`. | Yes |
 | `get_request` | `request_id` (required) | One request's metadata (method, url, status, `header_names` — keys only, no values, no body). | Yes |
+| `analyze_image` | `question` (required), `selector` (optional), `bounds` (optional), `full_page` (optional), `format` (optional, `"png"` \| `"jpeg"`, default `"png"`), `quality` (optional, 1-100, jpeg only) | Semantic visual QA: answer a natural-language question about a page screenshot via a configured vision-LLM provider. Unlike OCR (`extract_image_text`), this understands image content (e.g. "which card shows the cheapest product?"). `selector` and `bounds` are mutually exclusive; no args = viewport analysis. Requires a configured vision provider (`SB_ANTHROPIC_API_KEY` / `SB_OPENAI_API_KEY` / `SB_UITARS_MODEL_PATH`); returns a structured `vision_unavailable` error when none is configured. The provider is created lazily from env on first call — `enable_vision` is not required for this tool (it gates only the automatic interaction-fallback). Redaction covers `answer`. | Yes |
 
 The five diagnostics tools read from a session-wide ring buffer that captures
 console messages, page errors, and network requests via page-event listeners.
@@ -252,7 +253,7 @@ restricts the survivors.
 
 The default server behavior partitions the surface by risk:
 
-- **`list_tools()`** advertises only the Inspect + Navigation tiers (17 tools).
+- **`list_tools()`** advertises only the Inspect + Navigation tiers (19 tools).
 - **`call_tool()`** still recognizes action-tool names and returns a structured
   policy refusal (`refusal.reason = "actions are disabled"`), not an "Unknown
   tool" error.

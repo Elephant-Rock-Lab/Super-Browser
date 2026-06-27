@@ -57,6 +57,7 @@ class StateInference:
     model: Optional[str] = None
     token_cost: float = 0.0
     duration_ms: float = 0.0
+    provider: Optional[str] = None
 
 
 @dataclass(frozen=True)

@@ -33,6 +33,7 @@ class TestTierConstants:
             "extract_text", "screenshot", "list_tabs", "extract_image_text",
             "get_console_messages", "get_page_errors",
             "get_network_errors", "list_requests", "get_request",
+            "analyze_image",
         })
 
     def test_navigation_tool_names_has_six_tools(self):
@@ -77,7 +78,7 @@ class TestTierConstants:
 
         all_known = {
             "browser_status", "current_url", "observe", "extract_text",
-            "screenshot", "list_tabs", "extract_image_text",
+            "screenshot", "list_tabs", "extract_image_text", "analyze_image",
             "navigate", "wait_for", "switch_tab", "reload", "go_back", "go_forward",
             "scroll", "press_key", "click", "fill", "open_tab", "close_tab", "hover", "select_option", "check", "uncheck", "focus", "type_text",
             "get_console_messages", "get_page_errors", "get_network_errors",
@@ -659,10 +660,12 @@ class TestToolAdvertisement:
 
         advertised = _tools_for_policy(MCPSessionPolicy())
         names = {t.name for t in advertised}
-        assert len(advertised) == 18
+        assert len(advertised) == 19
         # All 5 diagnostics tools present.
         assert {"get_console_messages", "get_page_errors", "get_network_errors",
                 "list_requests", "get_request"} <= names
+        # analyze_image (P7.C) is default-advertised.
+        assert "analyze_image" in names
 
     def test_default_advertises_inspect_plus_navigation(self):
         from super_browser.mcp_server import (
@@ -682,7 +685,7 @@ class TestToolAdvertisement:
 
         advertised = _tools_for_policy(MCPSessionPolicy(allow_actions=True))
         names = {t.name for t in advertised}
-        assert len(advertised) == 30
+        assert len(advertised) == 31
         # All 6 action tools present.
         assert {"scroll", "press_key", "click", "fill", "open_tab", "close_tab"} <= names
 
@@ -698,7 +701,7 @@ class TestToolAdvertisement:
         server = build_server()
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 18
+        assert len(names) == 19
         assert "navigate" in names
         assert "wait_for" in names
         assert "get_console_messages" in names
@@ -710,7 +713,7 @@ class TestToolAdvertisement:
         server = build_server(policy=MCPSessionPolicy(allow_actions=True))
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 30
+        assert len(names) == 31
 
     def test_build_server_legacy_allow_writes_advertises_29(self):
         """Legacy allow_writes=True must still enable action tools."""
@@ -719,7 +722,7 @@ class TestToolAdvertisement:
         server = build_server(policy=MCPSessionPolicy(allow_writes=True))
         policy = server._sb_policy  # type: ignore[attr-defined]
         names = {t.name for t in _tools_for_policy(policy)}
-        assert len(names) == 30
+        assert len(names) == 31
 
 
 # ============================================================================

@@ -573,6 +573,68 @@ class SuperBrowser:
             },
         )
 
+    async def _capture_region_bytes(
+        self,
+        *,
+        selector: Optional[str] = None,
+        bounds: Optional[dict[str, float]] = None,
+        full_page: bool = False,
+        format: str = "png",
+        quality: Optional[int] = None,
+    ) -> tuple[bytes, str]:
+        """Capture a screenshot, cropped to ``selector``/``bounds`` if given.
+
+        Returns ``(image_bytes, mime_type)``. The crop region is resolved via
+        the raw backend page (``backend_page``), not the engine wrapper, which
+        does not expose ``query_selector``. Reused by OCR and vision analysis.
+        """
+        crop_bounds: Optional[tuple[int, int, int, int]] = None
+
+        if selector is not None:
+            try:
+                raw_page = getattr(self._page, "backend_page", None)
+                if raw_page is not None:
+                    el = await raw_page.query_selector(selector)
+                    if el is not None:
+                        box = await el.bounding_box()
+                        if box is not None and box["width"] > 0 and box["height"] > 0:
+                            crop_bounds = (
+                                int(box["x"]), int(box["y"]),
+                                int(box["width"]), int(box["height"]),
+                            )
+            except Exception:
+                pass  # best-effort; fall through to uncropped capture
+
+        if bounds is not None:
+            crop_bounds = (
+                int(bounds["x"]), int(bounds["y"]),
+                int(bounds["width"]), int(bounds["height"]),
+            )
+
+        img_bytes = await self._page.screenshot(full_page=full_page, format=format, quality=quality)
+
+        if crop_bounds is not None:
+            from io import BytesIO
+
+            from PIL import Image as PILImage
+
+            img = PILImage.open(BytesIO(img_bytes))
+            x, y, w, h = crop_bounds
+            img = img.crop((x, y, x + w, y + h))
+            out = BytesIO()
+            # Re-encode to the requested format on crop.
+            pil_format = "JPEG" if format == "jpeg" else "PNG"
+            save_kwargs: dict[str, Any] = {}
+            if pil_format == "JPEG" and quality is not None:
+                save_kwargs["quality"] = quality
+            img.convert("RGB" if pil_format == "JPEG" else "RGBA").save(
+                out, format=pil_format, **save_kwargs,
+            )
+            img_bytes = out.getvalue()
+
+        mime = "image/jpeg" if format == "jpeg" else "image/png"
+        return img_bytes, mime
+
     async def extract_image_text(
         self,
         *,
@@ -606,51 +668,9 @@ class SuperBrowser:
                 "Tesseract OCR is not installed or the requested language pack is unavailable."
             )
 
-        # Determine the crop region: selector → element bounds, or explicit bounds.
-        crop_bounds: Optional[tuple[int, int, int, int]] = None
-
-        if selector is not None:
-            # Resolve the selector to element bounding box via the raw backend
-            # page. We use backend_page (the raw Patchright/Playwright page),
-            # NOT engine_page (the PatchrightPage wrapper), because the wrapper
-            # does not expose query_selector.
-            try:
-                raw_page = getattr(self._page, "backend_page", None)
-                if raw_page is not None:
-                    el = await raw_page.query_selector(selector)
-                    if el is not None:
-                        box = await el.bounding_box()
-                        if box is not None and box["width"] > 0 and box["height"] > 0:
-                            crop_bounds = (
-                                int(box["x"]), int(box["y"]),
-                                int(box["width"]), int(box["height"]),
-                            )
-                # If element not found or no box, we fall through to
-                # viewport/page OCR — the selector is still echoed in source.
-            except Exception:
-                pass  # best-effort; fall through to uncropped OCR
-
-        if bounds is not None:
-            crop_bounds = (
-                int(bounds["x"]), int(bounds["y"]),
-                int(bounds["width"]), int(bounds["height"]),
-            )
-
-        # Capture screenshot as PNG.
-        png_bytes = await self._page.screenshot(full_page=full_page, format="png")
-
-        # Crop to the resolved bounds if any.
-        if crop_bounds is not None:
-            from io import BytesIO
-
-            from PIL import Image as PILImage
-
-            img = PILImage.open(BytesIO(png_bytes))
-            x, y, w, h = crop_bounds
-            img = img.crop((x, y, x + w, y + h))
-            out = BytesIO()
-            img.save(out, format="PNG")
-            png_bytes = out.getvalue()
+        png_bytes, _mime = await self._capture_region_bytes(
+            selector=selector, bounds=bounds, full_page=full_page, format="png",
+        )
 
         # Run OCR with the specified language.
         try:
@@ -705,6 +725,86 @@ class SuperBrowser:
                 "text": joined_text,
                 "words": words,
                 "language": language,
+                "source": {
+                    "selector": selector,
+                    "bounds": bounds,
+                    "full_page": full_page,
+                },
+            },
+        )
+
+    def _lazy_vision_controller(self) -> Any:
+        """Build a VisionController from env-configured providers on demand.
+
+        Used by :meth:`analyze_image` so an explicit vision call works when
+        provider env vars are set, even if ``enable_vision`` is False (which
+        gates only the automatic interaction-fallback). Returns ``None`` when
+        no provider is configured.
+        """
+        if self._vision_controller is not None:
+            return self._vision_controller
+        try:
+            from super_browser.vision import (
+                VisionController,
+                VisionProviderFactory,
+            )
+        except ImportError:
+            return None
+        factory = VisionProviderFactory.from_env()
+        if not factory.provider_names:
+            return None
+        return VisionController(factory=factory)
+
+    async def analyze_image(
+        self,
+        *,
+        question: str,
+        selector: Optional[str] = None,
+        bounds: Optional[dict[str, float]] = None,
+        full_page: bool = False,
+        format: str = "png",
+        quality: Optional[int] = None,
+    ) -> ActionResult:
+        """Answer a natural-language question about a page region via a
+        configured vision provider (semantic visual QA, not OCR).
+
+        Captures a screenshot (viewport, full page, or cropped), then asks the
+        vision-LLM provider the question and returns the answer + metadata.
+        Returns ``error="vision_unavailable"`` when no provider is configured
+        or every provider declined.
+        """
+        from super_browser.results.types import action_result
+
+        if not self._page:
+            return action_result(ok=False, error="Not started")
+
+        controller = self._lazy_vision_controller()
+        if controller is None:
+            return action_result(ok=False, error="vision_unavailable")
+
+        image_bytes, mime = await self._capture_region_bytes(
+            selector=selector, bounds=bounds, full_page=full_page,
+            format=format, quality=quality,
+        )
+
+        si = await controller.analyze_state(image_bytes, question, mime_type=mime)
+
+        # No-provider / all-declined: convert the controller's internal
+        # sentinel into a structured vision_unavailable error. We key on
+        # provider identity, never on confidence alone — a real answer may
+        # legitimately be low-confidence.
+        if si.provider is None and si.answer == "No provider available":
+            return action_result(ok=False, error="vision_unavailable")
+
+        return action_result(
+            ok=True,
+            data={
+                "answer": si.answer,
+                "confidence": si.confidence,
+                "provider": si.provider,
+                "model": si.model,
+                "token_cost": si.token_cost,
+                "duration_ms": si.duration_ms,
                 "source": {
                     "selector": selector,
                     "bounds": bounds,

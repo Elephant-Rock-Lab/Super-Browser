@@ -69,7 +69,7 @@ class AnthropicCUAProvider(VisionProviderBase):
 
     async def locate(self, request: VisionRequest) -> VisionResponse:
         if self._client is None:
-            return VisionResponse(found=False, model=self._model)
+            return VisionResponse(found=False, model=self._model, provider=self.name)
         start = time.monotonic()
         try:
             b64 = base64.b64encode(request.screenshot).decode()
@@ -89,7 +89,7 @@ class AnthropicCUAProvider(VisionProviderBase):
                             "type": "image",
                             "source": {
                                 "type": "base64",
-                                "media_type": "image/png",
+                                "media_type": request.mime_type,
                                 "data": b64,
                             },
                         },
@@ -103,7 +103,7 @@ class AnthropicCUAProvider(VisionProviderBase):
             coords = self._parse_cua_response(message)
             if coords is None:
                 dur = (time.monotonic() - start) * 1000
-                return VisionResponse(found=False, model=self._model, duration_ms=dur)
+                return VisionResponse(found=False, model=self._model, duration_ms=dur, provider=self.name)
             model_x, model_y = coords
             screen_x, screen_y = resize_coordinates(
                 model_x, model_y, self.default_resolution, request.viewport_size,
@@ -112,12 +112,60 @@ class AnthropicCUAProvider(VisionProviderBase):
             return VisionResponse(
                 found=True, x=float(screen_x), y=float(screen_y),
                 confidence=0.85, model=self._model,
-                duration_ms=dur,
+                duration_ms=dur, provider=self.name,
             )
         except Exception as exc:
             logger.warning("Anthropic CUA error: %s", exc)
             dur = (time.monotonic() - start) * 1000
-            return VisionResponse(found=False, model=self._model, duration_ms=dur)
+            return VisionResponse(found=False, model=self._model, duration_ms=dur, provider=self.name)
+
+    async def analyze(self, request: VisionRequest) -> VisionResponse:
+        """Answer a free-form question about the screenshot via plain messages
+        (no computer tool). The element_description carries the question."""
+        if self._client is None:
+            return VisionResponse(found=False, model=self._model, provider=self.name)
+        start = time.monotonic()
+        try:
+            b64 = base64.b64encode(request.screenshot).decode()
+            message = await self._client.messages.create(
+                model=self._model,
+                max_tokens=self._max_tokens,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": request.mime_type,
+                                "data": b64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                f"{request.element_description}\n\n"
+                                'Return JSON: {"answer": str, "confidence": float}'
+                            ),
+                        },
+                    ],
+                }],
+            )
+            # Extract text from the first text content block.
+            text = ""
+            for block in getattr(message, "content", []):
+                if getattr(block, "type", None) == "text":
+                    text = getattr(block, "text", "") or ""
+                    break
+            dur = (time.monotonic() - start) * 1000
+            return VisionResponse(
+                found=True, raw_response=text, model=self._model,
+                confidence=0.8, duration_ms=dur, provider=self.name,
+            )
+        except Exception as exc:
+            logger.warning("Anthropic analyze error: %s", exc)
+            dur = (time.monotonic() - start) * 1000
+            return VisionResponse(found=False, model=self._model, duration_ms=dur, provider=self.name)
 
     async def health_check(self) -> bool:
         if self._client is None:
@@ -184,11 +232,11 @@ class OpenAIResponseProvider(VisionProviderBase):
 
     async def locate(self, request: VisionRequest) -> VisionResponse:
         if self._client is None:
-            return VisionResponse(found=False, model=self._model)
+            return VisionResponse(found=False, model=self._model, provider=self.name)
         start = time.monotonic()
         try:
             b64 = base64.b64encode(request.screenshot).decode()
-            data_uri = f"data:image/png;base64,{b64}"
+            data_uri = f"data:{request.mime_type};base64,{b64}"
             response = await self._client.chat.completions.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
@@ -211,7 +259,7 @@ class OpenAIResponseProvider(VisionProviderBase):
             coords = self._parse_json_response(text)
             if coords is None:
                 dur = (time.monotonic() - start) * 1000
-                return VisionResponse(found=False, model=self._model, duration_ms=dur)
+                return VisionResponse(found=False, model=self._model, duration_ms=dur, provider=self.name)
             model_x, model_y, conf = coords
             screen_x, screen_y = resize_coordinates(
                 model_x, model_y, self.default_resolution, request.viewport_size,
@@ -220,12 +268,50 @@ class OpenAIResponseProvider(VisionProviderBase):
             return VisionResponse(
                 found=True, x=float(screen_x), y=float(screen_y),
                 confidence=conf, model=self._model,
-                duration_ms=dur,
+                duration_ms=dur, provider=self.name,
             )
         except Exception as exc:
             logger.warning("OpenAI provider error: %s", exc)
             dur = (time.monotonic() - start) * 1000
-            return VisionResponse(found=False, model=self._model, duration_ms=dur)
+            return VisionResponse(found=False, model=self._model, duration_ms=dur, provider=self.name)
+
+    async def analyze(self, request: VisionRequest) -> VisionResponse:
+        """Answer a free-form question about the screenshot. The
+        element_description carries the question. Expects JSON output."""
+        if self._client is None:
+            return VisionResponse(found=False, model=self._model, provider=self.name)
+        start = time.monotonic()
+        try:
+            b64 = base64.b64encode(request.screenshot).decode()
+            data_uri = f"data:{request.mime_type};base64,{b64}"
+            response = await self._client.chat.completions.create(
+                model=self._model,
+                max_tokens=self._max_tokens,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": data_uri}},
+                        {
+                            "type": "text",
+                            "text": (
+                                f"{request.element_description}\n\n"
+                                'Return JSON: {"answer": str, "confidence": float}'
+                            ),
+                        },
+                    ],
+                }],
+                response_format={"type": "json_object"},
+            )
+            text = response.choices[0].message.content
+            dur = (time.monotonic() - start) * 1000
+            return VisionResponse(
+                found=True, raw_response=text, model=self._model,
+                confidence=0.8, duration_ms=dur, provider=self.name,
+            )
+        except Exception as exc:
+            logger.warning("OpenAI analyze error: %s", exc)
+            dur = (time.monotonic() - start) * 1000
+            return VisionResponse(found=False, model=self._model, duration_ms=dur, provider=self.name)
 
     async def health_check(self) -> bool:
         if self._client is None:

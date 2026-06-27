@@ -161,6 +161,60 @@ PHASE1_TOOLS: list[types.Tool] = [
             "required": [],
         },
     ),
+    types.Tool(
+        name="analyze_image",
+        description=(
+            "Answer a natural-language question about a page screenshot via a "
+            "vision-LLM provider (semantic visual QA — e.g. 'which card shows "
+            "the cheapest milk?', 'describe the layout'). Unlike OCR "
+            "(extract_image_text), this understands image content. Inspect-tier; "
+            "no page mutation. Requires a configured vision provider "
+            "(SB_ANTHROPIC_API_KEY / SB_OPENAI_API_KEY / SB_UITARS_MODEL_PATH); "
+            "returns a structured vision_unavailable error if none is configured."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The question to answer about the screenshot.",
+                },
+                "selector": {
+                    "type": "string",
+                    "description": "CSS selector of an element to analyze. Mutually exclusive with bounds.",
+                },
+                "bounds": {
+                    "type": "object",
+                    "description": "Bounding box {x, y, width, height} of the region to analyze. Mutually exclusive with selector.",
+                    "properties": {
+                        "x": {"type": "number"},
+                        "y": {"type": "number"},
+                        "width": {"type": "number"},
+                        "height": {"type": "number"},
+                    },
+                    "required": ["x", "y", "width", "height"],
+                },
+                "full_page": {
+                    "type": "boolean",
+                    "description": "Analyze the full scrollable page (default: viewport only).",
+                    "default": False,
+                },
+                "format": {
+                    "type": "string",
+                    "enum": ["png", "jpeg"],
+                    "description": "Screenshot format sent to the provider. Default: png (lossless).",
+                    "default": "png",
+                },
+                "quality": {
+                    "type": "integer",
+                    "description": "JPEG quality 1-100. Only valid when format=jpeg; ignored for png.",
+                    "minimum": 1,
+                    "maximum": 100,
+                },
+            },
+            "required": ["question"],
+        },
+    ),
 ]
 
 _PHASE1_TOOL_NAMES = frozenset(t.name for t in PHASE1_TOOLS)
@@ -1858,6 +1912,118 @@ class ToolDispatcher:
         payload = self._redact_inspect_output(
             payload, nested_keys=nested_keys, list_keys=list_keys,
         )
+
+        return _text_content(payload)
+
+    async def _tool_analyze_image(self, arguments: dict[str, Any]) -> list[types.TextContent]:
+        """Answer a question about a page screenshot via a vision-LLM provider.
+        Inspect-tier."""
+        question = arguments.get("question")
+        selector = arguments.get("selector")
+        bounds = arguments.get("bounds")
+        full_page = bool(arguments.get("full_page", False))
+        fmt = arguments.get("format", "png")
+        quality = arguments.get("quality")
+
+        # --- Validation (before any screenshot/analysis work) ---
+
+        # question is required and must be a non-empty string.
+        if not isinstance(question, str) or not question.strip():
+            return _error_content(
+                "'question' is required and must be a non-empty string",
+                kind="invalid_arguments",
+            )
+
+        # selector and bounds are mutually exclusive.
+        if selector is not None and bounds is not None:
+            return _error_content(
+                "'selector' and 'bounds' are mutually exclusive; provide one or neither.",
+                kind="invalid_arguments",
+            )
+
+        # Validate bounds structure.
+        if bounds is not None:
+            if not isinstance(bounds, dict):
+                return _error_content("'bounds' must be an object", kind="invalid_arguments")
+            for field in ("x", "y", "width", "height"):
+                if field not in bounds:
+                    return _error_content(
+                        f"'bounds' must include '{field}'",
+                        kind="invalid_arguments",
+                    )
+                if not isinstance(bounds[field], (int, float)) or isinstance(bounds[field], bool):
+                    return _error_content(
+                        f"'bounds.{field}' must be a number",
+                        kind="invalid_arguments",
+                    )
+            if bounds["width"] <= 0:
+                return _error_content(
+                    "'bounds.width' must be positive",
+                    kind="invalid_arguments",
+                )
+            if bounds["height"] <= 0:
+                return _error_content(
+                    "'bounds.height' must be positive",
+                    kind="invalid_arguments",
+                )
+
+        # Validate format.
+        if fmt not in ("png", "jpeg"):
+            return _error_content(
+                f"'format' must be 'png' or 'jpeg', got {fmt!r}",
+                kind="invalid_arguments",
+            )
+
+        # Validate quality.
+        if quality is not None:
+            if not isinstance(quality, int) or isinstance(quality, bool):
+                return _error_content(
+                    "'quality' must be an integer (1-100)",
+                    kind="invalid_arguments",
+                )
+            if quality < 1 or quality > 100:
+                return _error_content(
+                    f"'quality' must be between 1 and 100, got {quality}",
+                    kind="invalid_arguments",
+                )
+            if fmt == "png":
+                return _error_content(
+                    "'quality' is only valid when format='jpeg'; PNG is always lossless",
+                    kind="invalid_arguments",
+                )
+
+        # --- Execute ---
+
+        sb = await self.runtime.get_browser()
+        try:
+            ar = await sb.analyze_image(
+                question=question.strip(),
+                selector=selector,
+                bounds=bounds,
+                full_page=full_page,
+                format=fmt,
+                quality=quality,
+            )
+        except Exception as e:
+            return _error_content(str(e), kind="error")
+
+        payload = _serialize_action_result(ar)
+
+        # Map the facade's vision_unavailable signal to a structured error.
+        if isinstance(payload, dict) and payload.get("error") == "vision_unavailable":
+            return _error_content(
+                "No vision provider configured. Set SB_ANTHROPIC_API_KEY, "
+                "SB_OPENAI_API_KEY, or SB_UITARS_MODEL_PATH.",
+                kind="vision_unavailable",
+            )
+
+        # Redact the answer text (vision output can surface page secrets).
+        data = payload.get("data")
+        nested_keys: dict[str, tuple[str, ...]] | None = None
+        if isinstance(data, dict) and isinstance(data.get("answer"), str):
+            nested_keys = {"data": ("answer",)}
+
+        payload = self._redact_inspect_output(payload, nested_keys=nested_keys)
 
         return _text_content(payload)
 
