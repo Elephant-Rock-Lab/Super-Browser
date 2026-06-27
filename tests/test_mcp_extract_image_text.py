@@ -383,8 +383,8 @@ class TestFacadeOCRNormalization:
         sb._page = MagicMock()
         sb._page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
         sb._page.is_alive = True
-        sb._page.engine_page = MagicMock()
-        sb._page.engine_page.query_selector = AsyncMock(return_value=None)
+        sb._page.backend_page = MagicMock()
+        sb._page.backend_page.query_selector = AsyncMock(return_value=None)
 
         mock_data = {
             "text": ["Milk", "2L", "", "SAR"],
@@ -442,8 +442,8 @@ class TestFacadeOCRNormalization:
         sb._page = MagicMock()
         sb._page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
         sb._page.is_alive = True
-        sb._page.engine_page = MagicMock()
-        sb._page.engine_page.query_selector = AsyncMock(return_value=None)
+        sb._page.backend_page = MagicMock()
+        sb._page.backend_page.query_selector = AsyncMock(return_value=None)
 
         mock_data = {
             "text": ["Hello", "", "World"],
@@ -511,8 +511,8 @@ class TestFacadeSelectorResolution:
         mock_el.bounding_box = AsyncMock(return_value={
             "x": 100, "y": 200, "width": 300, "height": 150,
         })
-        sb._page.engine_page = MagicMock()
-        sb._page.engine_page.query_selector = AsyncMock(return_value=mock_el)
+        sb._page.backend_page = MagicMock()
+        sb._page.backend_page.query_selector = AsyncMock(return_value=mock_el)
 
         mock_data = {
             "text": ["Product"],
@@ -548,7 +548,7 @@ class TestFacadeSelectorResolution:
 
         assert result.ok is True
         # Selector was resolved (query_selector called with the selector).
-        sb._page.engine_page.query_selector.assert_awaited_once_with("#product-img")
+        sb._page.backend_page.query_selector.assert_awaited_once_with("#product-img")
         # Bounding box was queried.
         mock_el.bounding_box.assert_awaited_once()
         # Source echoes the selector.
@@ -566,8 +566,8 @@ class TestFacadeSelectorResolution:
         sb._page = MagicMock()
         sb._page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
         sb._page.is_alive = True
-        sb._page.engine_page = MagicMock()
-        sb._page.engine_page.query_selector = AsyncMock(return_value=None)  # not found
+        sb._page.backend_page = MagicMock()
+        sb._page.backend_page.query_selector = AsyncMock(return_value=None)  # not found
 
         mock_data = {
             "text": ["Fallback"],
@@ -605,3 +605,67 @@ class TestFacadeSelectorResolution:
         assert result.ok is True
         assert len(result.data["words"]) == 1
         assert result.data["source"]["selector"] == "#nonexistent"
+
+    @pytest.mark.asyncio
+    async def test_selector_uses_backend_page_not_engine_page(self):
+        """Verify the facade resolves selector via backend_page (raw page
+        that exposes query_selector), NOT engine_page (the PatchrightPage
+        wrapper which lacks query_selector).
+
+        This test fails on the original code that used engine_page."""
+        import sys
+        import types
+
+        from super_browser import SuperBrowser
+
+        sb = SuperBrowser()
+        sb._page = MagicMock()
+        sb._page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+        sb._page.is_alive = True
+
+        # backend_page is the raw page — should be used for query_selector.
+        mock_el = MagicMock()
+        mock_el.bounding_box = AsyncMock(return_value={
+            "x": 10, "y": 10, "width": 200, "height": 100,
+        })
+        sb._page.backend_page = MagicMock()
+        sb._page.backend_page.query_selector = AsyncMock(return_value=mock_el)
+
+        # engine_page is the wrapper — should NOT be called.
+        # We give it NO query_selector to prove it's not the code path.
+        sb._page.engine_page = MagicMock(spec=["screenshot", "evaluate"])
+
+        mock_data = {
+            "text": ["Text"],
+            "conf": ["95.0"],
+            "left": [0], "top": [0], "width": [30], "height": [18],
+        }
+
+        fake_pytesseract = types.ModuleType("pytesseract")
+        fake_pytesseract.image_to_data = MagicMock(return_value=mock_data)
+        fake_pytesseract.Output = MagicMock(DICT="dict")
+
+        mock_img = MagicMock()
+        mock_img.convert = MagicMock(return_value=mock_img)
+        mock_img.crop = MagicMock(return_value=mock_img)
+        fake_pil = types.ModuleType("PIL")
+        fake_pil_image = types.ModuleType("PIL.Image")
+        fake_pil_image.open = MagicMock(return_value=mock_img)
+        fake_pil.Image = fake_pil_image
+
+        orig_modules = dict(sys.modules)
+        sys.modules["pytesseract"] = fake_pytesseract
+        sys.modules["PIL"] = fake_pil
+        sys.modules["PIL.Image"] = fake_pil_image
+
+        try:
+            result = await sb.extract_image_text(selector="#img")
+        finally:
+            sys.modules.clear()
+            sys.modules.update(orig_modules)
+
+        assert result.ok is True
+        # backend_page.query_selector was called with the selector.
+        sb._page.backend_page.query_selector.assert_awaited_once_with("#img")
+        # Element bounding box was resolved.
+        mock_el.bounding_box.assert_awaited_once()

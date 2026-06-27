@@ -610,16 +610,21 @@ class SuperBrowser:
         crop_bounds: Optional[tuple[int, int, int, int]] = None
 
         if selector is not None:
-            # Resolve the selector to element bounding box via the engine page.
+            # Resolve the selector to element bounding box via the raw backend
+            # page. We use backend_page (the raw Patchright/Playwright page),
+            # NOT engine_page (the PatchrightPage wrapper), because the wrapper
+            # does not expose query_selector.
             try:
-                el = await self._page.engine_page.query_selector(selector)
-                if el is not None:
-                    box = await el.bounding_box()
-                    if box is not None and box["width"] > 0 and box["height"] > 0:
-                        crop_bounds = (
-                            int(box["x"]), int(box["y"]),
-                            int(box["width"]), int(box["height"]),
-                        )
+                raw_page = getattr(self._page, "backend_page", None)
+                if raw_page is not None:
+                    el = await raw_page.query_selector(selector)
+                    if el is not None:
+                        box = await el.bounding_box()
+                        if box is not None and box["width"] > 0 and box["height"] > 0:
+                            crop_bounds = (
+                                int(box["x"]), int(box["y"]),
+                                int(box["width"]), int(box["height"]),
+                            )
                 # If element not found or no box, we fall through to
                 # viewport/page OCR — the selector is still echoed in source.
             except Exception:
