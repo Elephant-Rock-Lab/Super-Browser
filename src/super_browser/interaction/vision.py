@@ -18,6 +18,19 @@ class VisionProvider(ABC):
     async def locate(self, request: VisionRequest) -> VisionResponse:
         ...
 
+    async def analyze(self, request: VisionRequest) -> VisionResponse:
+        """Answer a free-form question about the screenshot.
+
+        Default no-op: returns ``found=False`` so grounding-only providers
+        (e.g. UITARS) remain compliant without implementing visual QA. LLM
+        providers override this with a real question-answer prompt.
+        """
+        return VisionResponse(
+            found=False,
+            provider=getattr(self, "name", None),
+            model=getattr(self, "model_id", None),
+        )
+
     @property
     @abstractmethod
     def name(self) -> str: ...

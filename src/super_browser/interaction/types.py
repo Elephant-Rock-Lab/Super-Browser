@@ -121,6 +121,7 @@ class VisionRequest:
     element_description: str
     page_url: str
     viewport_size: tuple[int, int]
+    mime_type: str = "image/png"
 
 
 @dataclass(frozen=True)
@@ -133,3 +134,4 @@ class VisionResponse:
     model: Optional[str] = None
     token_cost: float = 0.0
     duration_ms: float = 0.0
+    provider: Optional[str] = None

@@ -246,6 +246,17 @@ print(result.data["text"])  # "Almarai Fresh Milk 2L SAR 14.50"
 print(result.data["words"])  # [{text, x, y, w, h, confidence}, ...]
 ```
 
+#### `analyze_image(*, question, selector=None, bounds=None, full_page=False, format="png", quality=None) → ActionResult`
+
+Answer a natural-language question about a page screenshot via a configured vision-LLM provider (semantic visual QA). Unlike OCR (`extract_image_text`), this understands image content — e.g. "which card shows the cheapest milk?", "describe the layout". Requires a configured vision provider (`SB_ANTHROPIC_API_KEY` / `SB_OPENAI_API_KEY` / `SB_UITARS_MODEL_PATH`); returns `error="vision_unavailable"` when none is configured.
+
+```python
+result = await sb.analyze_image(question="Which product card shows the cheapest milk?")
+print(result.data["answer"])      # "The Hyper Panda card, Nadec milk at SAR 20.00"
+print(result.data["confidence"])  # 0.82
+print(result.data["provider"])    # "openai"
+```
+
 ### Delegation
 
 #### `delegate(tasks, *, max_concurrency=4) → DelegationResult`

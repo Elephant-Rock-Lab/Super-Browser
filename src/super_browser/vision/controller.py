@@ -224,6 +224,78 @@ class VisionController(VisionProvider):
             dur = (time.monotonic() - start) * 1000
             return StateInference(answer=f"Error: {exc}", confidence=0.0, duration_ms=dur)
 
+    async def analyze_state(
+        self,
+        screenshot: bytes,
+        question: str,
+        *,
+        mime_type: str = "image/png",
+        viewport_size: tuple[int, int] = (1280, 720),
+    ) -> StateInference:
+        """Answer a free-form question about a screenshot via provider analysis.
+
+        Distinct from :meth:`infer_state` (which routes through grounding
+        ``locate()``): this calls ``provider.analyze()`` for semantic visual
+        QA. Returns ``StateInference(answer="No provider available")`` when no
+        analysis-capable provider answers; callers convert that into a
+        ``vision_unavailable`` error at their boundary.
+        """
+        provider = self._factory.get_provider_for_complexity(VisionTaskComplexity.COMPLEX)
+        if provider is None:
+            return StateInference(answer="No provider available", confidence=0.0)
+
+        request = VisionRequest(
+            screenshot=screenshot,
+            element_description=question,
+            page_url="",
+            viewport_size=viewport_size,
+            mime_type=mime_type,
+        )
+        start = time.monotonic()
+        try:
+            response = await self._call_analysis_with_failover(request, provider)
+            dur = (time.monotonic() - start) * 1000
+            self._cost_tracker.record(response.token_cost)
+            if response.provider is None and not response.found:
+                return StateInference(
+                    answer="No provider available", confidence=0.0, duration_ms=dur,
+                )
+            # Parse the JSON answer envelope if present.
+            if response.raw_response:
+                import json
+                try:
+                    data = json.loads(response.raw_response)
+                    return StateInference(
+                        answer=str(data.get("answer", "")),
+                        confidence=float(data.get("confidence", response.confidence)),
+                        model=response.model,
+                        token_cost=response.token_cost,
+                        duration_ms=dur,
+                        provider=response.provider,
+                    )
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    pass
+                # Non-JSON answer: use raw text.
+                return StateInference(
+                    answer=response.raw_response,
+                    confidence=response.confidence,
+                    model=response.model,
+                    token_cost=response.token_cost,
+                    duration_ms=dur,
+                    provider=response.provider,
+                )
+            return StateInference(
+                answer="Unable to analyze image",
+                confidence=response.confidence,
+                model=response.model,
+                token_cost=response.token_cost,
+                duration_ms=dur,
+                provider=response.provider,
+            )
+        except Exception as exc:
+            dur = (time.monotonic() - start) * 1000
+            return StateInference(answer=f"Error: {exc}", confidence=0.0, duration_ms=dur)
+
     # -- Complexity classification --
 
     def classify_complexity(self, description: str) -> VisionTaskComplexity:
@@ -260,6 +332,44 @@ class VisionController(VisionProvider):
                 continue
             try:
                 response = await provider.locate(request)
+                if response.found:
+                    return response
+            except Exception:
+                continue
+
+        return VisionResponse(found=False)
+
+    async def _call_analysis_with_failover(
+        self,
+        request: VisionRequest,
+        preferred_provider: Any,
+        exclude: Optional[set[str]] = None,
+    ) -> VisionResponse:
+        """Analysis failover: calls ``provider.analyze()`` exclusively.
+
+        Kept fully separate from :meth:`_call_with_failover` (which calls
+        ``provider.locate()`` for grounding) so semantic visual-QA never
+        accidentally routes back through coordinate location.
+        """
+        exclude = exclude or set()
+        try:
+            response = await preferred_provider.analyze(request)
+            if response.found:
+                return response
+            if response.provider:
+                exclude.add(str(response.provider))
+        except Exception:
+            if hasattr(preferred_provider, "name"):
+                exclude.add(str(preferred_provider.name))
+
+        for name in self._factory.provider_priority:
+            if name in exclude:
+                continue
+            provider = self._factory.get_provider(name)
+            if provider is None or provider is preferred_provider:
+                continue
+            try:
+                response = await provider.analyze(request)
                 if response.found:
                     return response
             except Exception:

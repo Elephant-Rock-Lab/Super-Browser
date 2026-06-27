@@ -232,7 +232,7 @@ class TestPhase1AndWave2:
     @pytest.mark.asyncio
     async def test_phase1_tool_set_unchanged(self):
         names = {t.name for t in PHASE1_TOOLS}
-        assert names == {"browser_status", "current_url", "observe", "extract_text", "screenshot", "list_tabs", "extract_image_text"}
+        assert names == {"browser_status", "current_url", "observe", "extract_text", "screenshot", "list_tabs", "extract_image_text", "analyze_image"}
 
     @pytest.mark.asyncio
     async def test_phase2b_tool_set_exactly_three(self):

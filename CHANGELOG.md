@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — MCP vision image analysis (P7.C)
+
+New `analyze_image` inspect-tier MCP tool. Answers a natural-language question
+about a page screenshot via a configured vision-LLM provider (semantic visual
+QA). Unlike `extract_image_text` (OCR), this understands image content — the
+missing capability for sites where product names, layouts, and offers are
+encoded in product photos rather than text overlays.
+
+- Arguments: `question` (required), `selector` (optional), `bounds` (optional,
+  `{x, y, width, height}`), `full_page` (optional), `format` (optional,
+  `"png"` | `"jpeg"`, default `"png"`), `quality` (optional, 1-100, jpeg only).
+- `selector` and `bounds` are mutually exclusive; no args = viewport analysis.
+- Validation: all args validated before any screenshot/analysis work.
+- Output (nested under `data`): `{answer, confidence, provider, model,
+  token_cost, duration_ms, source{selector, bounds, full_page}}`.
+- Graceful degradation: returns a structured `vision_unavailable` error when no
+  provider is configured — no crash, no API key required for CI.
+- Redaction: covers the `answer` text.
+- Architecture: new provider `analyze()` path (visual QA), kept fully separate
+  from `locate()` (coordinate grounding). New `analyze_state()` controller path
+  uses `_call_analysis_with_failover()`, which calls `provider.analyze()`
+  exclusively — never `provider.locate()`.
+- MIME plumbing: `VisionRequest.mime_type` is propagated to provider
+  `media_type`/data-URI, so JPEG bytes are labeled `image/jpeg`, not `image/png`.
+- Lazy controller: an explicit `analyze_image()` call builds a
+  `VisionController` from `SB_ANTHROPIC_API_KEY` / `SB_OPENAI_API_KEY` /
+  `SB_UITARS_MODEL_PATH` on demand — `enable_vision` (which gates only the
+  automatic interaction fallback) is not required.
+- Default advertised tool count: 18 → 19. Action-mode: 30 → 31.
+
 ## [2.11.1] — 2026-06-27
 
 ### Fixed — MCP browser auto-recovery
