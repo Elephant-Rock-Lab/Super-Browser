@@ -75,7 +75,7 @@ class TestDiagnosticsAdvertisement:
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
 
         names = {t.name for t in _tools_for_policy(MCPSessionPolicy())}
-        assert len(names) == 17
+        assert len(names) == 18
         for diag in ("get_console_messages", "get_page_errors", "get_network_errors",
                      "list_requests", "get_request"):
             assert diag in names
@@ -84,7 +84,7 @@ class TestDiagnosticsAdvertisement:
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
 
         names = {t.name for t in _tools_for_policy(MCPSessionPolicy(allow_actions=True))}
-        assert len(names) == 29
+        assert len(names) == 30
 
     def test_diagnostics_are_inspect_tier(self):
         """Diagnostics tools are in INSPECT_TOOL_NAMES (no action gate)."""

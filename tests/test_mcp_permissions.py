@@ -326,7 +326,7 @@ class TestPhase1Unchanged:
         names = {t.name for t in PHASE1_TOOLS}
         assert names == {
             "browser_status", "current_url", "observe",
-            "extract_text", "screenshot", "list_tabs",
+            "extract_text", "screenshot", "list_tabs", "extract_image_text",
         }
 
     def test_write_tools_disjoint_from_phase1(self):
