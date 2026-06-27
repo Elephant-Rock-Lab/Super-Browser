@@ -117,7 +117,7 @@ advertised; the third requires action mode; the fourth is not implemented.
 | `current_url` | none | Current URL, or a structured "not started" state. | No |
 | `observe` | none | Page state: URL, title, interactive/total element counts, and a `targets` array of actionable element references (capped at 50). Each target includes `target` (a ref like `@e0`, usable as the `target` argument for coordinate-tier action tools: `click`, `fill`, `type_text`, `hover`, `select_option`), `role`, `name`, and `action_hint`. | Yes |
 | `extract_text` | `query` (required), `selector` (optional) | Text content, optionally scoped to a CSS selector. | Yes |
-| `screenshot` | `full_page` (optional, default `false`) | Base64 PNG of the viewport or full page. | Yes |
+| `screenshot` | `full_page` (optional, default `false`), `format` (optional, `"png"` \| `"jpeg"`, default `"png"`), `quality` (optional, 1-100, jpeg only) | Base64 image of the viewport or full page. Default: lossless PNG. Request `format="jpeg"` with a `quality` value (e.g. 70) to produce a smaller image that fits under host inline limits (typical hosts inline images up to ~200 KiB; a JPEG at quality 70 is often 5-10x smaller than the equivalent PNG). | Yes |
 | `list_tabs` | none | Snapshot of open tabs. | Yes |
 | `get_console_messages` | `level` (optional), `limit` (optional, default 100) | Buffered browser console messages (snapshot, non-destructive). | Yes |
 | `get_page_errors` | `limit` (optional, default 100) | Buffered uncaught page errors with stack traces. | Yes |

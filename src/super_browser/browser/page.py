@@ -2,12 +2,45 @@
 
 from __future__ import annotations
 
+import io
 from typing import TYPE_CHECKING, Any, Optional
 
 from super_browser.browser.cdp import CDPBridge
 
 if TYPE_CHECKING:
     from super_browser.browser.backends.patchright_backend import PatchrightPage
+
+
+def _maybe_reencode_jpeg(png_bytes: bytes, quality: Optional[int]) -> bytes:
+    """Re-encode PNG to JPEG using Pillow if available.
+
+    Used for the Selenium fallback path (Selenium only produces PNG). If Pillow
+    is not installed, the original PNG bytes are returned unchanged — the caller
+    will detect the PNG magic and use image/png mime. If Pillow cannot parse the
+    bytes (corrupt/empty screenshot), the original PNG is also returned.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return png_bytes
+    try:
+        img = Image.open(io.BytesIO(png_bytes))
+    except Exception:
+        # Corrupt or unparseable image — return original bytes.
+        return png_bytes
+    if img.mode in ("RGBA", "LA", "P"):
+        # JPEG has no alpha channel — composite onto white.
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        if img.mode == "P":
+            img = img.convert("RGBA")
+        background.paste(img, mask=img.split()[-1] if "A" in img.mode else None)
+        img = background
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
+    out = io.BytesIO()
+    q = quality if quality is not None else 80
+    img.save(out, format="JPEG", quality=q)
+    return out.getvalue()
 
 
 class PageHandle:
@@ -51,11 +84,36 @@ class PageHandle:
         self,
         path: Optional[str] = None,
         full_page: bool = False,
+        format: str = "png",
+        quality: Optional[int] = None,
     ) -> bytes:
+        """Capture a screenshot, normalizing format across backends.
+
+        - Patchright/Playwright/CDP: forward as ``type`` (the Playwright
+          spelling). The CDP backend accepts both ``type`` and ``format``.
+        - Selenium: only PNG is supported; if jpeg is requested and Pillow is
+          installed, re-encode the PNG; otherwise return PNG with a caller-visible
+          discrepancy in mime.
+        """
         kwargs: dict[str, Any] = {"full_page": full_page}
         if path:
             kwargs["path"] = path
-        return await self._page.screenshot(**kwargs)
+
+        if format == "jpeg":
+            kwargs["type"] = "jpeg"
+            if quality is not None:
+                kwargs["quality"] = quality
+        else:
+            kwargs["type"] = "png"
+
+        raw = await self._page.screenshot(**kwargs)
+
+        # Selenium fallback: it ignores format/quality and always returns PNG.
+        # If jpeg was requested but we got PNG, try re-encoding with Pillow.
+        if format == "jpeg" and raw.startswith(b"\x89PNG"):
+            raw = _maybe_reencode_jpeg(raw, quality)
+
+        return raw
 
     @property
     def cdp(self) -> CDPBridge:

@@ -436,10 +436,22 @@ class CDPDirectPage:
         return None
 
     async def screenshot(self, **kwargs: Any) -> bytes:
-        """Capture screenshot as PNG bytes."""
+        """Capture screenshot bytes, supporting png and jpeg formats.
+
+        Forwarded kwargs:
+          full_page: bool — capture beyond viewport.
+          type: str — "png" or "jpeg" (Playwright spelling).
+          format: str — "png" or "jpeg" (CDP spelling; preferred here).
+          quality: int — 1-100, jpeg only.
+        """
         import base64
 
-        result = await self._cdp.capture_screenshot(format="png")
+        fmt = kwargs.get("format") or kwargs.get("type") or "png"
+        quality = kwargs.get("quality")
+        full_page = kwargs.get("full_page", False)
+        result = await self._cdp.capture_screenshot(
+            format=fmt, quality=quality, full_page=full_page,
+        )
         if result.ok and result.data and "data" in result.data:
             return base64.b64decode(result.data["data"])
         return b""

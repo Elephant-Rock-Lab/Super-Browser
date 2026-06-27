@@ -49,3 +49,39 @@ class TestPageHandle:
         page = AsyncMock()
         ph = _make_page_handle(page)
         assert ph.raw_page is page
+
+    def test_screenshot_default_png(self):
+        async def _test():
+            page = AsyncMock()
+            page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n")
+            ph = _make_page_handle(page)
+            await ph.screenshot()
+            # Default must forward type=png (Playwright spelling), no format=.
+            page.screenshot.assert_awaited_once_with(full_page=False, type="png")
+        asyncio.run(_test())
+
+    def test_screenshot_jpeg_forwards_type_not_format(self):
+        async def _test():
+            page = AsyncMock()
+            # Return JPEG magic so no re-encode path triggers.
+            page.screenshot = AsyncMock(return_value=b"\xff\xd8\xff\xe0")
+            ph = _make_page_handle(page)
+            await ph.screenshot(format="jpeg", quality=70)
+            # Must use type= (Playwright), NOT format= (CDP-only).
+            call_kwargs = page.screenshot.await_args.kwargs
+            assert call_kwargs.get("type") == "jpeg"
+            assert "format" not in call_kwargs
+            assert call_kwargs.get("quality") == 70
+        asyncio.run(_test())
+
+    def test_screenshot_jpeg_png_fallback_reencodes_or_returns_png(self):
+        async def _test():
+            page = AsyncMock()
+            # Backend returns PNG despite jpeg request (Selenium path).
+            page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n")
+            ph = _make_page_handle(page)
+            raw = await ph.screenshot(format="jpeg", quality=80)
+            # Result is either re-encoded JPEG (if Pillow installed) or
+            # original PNG — either way, it should not raise.
+            assert isinstance(raw, (bytes, bytearray))
+        asyncio.run(_test())

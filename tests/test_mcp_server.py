@@ -320,7 +320,9 @@ class TestToolDelegation:
 
         dispatcher = ToolDispatcher(runtime)
         result = await dispatcher.dispatch("screenshot", {"full_page": True})
-        fake_page.screenshot.assert_awaited_once_with(full_page=True)
+        fake_page.screenshot.assert_awaited_once_with(
+            full_page=True, format="png", quality=None,
+        )
         assert len(result) == 2
         # First block is the image; second is the JSON sidecar.
         img = result[0]
@@ -331,6 +333,112 @@ class TestToolDelegation:
         sidecar = json.loads(result[1].text)
         assert sidecar["ok"] is True
         assert sidecar["full_page"] is True
+        assert sidecar["format"] == "png"
+
+    @pytest.mark.asyncio
+    async def test_screenshot_jpeg_quality(self, monkeypatch):
+        """JPEG format with quality produces image/jpeg mime."""
+        runtime = MCPBrowserRuntime()
+        fake_page = MagicMock()
+        # JPEG magic bytes (FFD8FF) + dummy payload.
+        fake_page.screenshot = AsyncMock(return_value=b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+        fake_sb = MagicMock()
+        fake_sb._page = fake_page
+        runtime._sb = fake_sb
+
+        dispatcher = ToolDispatcher(runtime)
+        result = await dispatcher.dispatch("screenshot", {"format": "jpeg", "quality": 70})
+        fake_page.screenshot.assert_awaited_once_with(
+            full_page=False, format="jpeg", quality=70,
+        )
+        assert len(result) == 2
+        img = result[0]
+        assert img.type == "image"
+        assert img.mimeType == "image/jpeg"
+        sidecar = json.loads(result[1].text)
+        assert sidecar["ok"] is True
+        assert sidecar["format"] == "jpeg"
+        assert sidecar["quality"] == 70
+
+    @pytest.mark.asyncio
+    async def test_screenshot_quality_rejected_for_png(self, monkeypatch):
+        """quality is only valid for jpeg — PNG + quality is an error."""
+        runtime = MCPBrowserRuntime()
+        fake_page = MagicMock()
+        fake_page.screenshot = AsyncMock()
+        fake_sb = MagicMock()
+        fake_sb._page = fake_page
+        runtime._sb = fake_sb
+
+        dispatcher = ToolDispatcher(runtime)
+        result = await dispatcher.dispatch("screenshot", {"format": "png", "quality": 70})
+        assert len(result) == 1
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "quality" in payload["invalid_arguments"].lower()
+        fake_page.screenshot.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_screenshot_quality_out_of_range(self, monkeypatch):
+        """quality must be 1-100."""
+        runtime = MCPBrowserRuntime()
+        fake_page = MagicMock()
+        fake_page.screenshot = AsyncMock()
+        fake_sb = MagicMock()
+        fake_sb._page = fake_page
+        runtime._sb = fake_sb
+
+        dispatcher = ToolDispatcher(runtime)
+        result = await dispatcher.dispatch("screenshot", {"format": "jpeg", "quality": 0})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "1" in payload["invalid_arguments"] and "100" in payload["invalid_arguments"]
+        fake_page.screenshot.assert_not_awaited()
+
+        # Also test the high end.
+        result = await dispatcher.dispatch("screenshot", {"format": "jpeg", "quality": 101})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        fake_page.screenshot.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_screenshot_invalid_format(self, monkeypatch):
+        """format must be png or jpeg."""
+        runtime = MCPBrowserRuntime()
+        fake_page = MagicMock()
+        fake_page.screenshot = AsyncMock()
+        fake_sb = MagicMock()
+        fake_sb._page = fake_page
+        runtime._sb = fake_sb
+
+        dispatcher = ToolDispatcher(runtime)
+        result = await dispatcher.dispatch("screenshot", {"format": "webp"})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "format" in payload["invalid_arguments"].lower()
+        fake_page.screenshot.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_screenshot_jpeg_backend_returns_png_fallback(self, monkeypatch):
+        """When a backend returns PNG despite jpeg request (Selenium without
+        Pillow), the mime is reported as image/png, not image/jpeg."""
+        runtime = MCPBrowserRuntime()
+        fake_page = MagicMock()
+        # Backend returns PNG magic despite jpeg request.
+        fake_page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+        fake_sb = MagicMock()
+        fake_sb._page = fake_page
+        runtime._sb = fake_sb
+
+        dispatcher = ToolDispatcher(runtime)
+        result = await dispatcher.dispatch("screenshot", {"format": "jpeg", "quality": 80})
+        assert len(result) == 2
+        img = result[0]
+        # Reported mime should reflect the actual bytes (PNG), not the request.
+        assert img.mimeType == "image/png"
+        sidecar = json.loads(result[1].text)
+        assert sidecar["format"] == "png"
+        assert sidecar["requested_format"] == "jpeg"
 
     @pytest.mark.asyncio
     async def test_facade_failure_becomes_structured_error(self, monkeypatch):

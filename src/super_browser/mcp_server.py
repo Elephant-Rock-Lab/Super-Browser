@@ -75,11 +75,34 @@ PHASE1_TOOLS: list[types.Tool] = [
     ),
     types.Tool(
         name="screenshot",
-        description="Take a screenshot of the current page (returns base64 PNG). Captures the rendered viewport, or the full page when full_page=true, as the browser sees it. Starts the browser lazily on first call.",
+        description=(
+            "Take a screenshot of the current page. Captures the rendered viewport, "
+            "or the full page when full_page=true, as the browser sees it. "
+            "By default returns a lossless PNG; request format=jpeg with a quality "
+            "value to produce a smaller image that fits under host inline limits "
+            "(typical hosts inline images up to ~200 KiB). "
+            "Starts the browser lazily on first call."
+        ),
         inputSchema={
             "type": "object",
             "properties": {
-                "full_page": {"type": "boolean", "description": "Capture the full scrollable page (default: viewport only).", "default": False},
+                "full_page": {
+                    "type": "boolean",
+                    "description": "Capture the full scrollable page (default: viewport only).",
+                    "default": False,
+                },
+                "format": {
+                    "type": "string",
+                    "enum": ["png", "jpeg"],
+                    "description": "Output format (default: png). Use jpeg with a quality value for smaller images.",
+                    "default": "png",
+                },
+                "quality": {
+                    "type": "integer",
+                    "description": "JPEG quality 1-100. Only valid when format=jpeg; rejected for PNG.",
+                    "minimum": 1,
+                    "maximum": 100,
+                },
             },
             "required": [],
         },
@@ -1614,16 +1637,57 @@ class ToolDispatcher:
 
     async def _tool_screenshot(self, arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent]:
         full_page = bool(arguments.get("full_page", False))
+
+        # Validate format.
+        fmt = arguments.get("format", "png")
+        if fmt not in ("png", "jpeg"):
+            return _error_content(
+                f"'format' must be 'png' or 'jpeg', got {fmt!r}",
+                kind="invalid_arguments",
+            )
+
+        # Validate quality.
+        quality = arguments.get("quality")
+        if quality is not None:
+            if not isinstance(quality, int) or isinstance(quality, bool):
+                return _error_content(
+                    "'quality' must be an integer (1-100)",
+                    kind="invalid_arguments",
+                )
+            if quality < 1 or quality > 100:
+                return _error_content(
+                    f"'quality' must be between 1 and 100, got {quality}",
+                    kind="invalid_arguments",
+                )
+            if fmt == "png":
+                return _error_content(
+                    "'quality' is only valid when format='jpeg'; PNG is always lossless",
+                    kind="invalid_arguments",
+                )
+
         sb = await self.runtime.get_browser()
         page = getattr(sb, "_page", None)
         if page is None:
             return _error_content("browser has no active page", kind="error")
-        png = await page.screenshot(full_page=full_page)
-        # Return the image content plus a small text sidecar for clients
-        # that want metadata without parsing PNG headers.
+
+        raw = await page.screenshot(
+            full_page=full_page, format=fmt, quality=quality,
+        )
+
+        # Determine actual mime: if the backend returned PNG despite jpeg
+        # request (Selenium without Pillow), report the truth.
+        actual_fmt = "jpeg" if fmt == "jpeg" and not raw.startswith(b"\x89PNG") else "png"
+        mime = f"image/{actual_fmt}"
         return [
-            _image_content(png),
-            _text_content({"ok": True, "format": "png", "full_page": full_page, "bytes": len(png)})[0],
+            _image_content(raw, mime=mime),
+            _text_content({
+                "ok": True,
+                "format": actual_fmt,
+                "requested_format": fmt,
+                "full_page": full_page,
+                "quality": quality if actual_fmt == "jpeg" else None,
+                "bytes": len(raw),
+            })[0],
         ]
 
     async def _tool_list_tabs(self, arguments: dict[str, Any]) -> list[types.TextContent]:
