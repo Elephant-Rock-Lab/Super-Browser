@@ -310,7 +310,12 @@ class SeleniumPage:
         return await asyncio.to_thread(_sync)
 
     async def screenshot(self, **kwargs: Any) -> bytes:
-        """Capture screenshot as PNG bytes."""
+        """Capture screenshot as PNG bytes.
+
+        Selenium only supports PNG output. When a jpeg is requested, the raw
+        PNG is returned and the caller (page layer) handles re-encoding if
+        Pillow is available; otherwise the PNG is returned as-is.
+        """
 
         def _sync() -> bytes:
             return self._driver.get_screenshot_as_png()

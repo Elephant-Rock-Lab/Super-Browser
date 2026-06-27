@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Screenshot output controls (P7.A)
+
+The `screenshot` MCP tool now accepts `format` (`"png"` | `"jpeg"`) and `quality`
+(1-100, jpeg only) parameters. Default behavior is unchanged (lossless PNG
+viewport). Requesting `format="jpeg"` with a `quality` value produces a smaller
+image that fits under host inline limits — a JPEG at quality 70 is typically
+5-10x smaller than the equivalent PNG, bringing a ~700 KiB viewport screenshot
+under the ~200 KiB inline limit most MCP hosts enforce.
+
+Validation:
+- `quality` is rejected when `format="png"` (PNG is always lossless).
+- `quality` must be an integer in 1-100.
+- `format` must be `"png"` or `"jpeg"`.
+- Invalid arguments fail before any browser call.
+
+Backend coverage: Patchright/Playwright forward natively; CDP forwards via
+`Page.captureScreenshot`; Selenium (PNG-only) gracefully falls back to PNG
+when jpeg is requested without Pillow, or re-encodes via Pillow if available.
+
 ## [2.9.1] — 2026-06-27
 
 ### Fixed — AX snapshot bounds resolution (v2.9.0 hotfix)
