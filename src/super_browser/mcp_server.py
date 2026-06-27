@@ -99,7 +99,7 @@ PHASE1_TOOLS: list[types.Tool] = [
                 },
                 "quality": {
                     "type": "integer",
-                    "description": "JPEG quality 1-100. Only valid when format=jpeg. Ignored for PNG.",
+                    "description": "JPEG quality 1-100. Only valid when format=jpeg; rejected for PNG.",
                     "minimum": 1,
                     "maximum": 100,
                 },
