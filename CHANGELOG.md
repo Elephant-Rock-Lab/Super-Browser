@@ -30,7 +30,7 @@ Now the runtime self-heals.
 - No retry of mutating actions mid-operation — recovery happens only between
   tool calls, never during one.
 
-## [Unreleased]
+## [2.12.0] — 2026-06-27
 
 ### Added — OCR image text extraction (P7.B)
 
