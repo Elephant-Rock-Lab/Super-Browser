@@ -486,3 +486,24 @@ class TestSnapshotBoundsResolution:
         result = await sb.observe()
         assert len(result.data["targets"]) == 1
         assert result.data["targets"][0]["target"] == "@e0"
+
+    @pytest.mark.asyncio
+    async def test_zero_sized_box_model_returns_none(self):
+        """A zero-sized box (collapsed/hidden element) must not be advertised
+        as an actionable target."""
+        from super_browser.interaction.snapshot import SnapshotProvider
+
+        ax_nodes = [
+            {"role": {"value": "button"}, "name": {"value": "Hidden"},
+             "backendDOMNodeId": 1},
+        ]
+        # Zero-size box: all points at the same coordinate
+        box_models = {1: [50, 50, 50, 50, 50, 50, 50, 50]}
+        cdp = _make_cdp_mock(ax_nodes, box_models)
+
+        provider = SnapshotProvider(cdp)
+        snap = await provider.capture_ax_only("https://x.local", "Test")
+
+        assert "e0" in snap.nodes
+        assert snap.nodes["e0"].bounds is None
+        assert snap.nodes["e0"].center is None

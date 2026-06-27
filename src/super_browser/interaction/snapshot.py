@@ -97,7 +97,11 @@ class SnapshotProvider:
                     y = min(content[1], content[3], content[5], content[7])
                     x2 = max(content[0], content[2], content[4], content[6])
                     y2 = max(content[1], content[3], content[5], content[7])
-                    return (x, y, x2 - x, y2 - y)
+                    width = x2 - x
+                    height = y2 - y
+                    if width <= 0 or height <= 0:
+                        return None
+                    return (x, y, width, height)
         except Exception:  # noqa: BLE001
             pass
         return None
