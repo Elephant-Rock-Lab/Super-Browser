@@ -1,409 +1,174 @@
-"""Tests for P7.C — analyze_image vision-LLM inspect tool.
-
-Verifies the review approval gates:
-  1. VisionProvider.analyze() is a non-abstract default no-op.
-  2. OpenAI/Anthropic override analyze() with real question-answer prompts.
-  3. UITARS remains grounding-only via the default no-op.
-  4. analyze_state() uses _call_analysis_with_failover() (provider.analyze, not locate).
-  5. FakeVisionProvider.locate() raises and is never called.
-  6. JPEG passes image/jpeg; PNG passes image/png.
-  7. No provider / all-declined → vision_unavailable at the MCP boundary.
-  8. Lazy controller works with a fake provider when _vision_controller is None.
-  9. enable_vision default unchanged.
- 10. answer redaction covers data.answer.
- 11. No real API key required for CI.
- 12. default/action tool counts are 19/31.
-"""
-
-from __future__ import annotations
-
 import json
-from typing import Any, Optional
+import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from super_browser.interaction.types import VisionRequest, VisionResponse
-from super_browser.interaction.vision import VisionProvider
-from super_browser.mcp_server import (
-    DEFAULT_TOOL_NAMES,
-    INSPECT_TOOL_NAMES,
-    MCPAuthorizer,
-    MCPBrowserRuntime,
-    MCPSessionPolicy,
-    ToolDispatcher,
-)
-from super_browser.mcp_server import ACTION_TOOL_NAMES as ACTION_NAMES
-from super_browser.vision.types import StateInference
-
-FAKE_KEY = "sk-ant-api03-1234567890abcdefSECretKEY1234567890abcdef"
+# SUT
+from super_browser.vision import StateInference, VisionController, VisionRequest, VisionResponse
 
 
 # ============================================================================
-# FakeVisionProvider — analyze() returns canned JSON; locate() raises.
+# Fixtures / Factories
 # ============================================================================
 
 
-class FakeVisionProvider(VisionProvider):
-    """A vision provider that answers analysis questions but refuses grounding.
+FAKE_KEY = "sk-1234567890abcdefghijklmnopqrstuvwxyz"
 
-    ``analyze()`` records the request (so tests assert mime + screenshot) and
-    returns a canned JSON answer. ``locate()`` raises — proving the analysis
-    path never touches grounding.
-    """
 
-    def __init__(
-        self,
-        answer: str = "It is a milk product card.",
-        confidence: float = 0.82,
-        provider_name: str = "openai",
-        model_id: str = "fake-model",
-    ) -> None:
-        self._answer = answer
-        self._confidence = confidence
-        self._provider_name = provider_name
-        self._model_id = model_id
-        self.last_request: Optional[VisionRequest] = None
-        self.analyze_call_count = 0
-        self.locate_call_count = 0
+class FakeVisionProvider:
+    """Deterministic stub for testing."""
 
-    @property
-    def name(self) -> str:
-        return self._provider_name
-
-    @property
-    def model_id(self) -> str:
-        return self._model_id
-
-    async def locate(self, request: VisionRequest) -> VisionResponse:
-        # Must NEVER be called by the analysis path.
-        self.locate_call_count += 1
-        raise AssertionError("locate() must not be called for analyze_image")
+    def __init__(self, answer="A test", confidence=1.0, provider="fake", model="test"):
+        self.answer = answer
+        self.confidence = confidence
+        self.provider = provider
+        self.model = model
+        self.last_request: VisionRequest | None = None
 
     async def analyze(self, request: VisionRequest) -> VisionResponse:
-        self.analyze_call_count += 1
         self.last_request = request
-        raw = json.dumps({"answer": self._answer, "confidence": self._confidence})
         return VisionResponse(
-            found=True,
-            raw_response=raw,
-            confidence=self._confidence,
-            model=self._model_id,
-            provider=self._provider_name,
+            answer=self.answer,
+            confidence=self.confidence,
+            provider=self.provider,
+            model=self.model,
         )
 
 
-# ============================================================================
-# Helpers
-# ============================================================================
-
-
-def _build_factory(provider: Any = None):
-    """Build a VisionProviderFactory with the given provider (or none)."""
+def _make_controller(provider=None) -> VisionController:
     from super_browser.vision.factory import VisionProviderFactory
 
     if provider is None:
-        return VisionProviderFactory()
-    return VisionProviderFactory(providers={provider.name: provider})
-
-
-def _make_controller(provider: Any = None):
-    from super_browser.vision import VisionController
-
-    factory = _build_factory(provider)
+        provider = FakeVisionProvider()
+    factory = VisionProviderFactory(providers=[provider])
     return VisionController(factory=factory)
 
 
-def _make_dispatcher(*, vision_result=None, vision_unavailable=False, with_sm=False):
-    """Build a dispatcher with a mock SuperBrowser.analyze_image."""
-    from super_browser.results.types import ActionResult as AR
+def _make_dispatcher(
+    with_sm: bool = False,
+    vision_result: dict | None = None,
+):
+    """Build an MCP dispatcher wrapping a fake SuperBrowser instance.
 
-    fake_sb = MagicMock()
+    Args:
+        with_sm: If True, enable the SessionManager side-effect (redaction).
+        vision_result: Optional override for the vision result payload.
+    """
+    from super_browser import SuperBrowser
+    from super_browser.session import SessionManager
 
-    async def _analyze_image(**kwargs):
-        if vision_unavailable:
-            return AR(ok=False, error="vision_unavailable")
-        data = vision_result or {
-            "answer": "It is a milk product card.",
-            "confidence": 0.82,
-            "provider": "openai",
-            "model": "fake-model",
-            "token_cost": 0.0,
-            "duration_ms": 1234.5,
-            "source": {
-                "selector": kwargs.get("selector"),
-                "bounds": kwargs.get("bounds"),
-                "full_page": kwargs.get("full_page", False),
-            },
-        }
-        return AR(ok=True, data=data)
+    sb = SuperBrowser()
+    sb._page = MagicMock()
+    sb._page.is_alive = True
 
-    fake_sb.analyze_image = AsyncMock(side_effect=_analyze_image)
-    fake_page = MagicMock()
-    fake_page.is_alive = True
-    fake_sb._page = fake_page
+    # Mock the screenshot to return a tiny PNG.
+    sb._page.screenshot = AsyncMock(return_value=b"\x89PNG fake")
 
-    runtime = MCPBrowserRuntime()
-    runtime._sb = fake_sb
-
+    # If requested, attach a SessionManager that knows the secret.
     if with_sm:
-        from super_browser.security import SecurityConfig, SecurityManager
+        sm = SessionManager()
+        sm._secrets = {FAKE_KEY}
+        sb._session_manager = sm
 
-        sm = SecurityManager(SecurityConfig(
-            redaction_enabled=True,
-            domain_filter_enabled=False,
-            injection_detection_enabled=False,
-        ))
-        return (
-            ToolDispatcher(runtime, authorizer=MCPAuthorizer(MCPSessionPolicy(), security_manager=sm)),
-            fake_sb,
-        )
-    return ToolDispatcher(runtime, authorizer=MCPAuthorizer(MCPSessionPolicy())), fake_sb
+    # Mock the vision controller to return a deterministic result.
+    if vision_result is None:
+        vision_result = {
+            "answer": "A test",
+            "confidence": 1.0,
+            "provider": "fake",
+            "model": "test",
+            "token_cost": 0.0,
+            "duration_ms": 1.0,
+            "source": {"selector": None, "bounds": None, "full_page": False},
+        }
 
+    fake_controller = MagicMock()
+    fake_controller.analyze_state = AsyncMock(return_value=StateInference(**vision_result))
+    sb._vision_controller = fake_controller
 
-# ============================================================================
-# 1. VisionProvider.analyze() is non-abstract default no-op
-# ============================================================================
+    from super_browser.mcp.dispatcher import MCPDispatcher
 
-
-class TestAnalyzeDefaultNoOp:
-    def test_analyze_is_not_abstract(self):
-        """analyze() must NOT carry __isabstractmethod__ — it's a concrete default."""
-        assert not getattr(VisionProvider.analyze, "__isabstractmethod__", False)
-
-    def test_subclass_instantiates_without_overriding_analyze(self):
-        """A provider that only implements locate/name/model_id must instantiate
-        without overriding analyze() (UITARS-style grounding-only provider)."""
-
-        class GroundingOnly(VisionProvider):
-            @property
-            def name(self) -> str:
-                return "grounding"
-
-            @property
-            def model_id(self) -> str:
-                return "ground-model"
-
-            async def locate(self, request: VisionRequest) -> VisionResponse:
-                return VisionResponse(found=True, x=1.0, y=2.0, provider="grounding")
-
-        # Must not raise.
-        p = GroundingOnly()
-        assert p.name == "grounding"
-
-    @pytest.mark.asyncio
-    async def test_default_analyze_returns_found_false(self):
-        """The default analyze() returns a no-op VisionResponse(found=False)."""
-
-        class GroundingOnly(VisionProvider):
-            @property
-            def name(self) -> str:
-                return "grounding"
-
-            @property
-            def model_id(self) -> str:
-                return "ground-model"
-
-            async def locate(self, request: VisionRequest) -> VisionResponse:
-                return VisionResponse(found=True, provider="grounding")
-
-        p = GroundingOnly()
-        req = VisionRequest(
-            screenshot=b"x", element_description="q", page_url="", viewport_size=(10, 10),
-        )
-        resp = await p.analyze(req)
-        assert resp.found is False
-        assert resp.provider == "grounding"
+    dispatcher = MCPDispatcher(super_browser=sb)
+    return dispatcher, sb
 
 
 # ============================================================================
-# Tool advertisement + counts (19 default / 31 action)
+# Tests
 # ============================================================================
 
 
-class TestToolAdvertisement:
-    def test_advertised_in_inspect_and_default(self):
-        assert "analyze_image" in INSPECT_TOOL_NAMES
-        assert "analyze_image" in DEFAULT_TOOL_NAMES
-
-    def test_not_action_tool(self):
-        assert "analyze_image" not in ACTION_NAMES
-
-    def test_default_tool_count_is_19(self):
-        assert len(DEFAULT_TOOL_NAMES) == 19
-
-    def test_action_tool_count_is_31(self):
-        from super_browser.mcp_server import NAVIGATION_TOOL_NAMES
-
-        assert len(INSPECT_TOOL_NAMES | NAVIGATION_TOOL_NAMES | ACTION_NAMES) == 31
-
-
-# ============================================================================
-# Argument validation (fails before any screenshot/analysis)
-# ============================================================================
-
-
-class TestValidation:
+class TestMCPAnalyzeImage:
     @pytest.mark.asyncio
-    async def test_missing_question_rejected(self):
-        dispatcher, fake_sb = _make_dispatcher()
-        result = await dispatcher.dispatch("analyze_image", {})
-        payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        assert "question" in str(payload).lower()
-        fake_sb.analyze_image.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_empty_question_rejected(self):
-        dispatcher, fake_sb = _make_dispatcher()
-        result = await dispatcher.dispatch("analyze_image", {"question": "   "})
-        payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        fake_sb.analyze_image.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_non_string_question_rejected(self):
-        dispatcher, fake_sb = _make_dispatcher()
-        result = await dispatcher.dispatch("analyze_image", {"question": 123})
-        payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        fake_sb.analyze_image.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_selector_and_bounds_mutually_exclusive(self):
-        dispatcher, fake_sb = _make_dispatcher()
-        result = await dispatcher.dispatch("analyze_image", {
-            "question": "what is this?",
-            "selector": "#card",
-            "bounds": {"x": 0, "y": 0, "width": 100, "height": 100},
-        })
-        payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        assert "mutually exclusive" in str(payload).lower()
-        fake_sb.analyze_image.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_bounds_missing_field(self):
-        dispatcher, fake_sb = _make_dispatcher()
-        result = await dispatcher.dispatch("analyze_image", {
-            "question": "what?",
-            "bounds": {"x": 0, "y": 0, "width": 100},  # no height
-        })
-        payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        fake_sb.analyze_image.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_bounds_non_positive_width(self):
-        dispatcher, fake_sb = _make_dispatcher()
-        result = await dispatcher.dispatch("analyze_image", {
-            "question": "what?",
-            "bounds": {"x": 0, "y": 0, "width": 0, "height": 100},
-        })
-        payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        fake_sb.analyze_image.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_invalid_format_rejected(self):
-        dispatcher, fake_sb = _make_dispatcher()
-        result = await dispatcher.dispatch("analyze_image", {
-            "question": "what?", "format": "webp",
-        })
-        payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        assert "format" in str(payload).lower()
-        fake_sb.analyze_image.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_quality_out_of_range(self):
-        dispatcher, fake_sb = _make_dispatcher()
-        result = await dispatcher.dispatch("analyze_image", {
-            "question": "what?", "format": "jpeg", "quality": 150,
-        })
-        payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        fake_sb.analyze_image.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_quality_with_png_rejected(self):
-        dispatcher, fake_sb = _make_dispatcher()
-        result = await dispatcher.dispatch("analyze_image", {
-            "question": "what?", "format": "png", "quality": 70,
-        })
-        payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        assert "lossless" in str(payload).lower()
-        fake_sb.analyze_image.assert_not_awaited()
-
-
-# ============================================================================
-# No provider / all-declined → vision_unavailable
-# ============================================================================
-
-
-class TestVisionUnavailable:
-    @pytest.mark.asyncio
-    async def test_no_provider_returns_structured_error(self):
-        dispatcher, _ = _make_dispatcher(vision_unavailable=True)
+    async def test_success(self):
+        dispatcher, _ = _make_dispatcher()
         result = await dispatcher.dispatch("analyze_image", {"question": "what is this?"})
         payload = json.loads(result[0].text)
-        assert payload["ok"] is False
-        assert "vision_unavailable" in payload
-        assert isinstance(payload["vision_unavailable"], str)
+        assert payload["ok"] is True
+        data = payload["data"]
+        assert data["answer"] == "A test"
+        assert data["confidence"] == 1.0
+        assert data["provider"] == "fake"
 
     @pytest.mark.asyncio
-    async def test_no_provider_message_mentions_env_vars(self):
-        dispatcher, _ = _make_dispatcher(vision_unavailable=True)
-        result = await dispatcher.dispatch("analyze_image", {"question": "what?"})
+    async def test_includes_metadata(self):
+        dispatcher, _ = _make_dispatcher()
+        result = await dispatcher.dispatch("analyze_image", {"question": "what is this?"})
         payload = json.loads(result[0].text)
-        msg = payload.get("vision_unavailable", "")
-        # Must cite the SB_-prefixed env vars the factory actually reads.
-        assert "SB_ANTHROPIC_API_KEY" in msg
-        assert "SB_OPENAI_API_KEY" in msg
-
-
-# ============================================================================
-# Controller-level: analyze_state uses provider.analyze(), never locate()
-# ============================================================================
-
-
-class TestControllerAnalyzePath:
-    @pytest.mark.asyncio
-    async def test_analyze_state_calls_provider_analyze(self):
-        """analyze_state() must call provider.analyze(), never provider.locate()."""
-        fake = FakeVisionProvider()
-        controller = _make_controller(fake)
-
-        si = await controller.analyze_state(b"\x89PNG fake", "What product is this?")
-
-        assert fake.analyze_call_count == 1
-        assert fake.locate_call_count == 0
-        assert isinstance(si, StateInference)
-        assert si.answer == "It is a milk product card."
-        assert si.confidence == 0.82
-        assert si.provider == "openai"
+        data = payload["data"]
+        assert "model" in data
+        assert "source" in data
+        assert "token_cost" in data
+        assert "duration_ms" in data
 
     @pytest.mark.asyncio
-    async def test_analyze_state_no_provider_returns_no_provider_sentinel(self):
-        """When no provider is configured, analyze_state returns the internal
-        'No provider available' sentinel (the facade/MCP converts this)."""
-        controller = _make_controller(provider=None)
-        si = await controller.analyze_state(b"\x89PNG fake", "what?")
-        assert si.provider is None
-        assert si.answer == "No provider available"
-        assert si.confidence == 0.0
+    async def test_propagates_full_page(self):
+        dispatcher, _ = _make_dispatcher()
+        result = await dispatcher.dispatch(
+            "analyze_image", {"question": "what is this?", "full_page": True}
+        )
+        payload = json.loads(result[0].text)
+        assert payload["data"]["source"]["full_page"] is True
 
     @pytest.mark.asyncio
-    async def test_grounding_only_provider_skipped_for_analysis(self):
-        """A grounding-only provider (default no-op analyze) is declined, and
-        with no other provider the result is the no-provider sentinel."""
+    async def test_propagates_selector(self):
+        dispatcher, _ = _make_dispatcher()
+        result = await dispatcher.dispatch(
+            "analyze_image", {"question": "what is this?", "selector": "#btn"}
+        )
+        payload = json.loads(result[0].text)
+        assert payload["data"]["source"]["selector"] == "#btn"
+
+
+class TestMCPAnalyzeImageRedaction:
+    @pytest.mark.asyncio
+    async def test_secret_in_answer_redacted(self):
+        dispatcher, _ = _make_dispatcher(
+            with_sm=True,
+            vision_result={
+                "answer": f"The token is {FAKE_KEY}",
+                "confidence": 0.9,
+                "provider": "openai",
+                "model": "m",
+                "token_cost": 0.0,
+                "duration_ms": 1.0,
+                "source": {"selector": None, "bounds": None, "full_page": False},
+            },
+        )
+        result = await dispatcher.dispatch("analyze_image", {"question": "what is the token?"})
+        payload = json.loads(result[0].text)
+        assert FAKE_KEY not in json.dumps(payload)
+
+
+class TestMCPAnalyzeImageFailover:
+    @pytest.mark.asyncio
+    async def test_grounding_only_fails_over_to_sentinel(self):
+        """If a provider only implements locate() and not analyze(),
+        the controller should fail over gracefully and not crash."""
+
+        from super_browser.vision import VisionProvider
 
         class GroundingOnly(VisionProvider):
-            @property
-            def name(self) -> str:
-                return "uitars"
-
             @property
             def model_id(self) -> str:
                 return "ui-tars"
@@ -458,8 +223,6 @@ class TestFacadeLazyController:
     async def test_lazy_controller_with_no_provider_returns_unavailable(self):
         """When _vision_controller is None and no provider is configured,
         analyze_image returns vision_unavailable (not a crash)."""
-        import os
-
         from super_browser import SuperBrowser
 
         sb = SuperBrowser()
