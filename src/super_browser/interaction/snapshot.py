@@ -49,6 +49,14 @@ class SnapshotProvider:
                 focused = _extract_property(raw, "focused") == "true"
                 disabled = _extract_property(raw, "disabled") == "true"
 
+                # If bounds not in AX properties, resolve via DOM.getBoxModel
+                # using backendDOMNodeId. The CDP AX tree does not always
+                # include bounds; DOM.getBoxModel gives the actual layout quad.
+                if bounds is None:
+                    backend_id = raw.get("backendDOMNodeId")
+                    if backend_id and self._stealth_bridge is None:
+                        bounds = await self._resolve_box_bounds(backend_id)
+
                 ref = f"e{idx}"
                 nodes[ref] = AXNode(
                     ref=f"@{ref}",
@@ -65,6 +73,38 @@ class SnapshotProvider:
 
         token_count = len(nodes) * 10
         return AXSnapshot(url=url, title=title, nodes=nodes, token_count=token_count)
+
+    async def _resolve_box_bounds(
+        self, backend_node_id: int,
+    ) -> tuple[float, float, float, float] | None:
+        """Resolve element bounds via DOM.getBoxModel using backendDOMNodeId.
+
+        The CDP AX tree response often omits bounds. This fetches the actual
+        layout quad so coordinate-tier resolution works for observe targets.
+        """
+        try:
+            result = await self._cdp.send(
+                "DOM.getBoxModel", {"backendNodeId": backend_node_id},
+            )
+            if result.ok and result.data:
+                model = result.data.get("model", {})
+                content = model.get("content", [])
+                if len(content) >= 8:
+                    # content is a flat quad: [x1,y1, x2,y2, x3,y3, x4,y4]
+                    # Extract bounding box from the first (top-left) and
+                    # third (bottom-right) points.
+                    x = min(content[0], content[2], content[4], content[6])
+                    y = min(content[1], content[3], content[5], content[7])
+                    x2 = max(content[0], content[2], content[4], content[6])
+                    y2 = max(content[1], content[3], content[5], content[7])
+                    width = x2 - x
+                    height = y2 - y
+                    if width <= 0 or height <= 0:
+                        return None
+                    return (x, y, width, height)
+        except Exception:  # noqa: BLE001
+            pass
+        return None
 
     async def capture_hybrid(self, url: str, title: str) -> AXSnapshot:
         ax_snap = await self.capture_ax_only(url, title)

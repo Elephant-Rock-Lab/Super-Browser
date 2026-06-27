@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed — AX snapshot bounds resolution (v2.9.0 hotfix)
+
+The CDP `Accessibility.getFullAXTree` response does not include element bounds,
+which caused `observe()` to return 0 actionable targets against live pages (all
+nodes failed the `center is not None` filter). Fixed by resolving bounds via
+`DOM.getBoxModel` using each node's `backendDOMNodeId` when the AX properties
+don't include bounds. The resolution is defensive: CDP failures, missing models,
+and zero-sized boxes are silently skipped (bounds stays `None`), and one node's
+failure doesn't break the whole snapshot.
+
 ## [2.9.0] — 2026-06-27
 
 ### Added — MCP observe actionable targets

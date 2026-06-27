@@ -327,3 +327,183 @@ class TestObserveRefConsumedByAction:
         click_result = await sb._controller.click(ref)
         assert click_result.ok is True
         sb._controller.click.assert_awaited_once_with("@e0")
+
+
+# ============================================================================
+# Snapshot bounds resolution via DOM.getBoxModel (hotfix for v2.9.0)
+# ============================================================================
+
+
+def _make_cdp_mock(ax_nodes, box_models=None, *, fail_box=False):
+    """Build a mock CDP bridge that returns AX nodes and optionally box models.
+
+    ax_nodes: list of raw AX node dicts (role, name, backendDOMNodeId, etc.)
+    box_models: dict[int, list[float]] mapping backendDOMNodeId → content quad.
+                If None, no box models are returned (bounds stay None).
+    fail_box: if True, DOM.getBoxModel always fails (simulates CDP error).
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    cdp = MagicMock()
+
+    async def _send(method, params=None):
+        result = MagicMock()
+        if method == "Accessibility.getFullAXTree":
+            result.ok = True
+            result.data = {"nodes": ax_nodes}
+        elif method == "DOM.getBoxModel":
+            if fail_box:
+                result.ok = False
+                result.data = None
+            else:
+                bid = params.get("backendNodeId") if params else None
+                model = (box_models or {}).get(bid)
+                if model:
+                    result.ok = True
+                    result.data = {"model": {"content": model}}
+                else:
+                    result.ok = False
+                    result.data = None
+        else:
+            result.ok = False
+            result.data = None
+        return result
+
+    cdp.send = AsyncMock(side_effect=_send)
+    return cdp
+
+
+class TestSnapshotBoundsResolution:
+    """Tests that AX snapshot resolves bounds via DOM.getBoxModel when the
+    AX tree doesn't include them (the common case)."""
+
+    @pytest.mark.asyncio
+    async def test_bounds_resolved_via_box_model(self):
+        """When AX node has no bounds property, DOM.getBoxModel populates them."""
+        from super_browser.interaction.snapshot import SnapshotProvider
+
+        ax_nodes = [
+            {"role": {"value": "button"}, "name": {"value": "Submit"},
+             "backendDOMNodeId": 42},
+        ]
+        # Box model: a 100x40 button at (10, 20)
+        box_models = {42: [10, 20, 110, 20, 110, 60, 10, 60]}
+        cdp = _make_cdp_mock(ax_nodes, box_models)
+
+        provider = SnapshotProvider(cdp)
+        snap = await provider.capture_ax_only("https://x.local", "Test")
+
+        assert "e0" in snap.nodes
+        node = snap.nodes["e0"]
+        assert node.bounds is not None
+        assert node.center is not None
+        assert node.bounds[0] == 10  # x
+        assert node.bounds[1] == 20  # y
+        assert node.bounds[2] == 100  # width
+        assert node.bounds[3] == 40  # height
+
+    @pytest.mark.asyncio
+    async def test_bounds_none_when_box_model_fails(self):
+        """When DOM.getBoxModel fails, bounds stay None and snapshot continues."""
+        from super_browser.interaction.snapshot import SnapshotProvider
+
+        ax_nodes = [
+            {"role": {"value": "button"}, "name": {"value": "Submit"},
+             "backendDOMNodeId": 42},
+        ]
+        cdp = _make_cdp_mock(ax_nodes, fail_box=True)
+
+        provider = SnapshotProvider(cdp)
+        snap = await provider.capture_ax_only("https://x.local", "Test")
+
+        assert "e0" in snap.nodes
+        node = snap.nodes["e0"]
+        assert node.bounds is None
+        assert node.center is None
+
+    @pytest.mark.asyncio
+    async def test_snapshot_continues_when_one_node_has_no_bounds(self):
+        """Mixed: one node resolves bounds, another doesn't. Both are captured."""
+        from super_browser.interaction.snapshot import SnapshotProvider
+
+        ax_nodes = [
+            {"role": {"value": "button"}, "name": {"value": "Has"},
+             "backendDOMNodeId": 1},
+            {"role": {"value": "button"}, "name": {"value": "NoBox"},
+             "backendDOMNodeId": 2},
+        ]
+        box_models = {1: [0, 0, 50, 0, 50, 30, 0, 30]}  # only node 1
+        cdp = _make_cdp_mock(ax_nodes, box_models)
+
+        provider = SnapshotProvider(cdp)
+        snap = await provider.capture_ax_only("https://x.local", "Test")
+
+        assert len(snap.nodes) == 2
+        assert snap.nodes["e0"].bounds is not None
+        assert snap.nodes["e1"].bounds is None
+
+    @pytest.mark.asyncio
+    async def test_node_without_backend_id_skips_box_model(self):
+        """Nodes without backendDOMNodeId don't attempt DOM.getBoxModel."""
+        from super_browser.interaction.snapshot import SnapshotProvider
+
+        ax_nodes = [
+            {"role": {"value": "button"}, "name": {"value": "NoBackendId"}},
+            # No backendDOMNodeId key
+        ]
+        cdp = _make_cdp_mock(ax_nodes)
+
+        provider = SnapshotProvider(cdp)
+        snap = await provider.capture_ax_only("https://x.local", "Test")
+
+        assert "e0" in snap.nodes
+        assert snap.nodes["e0"].bounds is None
+        # DOM.getBoxModel should never have been called
+        box_calls = [c for c in cdp.send.await_args_list
+                     if c.args and c.args[0] == "DOM.getBoxModel"]
+        assert len(box_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_observe_advertises_node_with_resolved_bounds(self):
+        """observe() includes targets for nodes whose bounds were resolved
+        via DOM.getBoxModel, not just nodes with bounds in AX properties."""
+        from super_browser import SuperBrowser
+        from super_browser.interaction.types import AXNode, AXSnapshot
+
+        # Simulate a snapshot with one resolved-bounds node
+        snap = AXSnapshot(url="https://x.local", title="Test")
+        snap.nodes = {
+            "e0": AXNode(ref="e0", role="button", name="Submit",
+                         bounds=(10, 20, 100, 40)),  # resolved bounds
+        }
+        sb = SuperBrowser()
+        sb._controller = MagicMock()
+        sb._controller.capture_ax_snapshot = AsyncMock(return_value=snap)
+        sb._page = MagicMock()
+        sb._page.url = "https://x.local"
+        sb._page.title = AsyncMock(return_value="Test")
+
+        result = await sb.observe()
+        assert len(result.data["targets"]) == 1
+        assert result.data["targets"][0]["target"] == "@e0"
+
+    @pytest.mark.asyncio
+    async def test_zero_sized_box_model_returns_none(self):
+        """A zero-sized box (collapsed/hidden element) must not be advertised
+        as an actionable target."""
+        from super_browser.interaction.snapshot import SnapshotProvider
+
+        ax_nodes = [
+            {"role": {"value": "button"}, "name": {"value": "Hidden"},
+             "backendDOMNodeId": 1},
+        ]
+        # Zero-size box: all points at the same coordinate
+        box_models = {1: [50, 50, 50, 50, 50, 50, 50, 50]}
+        cdp = _make_cdp_mock(ax_nodes, box_models)
+
+        provider = SnapshotProvider(cdp)
+        snap = await provider.capture_ax_only("https://x.local", "Test")
+
+        assert "e0" in snap.nodes
+        assert snap.nodes["e0"].bounds is None
+        assert snap.nodes["e0"].center is None
