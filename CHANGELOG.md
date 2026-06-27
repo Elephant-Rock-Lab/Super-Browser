@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed — MCP browser auto-recovery
+
+`MCPBrowserRuntime.get_browser()` now health-checks the cached browser
+instance before returning it. When the page/context is dead (closed by the
+browser, OS, or a crash — the `TargetClosedError` scenario), the stale
+instance is torn down and a fresh browser is launched transparently on the
+next tool call.
+
+Previously, a dead browser context caused every subsequent tool call to fail
+with `TargetClosedError` until the MCP server process was manually restarted.
+Now the runtime self-heals.
+
+- `PageHandle.is_alive` property: checks `page.is_closed()` (Patchright native).
+- `SuperBrowser.is_alive` property: delegates to `PageHandle.is_alive`.
+- `MCPBrowserRuntime._is_alive()`: static helper with graceful fallback for
+  backends that don't expose the method.
+- `MCPBrowserRuntime._cleanup_stale()`: tears down the dead instance without
+  raising, then clears the cached handle for lazy relaunch.
+- `status()` and `current_url()` now detect dead sessions and report
+  `running: False` / `started: False` instead of masking the dead state.
+- No retry of mutating actions mid-operation — recovery happens only between
+  tool calls, never during one.
+
 ## [2.11.0] — 2026-06-27
 
 ### Added — Image metadata visibility in observe (P7.D)
