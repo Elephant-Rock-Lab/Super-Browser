@@ -1787,7 +1787,12 @@ class ToolDispatcher:
                     kind="invalid_arguments",
                 )
 
-        # Validate language — safe tesseract language string.
+        # Validate language — must be a non-empty string before regex.
+        if not isinstance(language, str) or not language:
+            return _error_content(
+                "'language' must be a non-empty string",
+                kind="invalid_arguments",
+            )
         # Allow letters, digits, plus (+) for multi-language, underscore.
         if not re.match(r"^[a-zA-Z0-9+_]+$", language):
             return _error_content(

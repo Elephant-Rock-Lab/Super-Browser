@@ -327,3 +327,281 @@ class TestDefaultArgs:
         assert payload["data"]["source"]["selector"] is None
         assert payload["data"]["source"]["bounds"] is None
         assert payload["data"]["source"]["full_page"] is False
+
+
+# ============================================================================
+# Language type validation
+# ============================================================================
+
+
+class TestLanguageValidation:
+    @pytest.mark.asyncio
+    async def test_non_string_language_rejected(self):
+        """Non-string language must fail before regex, not crash."""
+        dispatcher, fake_sb = _make_dispatcher()
+        result = await dispatcher.dispatch("extract_image_text", {"language": 123})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        assert "language" in str(payload).lower()
+        fake_sb.extract_image_text.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_list_language_rejected(self):
+        dispatcher, fake_sb = _make_dispatcher()
+        result = await dispatcher.dispatch("extract_image_text", {"language": ["eng"]})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        fake_sb.extract_image_text.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_empty_string_language_rejected(self):
+        dispatcher, fake_sb = _make_dispatcher()
+        result = await dispatcher.dispatch("extract_image_text", {"language": ""})
+        payload = json.loads(result[0].text)
+        assert payload["ok"] is False
+        fake_sb.extract_image_text.assert_not_awaited()
+
+
+# ============================================================================
+# Facade-level: real OCR output normalization (decimal confidence, -1)
+# ============================================================================
+
+
+class TestFacadeOCRNormalization:
+    """Tests that exercise the real facade OCR path with mocked pytesseract
+    output containing decimal confidence strings and -1 values."""
+
+    @pytest.mark.asyncio
+    async def test_decimal_confidence_parsed_correctly(self):
+        """pytesseract can return conf as '96.590439' — must not crash."""
+        import sys
+        import types
+
+        from super_browser import SuperBrowser
+
+        sb = SuperBrowser()
+        sb._page = MagicMock()
+        sb._page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+        sb._page.is_alive = True
+        sb._page.engine_page = MagicMock()
+        sb._page.engine_page.query_selector = AsyncMock(return_value=None)
+
+        mock_data = {
+            "text": ["Milk", "2L", "", "SAR"],
+            "conf": ["96.590439", "88.0", "-1", "72.5"],
+            "left": [10, 60, 0, 10],
+            "top": [10, 10, 0, 30],
+            "width": [40, 20, 0, 30],
+            "height": [18, 18, 0, 18],
+        }
+
+        fake_pytesseract = types.ModuleType("pytesseract")
+        fake_pytesseract.image_to_data = MagicMock(return_value=mock_data)
+        fake_pytesseract.Output = MagicMock(DICT="dict")
+
+        # Mock PIL to avoid needing real PNG bytes.
+        mock_img = MagicMock()
+        mock_img.convert = MagicMock(return_value=mock_img)
+        mock_img.crop = MagicMock(return_value=mock_img)
+        fake_pil = types.ModuleType("PIL")
+        fake_pil_image = types.ModuleType("PIL.Image")
+        fake_pil_image.open = MagicMock(return_value=mock_img)
+        fake_pil.Image = fake_pil_image
+
+        orig_modules = dict(sys.modules)
+        sys.modules["pytesseract"] = fake_pytesseract
+        sys.modules["PIL"] = fake_pil
+        sys.modules["PIL.Image"] = fake_pil_image
+
+        try:
+            result = await sb.extract_image_text()
+        finally:
+            sys.modules.clear()
+            sys.modules.update(orig_modules)
+
+        # Should not crash, and should normalize confidence correctly.
+        assert result.ok is True
+        words = result.data["words"]
+        # 3 words (empty text and -1 conf are skipped).
+        assert len(words) == 3
+        # Decimal confidence normalized correctly.
+        assert words[0]["text"] == "Milk"
+        assert abs(words[0]["confidence"] - 0.9659) < 0.01
+        assert words[1]["text"] == "2L"
+        assert abs(words[1]["confidence"] - 0.88) < 0.01
+
+    @pytest.mark.asyncio
+    async def test_negative_confidence_skipped(self):
+        """conf=-1 entries must be skipped, not crash."""
+        import sys
+        import types
+
+        from super_browser import SuperBrowser
+
+        sb = SuperBrowser()
+        sb._page = MagicMock()
+        sb._page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+        sb._page.is_alive = True
+        sb._page.engine_page = MagicMock()
+        sb._page.engine_page.query_selector = AsyncMock(return_value=None)
+
+        mock_data = {
+            "text": ["Hello", "", "World"],
+            "conf": ["95.0", "-1", "-1"],
+            "left": [10, 0, 10],
+            "top": [10, 0, 30],
+            "width": [50, 0, 50],
+            "height": [18, 0, 18],
+        }
+
+        fake_pytesseract = types.ModuleType("pytesseract")
+        fake_pytesseract.image_to_data = MagicMock(return_value=mock_data)
+        fake_pytesseract.Output = MagicMock(DICT="dict")
+
+        mock_img = MagicMock()
+        mock_img.convert = MagicMock(return_value=mock_img)
+        mock_img.crop = MagicMock(return_value=mock_img)
+        fake_pil = types.ModuleType("PIL")
+        fake_pil_image = types.ModuleType("PIL.Image")
+        fake_pil_image.open = MagicMock(return_value=mock_img)
+        fake_pil.Image = fake_pil_image
+
+        orig_modules = dict(sys.modules)
+        sys.modules["pytesseract"] = fake_pytesseract
+        sys.modules["PIL"] = fake_pil
+        sys.modules["PIL.Image"] = fake_pil_image
+
+        try:
+            result = await sb.extract_image_text()
+        finally:
+            sys.modules.clear()
+            sys.modules.update(orig_modules)
+
+        assert result.ok is True
+        words = result.data["words"]
+        # Only "Hello" survives (World has conf=-1).
+        assert len(words) == 1
+        assert words[0]["text"] == "Hello"
+
+
+# ============================================================================
+# Facade-level: selector resolution (element bounds → crop → OCR)
+# ============================================================================
+
+
+class TestFacadeSelectorResolution:
+    """Verify selector resolves element bounds and crops before OCR."""
+
+    @pytest.mark.asyncio
+    async def test_selector_resolves_element_bounds(self):
+        """When selector is provided, the facade resolves element bounding box
+        and crops the screenshot before OCR."""
+        import sys
+        import types
+
+        from super_browser import SuperBrowser
+
+        sb = SuperBrowser()
+        sb._page = MagicMock()
+        sb._page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+        sb._page.is_alive = True
+
+        # Mock element with bounding box.
+        mock_el = MagicMock()
+        mock_el.bounding_box = AsyncMock(return_value={
+            "x": 100, "y": 200, "width": 300, "height": 150,
+        })
+        sb._page.engine_page = MagicMock()
+        sb._page.engine_page.query_selector = AsyncMock(return_value=mock_el)
+
+        mock_data = {
+            "text": ["Product"],
+            "conf": ["95.0"],
+            "left": [0],
+            "top": [0],
+            "width": [60],
+            "height": [18],
+        }
+
+        fake_pytesseract = types.ModuleType("pytesseract")
+        fake_pytesseract.image_to_data = MagicMock(return_value=mock_data)
+        fake_pytesseract.Output = MagicMock(DICT="dict")
+
+        mock_img = MagicMock()
+        mock_img.convert = MagicMock(return_value=mock_img)
+        mock_img.crop = MagicMock(return_value=mock_img)
+        fake_pil = types.ModuleType("PIL")
+        fake_pil_image = types.ModuleType("PIL.Image")
+        fake_pil_image.open = MagicMock(return_value=mock_img)
+        fake_pil.Image = fake_pil_image
+
+        orig_modules = dict(sys.modules)
+        sys.modules["pytesseract"] = fake_pytesseract
+        sys.modules["PIL"] = fake_pil
+        sys.modules["PIL.Image"] = fake_pil_image
+
+        try:
+            result = await sb.extract_image_text(selector="#product-img")
+        finally:
+            sys.modules.clear()
+            sys.modules.update(orig_modules)
+
+        assert result.ok is True
+        # Selector was resolved (query_selector called with the selector).
+        sb._page.engine_page.query_selector.assert_awaited_once_with("#product-img")
+        # Bounding box was queried.
+        mock_el.bounding_box.assert_awaited_once()
+        # Source echoes the selector.
+        assert result.data["source"]["selector"] == "#product-img"
+
+    @pytest.mark.asyncio
+    async def test_selector_not_found_falls_back_to_viewport(self):
+        """When selector doesn't match any element, OCR runs on the viewport."""
+        import sys
+        import types
+
+        from super_browser import SuperBrowser
+
+        sb = SuperBrowser()
+        sb._page = MagicMock()
+        sb._page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+        sb._page.is_alive = True
+        sb._page.engine_page = MagicMock()
+        sb._page.engine_page.query_selector = AsyncMock(return_value=None)  # not found
+
+        mock_data = {
+            "text": ["Fallback"],
+            "conf": ["90.0"],
+            "left": [0],
+            "top": [0],
+            "width": [70],
+            "height": [18],
+        }
+
+        fake_pytesseract = types.ModuleType("pytesseract")
+        fake_pytesseract.image_to_data = MagicMock(return_value=mock_data)
+        fake_pytesseract.Output = MagicMock(DICT="dict")
+
+        mock_img = MagicMock()
+        mock_img.convert = MagicMock(return_value=mock_img)
+        mock_img.crop = MagicMock(return_value=mock_img)
+        fake_pil = types.ModuleType("PIL")
+        fake_pil_image = types.ModuleType("PIL.Image")
+        fake_pil_image.open = MagicMock(return_value=mock_img)
+        fake_pil.Image = fake_pil_image
+
+        orig_modules = dict(sys.modules)
+        sys.modules["pytesseract"] = fake_pytesseract
+        sys.modules["PIL"] = fake_pil
+        sys.modules["PIL.Image"] = fake_pil_image
+
+        try:
+            result = await sb.extract_image_text(selector="#nonexistent")
+        finally:
+            sys.modules.clear()
+            sys.modules.update(orig_modules)
+
+        # Should not crash — falls back to viewport OCR.
+        assert result.ok is True
+        assert len(result.data["words"]) == 1
+        assert result.data["source"]["selector"] == "#nonexistent"

@@ -589,15 +589,11 @@ class SuperBrowser:
 
         Raises RuntimeError if OCR dependencies are unavailable.
         """
-        import time
-
         from super_browser.results.types import action_result
-
-        start = time.monotonic_ns()
 
         if not self._page:
             return action_result(
-                ok=False, start_ns=start,
+                ok=False,
                 error="Not started",
             )
 
@@ -610,18 +606,42 @@ class SuperBrowser:
                 "Tesseract OCR is not installed or the requested language pack is unavailable."
             )
 
+        # Determine the crop region: selector → element bounds, or explicit bounds.
+        crop_bounds: Optional[tuple[int, int, int, int]] = None
+
+        if selector is not None:
+            # Resolve the selector to element bounding box via the engine page.
+            try:
+                el = await self._page.engine_page.query_selector(selector)
+                if el is not None:
+                    box = await el.bounding_box()
+                    if box is not None and box["width"] > 0 and box["height"] > 0:
+                        crop_bounds = (
+                            int(box["x"]), int(box["y"]),
+                            int(box["width"]), int(box["height"]),
+                        )
+                # If element not found or no box, we fall through to
+                # viewport/page OCR — the selector is still echoed in source.
+            except Exception:
+                pass  # best-effort; fall through to uncropped OCR
+
+        if bounds is not None:
+            crop_bounds = (
+                int(bounds["x"]), int(bounds["y"]),
+                int(bounds["width"]), int(bounds["height"]),
+            )
+
         # Capture screenshot as PNG.
         png_bytes = await self._page.screenshot(full_page=full_page, format="png")
 
-        # Crop to bounds if specified.
-        if bounds is not None:
+        # Crop to the resolved bounds if any.
+        if crop_bounds is not None:
             from io import BytesIO
 
             from PIL import Image as PILImage
 
             img = PILImage.open(BytesIO(png_bytes))
-            x, y = int(bounds["x"]), int(bounds["y"])
-            w, h = int(bounds["width"]), int(bounds["height"])
+            x, y, w, h = crop_bounds
             img = img.crop((x, y, x + w, y + h))
             out = BytesIO()
             img.save(out, format="PNG")
@@ -646,15 +666,21 @@ class SuperBrowser:
                 ) from exc
             raise
 
-        # Build word list.
+        # Build word list. Parse confidence with float() — pytesseract can
+        # return decimal strings like "96.59" or "-1" for non-text regions.
         words: list[dict[str, Any]] = []
         n = len(data.get("text", []))
         for i in range(n):
-            text = data["text"][i].strip()
-            conf = int(data["conf"][i])
-            if not text or conf <= 0:
+            text = str(data["text"][i]).strip()
+            if not text:
                 continue
-            confidence = float(conf) / 100.0
+            try:
+                conf_raw = float(data["conf"][i])
+            except (TypeError, ValueError):
+                continue
+            if conf_raw <= 0:
+                continue
+            confidence = conf_raw / 100.0
             if confidence < min_confidence:
                 continue
             words.append({
@@ -669,7 +695,7 @@ class SuperBrowser:
         joined_text = " ".join(w["text"] for w in words)
 
         return action_result(
-            ok=True, start_ns=start,
+            ok=True,
             data={
                 "text": joined_text,
                 "words": words,
