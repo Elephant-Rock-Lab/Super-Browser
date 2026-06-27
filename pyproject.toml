@@ -57,6 +57,10 @@ patchright = [
     "psutil>=5.9",
     "Pillow>=10.0",
 ]
+vision = [
+    "Pillow>=10.0",
+    "pytesseract>=0.3.10",
+]
 playwright = [
     "playwright>=1.40",
 ]
@@ -69,7 +73,7 @@ cdp = [
     "aiohttp>=3.9",
 ]
 all = [
-    "superbrowser-sdk[patchright,playwright,selenium,cdp,security,anthropic,openai,cloud,mcp]",
+    "superbrowser-sdk[patchright,playwright,selenium,cdp,security,anthropic,openai,cloud,mcp,vision]",
 ]
 dev = [
     "pytest>=9.0",

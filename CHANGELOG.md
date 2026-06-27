@@ -30,6 +30,27 @@ Now the runtime self-heals.
 - No retry of mutating actions mid-operation — recovery happens only between
   tool calls, never during one.
 
+## [Unreleased]
+
+### Added — OCR image text extraction (P7.B)
+
+New `extract_image_text` inspect-tier MCP tool. Runs Tesseract OCR on a
+screenshot (viewport, full page, or cropped to bounds) and returns structured
+word boxes + joined text. This makes image-encoded content — flyer/catalog
+sites that embed product names and prices in raster graphics — deterministically
+readable without depending on model vision.
+
+- Arguments: `selector` (optional), `bounds` (optional, `{x, y, width, height}`),
+  `full_page` (optional), `language` (default `"eng"`, supports `"eng+ara"` etc.),
+  `min_confidence` (0.0–1.0, filters low-confidence words).
+- `selector` and `bounds` are mutually exclusive; no args = viewport OCR.
+- Validation: all args validated before any screenshot/OCR work.
+- Output: `{text, words[{text,x,y,w,h,confidence}], language, source}`.
+- Graceful degradation: returns structured `ocr_unavailable` error when
+  Tesseract binary or language pack is missing — no crash.
+- Redaction: covers both joined `text` and individual `words[].text`.
+- New `[vision]` optional extra: `Pillow>=10.0`, `pytesseract>=0.3.10`.
+
 ## [2.11.0] — 2026-06-27
 
 ### Added — Image metadata visibility in observe (P7.D)

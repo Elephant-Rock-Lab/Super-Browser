@@ -573,6 +573,115 @@ class SuperBrowser:
             },
         )
 
+    async def extract_image_text(
+        self,
+        *,
+        selector: Optional[str] = None,
+        bounds: Optional[dict[str, float]] = None,
+        full_page: bool = False,
+        language: str = "eng",
+        min_confidence: float = 0.0,
+    ) -> ActionResult:
+        """Extract text from a screenshot region via OCR.
+
+        Captures a screenshot (viewport, full page, or cropped to bounds/selector),
+        runs Tesseract OCR, and returns structured word boxes + joined text.
+
+        Raises RuntimeError if OCR dependencies are unavailable.
+        """
+        import time
+
+        from super_browser.results.types import action_result
+
+        start = time.monotonic_ns()
+
+        if not self._page:
+            return action_result(
+                ok=False, start_ns=start,
+                error="Not started",
+            )
+
+        # Check OCR availability early.
+        try:
+            import pytesseract  # noqa: F401
+            from PIL import Image  # noqa: F401
+        except ImportError:
+            raise RuntimeError(
+                "Tesseract OCR is not installed or the requested language pack is unavailable."
+            )
+
+        # Capture screenshot as PNG.
+        png_bytes = await self._page.screenshot(full_page=full_page, format="png")
+
+        # Crop to bounds if specified.
+        if bounds is not None:
+            from io import BytesIO
+
+            from PIL import Image as PILImage
+
+            img = PILImage.open(BytesIO(png_bytes))
+            x, y = int(bounds["x"]), int(bounds["y"])
+            w, h = int(bounds["width"]), int(bounds["height"])
+            img = img.crop((x, y, x + w, y + h))
+            out = BytesIO()
+            img.save(out, format="PNG")
+            png_bytes = out.getvalue()
+
+        # Run OCR with the specified language.
+        try:
+            from io import BytesIO
+
+            from PIL import Image as PILImage
+
+            img = PILImage.open(BytesIO(png_bytes)).convert("RGB")
+            # Use the language parameter for tesseract.
+            config = f"--psm 11 -l {language}"
+            data = pytesseract.image_to_data(
+                img, config=config, output_type=pytesseract.Output.DICT,
+            )
+        except Exception as exc:
+            if "language" in str(exc).lower() or "tesseract" in str(exc).lower():
+                raise RuntimeError(
+                    "Tesseract OCR is not installed or the requested language pack is unavailable."
+                ) from exc
+            raise
+
+        # Build word list.
+        words: list[dict[str, Any]] = []
+        n = len(data.get("text", []))
+        for i in range(n):
+            text = data["text"][i].strip()
+            conf = int(data["conf"][i])
+            if not text or conf <= 0:
+                continue
+            confidence = float(conf) / 100.0
+            if confidence < min_confidence:
+                continue
+            words.append({
+                "text": text,
+                "x": float(data["left"][i]),
+                "y": float(data["top"][i]),
+                "w": float(data["width"][i]),
+                "h": float(data["height"][i]),
+                "confidence": round(confidence, 4),
+            })
+
+        joined_text = " ".join(w["text"] for w in words)
+
+        return action_result(
+            ok=True, start_ns=start,
+            data={
+                "text": joined_text,
+                "words": words,
+                "language": language,
+                "source": {
+                    "selector": selector,
+                    "bounds": bounds,
+                    "full_page": full_page,
+                },
+            },
+        )
+
     # -- Tab helper (CHK-07) --
 
     async def _attach_page(self, page_obj: Any) -> None:

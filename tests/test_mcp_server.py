@@ -35,7 +35,7 @@ from super_browser.mcp_server import (
 # Inspect-tier tool set (always advertised) — includes diagnostics (P2).
 INSPECT_TOOL_NAMES = {
     "browser_status", "current_url", "observe",
-    "extract_text", "screenshot", "list_tabs",
+    "extract_text", "screenshot", "list_tabs", "extract_image_text",
     "get_console_messages", "get_page_errors", "get_network_errors",
     "list_requests", "get_request",
 }
@@ -536,8 +536,8 @@ class TestServerWiring:
         assert server._sb_authorizer is not None  # type: ignore[attr-defined]
 
     def test_default_server_advertises_exactly_13_default_tools(self):
-        """Default build_server() advertises exactly the 13 default tools
-        (6 inspect + 5 diagnostics + 2 navigation), verified through the actual
+        """Default build_server() advertises exactly the 18 default tools
+        (7 inspect + 5 diagnostics + 6 navigation), verified through the actual
         advertisement function, not a constant."""
         from super_browser.mcp_server import _tools_for_policy
 
@@ -546,10 +546,10 @@ class TestServerWiring:
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
         assert advertised_names == DEFAULT_TOOL_NAMES
-        assert len(advertised) == 17
+        assert len(advertised) == 18
 
     def test_actions_enabled_server_advertises_exactly_29_tools(self):
-        """build_server(policy=allow_actions=True) advertises all 19 tools,
+        """build_server(policy=allow_actions=True) advertises all 30 tools,
         verified through the actual advertisement function."""
         from super_browser.mcp_server import _tools_for_policy
 
@@ -558,7 +558,7 @@ class TestServerWiring:
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
         assert advertised_names == ALL_TOOL_NAMES
-        assert len(advertised) == 29
+        assert len(advertised) == 30
 
     @pytest.mark.asyncio
     async def test_default_server_dispatch_returns_refusal_not_unknown(self):
