@@ -327,6 +327,7 @@ class TestPhase1Unchanged:
         assert names == {
             "browser_status", "current_url", "observe",
             "extract_text", "screenshot", "list_tabs", "extract_image_text",
+            "analyze_image",
         }
 
     def test_write_tools_disjoint_from_phase1(self):

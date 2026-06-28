@@ -32,12 +32,12 @@ from super_browser.mcp_server import (
     build_server,
 )
 
-# Inspect-tier tool set (always advertised) — includes diagnostics (P2).
+# Inspect-tier tool set (always advertised) — includes diagnostics (P2) + vision (P7.C).
 INSPECT_TOOL_NAMES = {
     "browser_status", "current_url", "observe",
     "extract_text", "screenshot", "list_tabs", "extract_image_text",
     "get_console_messages", "get_page_errors", "get_network_errors",
-    "list_requests", "get_request",
+    "list_requests", "get_request", "analyze_image",
 }
 # Navigation-tier tool set (always advertised).
 NAVIGATION_TOOL_NAMES = {"navigate", "wait_for", "switch_tab", "reload", "go_back", "go_forward"}
@@ -546,7 +546,7 @@ class TestServerWiring:
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
         assert advertised_names == DEFAULT_TOOL_NAMES
-        assert len(advertised) == 18
+        assert len(advertised) == 19
 
     def test_actions_enabled_server_advertises_exactly_29_tools(self):
         """build_server(policy=allow_actions=True) advertises all 30 tools,
@@ -558,7 +558,7 @@ class TestServerWiring:
         advertised = _tools_for_policy(policy)
         advertised_names = {t.name for t in advertised}
         assert advertised_names == ALL_TOOL_NAMES
-        assert len(advertised) == 30
+        assert len(advertised) == 31
 
     @pytest.mark.asyncio
     async def test_default_server_dispatch_returns_refusal_not_unknown(self):

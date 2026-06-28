@@ -83,12 +83,12 @@ class TestInteractionToolAdvertisement:
     def test_default_advertises_17(self):
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
 
-        assert len(_tools_for_policy(MCPSessionPolicy())) == 18
+        assert len(_tools_for_policy(MCPSessionPolicy())) == 19
 
     def test_action_mode_advertises_29(self):
         from super_browser.mcp_server import MCPSessionPolicy, _tools_for_policy
 
-        assert len(_tools_for_policy(MCPSessionPolicy(allow_actions=True))) == 30
+        assert len(_tools_for_policy(MCPSessionPolicy(allow_actions=True))) == 31
 
 
 # ============================================================================
